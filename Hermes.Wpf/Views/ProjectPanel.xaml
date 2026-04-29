@@ -1,0 +1,44 @@
+<UserControl x:Class="Hermes.Wpf.Views.ProjectPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d">
+    <Border Style="{StaticResource PanelBorderStyle}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="8" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="8" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="16" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="8" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="8" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="8" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="8" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Style="{StaticResource HeaderTextStyle}" Text="Project Manager" />
+            <TextBox Grid.Row="2" Height="30" Text="{Binding Projects.NewProjectPath, UpdateSourceTrigger=PropertyChanged}" />
+            <Button Grid.Row="4" Height="30" VerticalAlignment="Top" Content="Add Project" Command="{Binding AddProjectCommand}" />
+
+            <ListBox Grid.Row="4"
+                     Margin="0,42,0,0"
+                     ItemsSource="{Binding Projects.Projects}"
+                     SelectedItem="{Binding Projects.SelectedProject, Mode=TwoWay}"
+                     DisplayMemberPath="Name" />
+
+            <TextBlock Grid.Row="6" Style="{StaticResource HeaderTextStyle}" Text="Quick Actions" />
+            <Button Grid.Row="8" Height="30" Content="Status" Command="{Binding StatusCommand}" />
+            <Button Grid.Row="10" Height="30" Content="Gateway Run" Command="{Binding GatewayRunCommand}" />
+            <Button Grid.Row="12" Height="30" Content="Reset Webhook" Command="{Binding ResetWebhookCommand}" />
+            <Button Grid.Row="14" Height="30" Content="Analyze Code" Command="{Binding AnalyzeCodeCommand}" />
+        </Grid>
+    </Border>
+</UserControl>

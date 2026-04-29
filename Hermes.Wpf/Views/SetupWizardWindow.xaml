@@ -1,0 +1,29 @@
+<Window x:Class="Hermes.Wpf.Views.SetupWizardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Setup Wizard"
+        Height="360"
+        Width="620"
+        Background="{StaticResource AppBackgroundBrush}"
+        Foreground="{StaticResource PrimaryTextBrush}">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Style="{StaticResource HeaderTextStyle}" Text="Hermes Setup Wizard" />
+        <TextBox Grid.Row="2"
+                 Text="{Binding StatusText}"
+                 IsReadOnly="True"
+                 TextWrapping="Wrap"
+                 AcceptsReturn="True" />
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Width="130" Margin="0,0,8,0" Content="Run Preflight" Command="{Binding RunPreflightCommand}" />
+            <Button Width="130" Content="Install Hermes" Command="{Binding InstallHermesCommand}" />
+        </StackPanel>
+    </Grid>
+</Window>

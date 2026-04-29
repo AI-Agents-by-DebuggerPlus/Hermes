@@ -1,0 +1,12 @@
+Hermes
+
+MyHermesBot
+
+8567681642:AAHXP-5S494r_OHzjmGq7zK1eU70uJQzlz8
+
+
+https://api.telegram.org/bot8567681642:AAHXP-5S494r_OHzjmGq7zK1eU70uJQzlz8/deleteWebhook?drop_pending_updates=true
+
+
+
+\\wsl$\Ubuntu\home\busin\hermes-agent

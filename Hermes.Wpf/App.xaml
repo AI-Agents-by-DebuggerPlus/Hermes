@@ -1,0 +1,14 @@
+﻿<Application x:Class="Hermes.Wpf.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:Hermes.Wpf.Converters"
+             StartupUri="Views/MainWindow.xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Resources/Styles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <converters:ConnectionStateToColorConverter x:Key="ConnectionStateToColorConverter" />
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

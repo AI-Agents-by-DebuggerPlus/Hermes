@@ -1,0 +1,64 @@
+<Window x:Class="Hermes.Wpf.Views.HelpWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Hermes Help"
+        Height="620"
+        Width="900"
+        MinHeight="500"
+        MinWidth="760"
+        Background="{StaticResource AppBackgroundBrush}"
+        Foreground="{StaticResource PrimaryTextBrush}">
+    <Grid Margin="12">
+        <Border Style="{StaticResource PanelBorderStyle}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="12">
+                    <TextBlock Style="{StaticResource HeaderTextStyle}" Text="Hermes Command Center — Help" />
+                    <TextBlock Margin="0,12,0,0" TextWrapping="Wrap">
+Приложение — это WPF интерфейс для локального запуска Hermes через WSL. Вы выбираете проект, отправляете сообщения в чат и запускаете быстрые команды без работы в терминале вручную.
+                    </TextBlock>
+
+                    <TextBlock Margin="0,16,0,0" FontWeight="SemiBold" Text="Что уже реализовано" />
+                    <TextBlock Margin="0,6,0,0" TextWrapping="Wrap">
+- Темная тема интерфейса (все основные элементы)
+- Project Manager: добавление и выбор проекта
+- Chat: отправка в Hermes + история по проекту
+- Quick Actions: status, gateway run, gateway reset-webhook, analyze code
+- Terminal Output: вывод stdout/stderr
+- Logs: отдельное окно + запись в файлы
+- Авто-ротация логов (оставляются 3 последних файла)
+                    </TextBlock>
+
+                    <TextBlock Margin="0,16,0,0" FontWeight="SemiBold" Text="Как использовать" />
+                    <TextBlock Margin="0,6,0,0" TextWrapping="Wrap">
+1) В Project Manager укажите путь к проекту и нажмите Add Project.
+2) Выберите проект в списке.
+3) В Chat введите сообщение и нажмите Enter.
+4) Для переноса строки используйте Shift+Enter.
+5) Для быстрых проверок используйте кнопки в Quick Actions.
+6) Для технической диагностики откройте окно Logs.
+                    </TextBlock>
+
+                    <TextBlock Margin="0,16,0,0" FontWeight="SemiBold" Text="Что нужно для подключения к Hermes" />
+                    <TextBlock Margin="0,6,0,0" TextWrapping="Wrap">
+- На Windows должен быть установлен WSL
+- В WSL должна работать команда hermes
+- Должна существовать venv: ~/hermes-agent/venv
+- Команда `source ~/hermes-agent/venv/bin/activate &amp;&amp; hermes status` должна выполняться без ошибок
+                    </TextBlock>
+
+                    <TextBlock Margin="0,16,0,0" FontWeight="SemiBold" Text="Что можно протестировать уже сейчас" />
+                    <TextBlock Margin="0,6,0,0" TextWrapping="Wrap">
+- Отправка сообщений в чат по Enter
+- Перенос строки по Shift+Enter
+- Выполнение кнопок Quick Actions
+- Появление логов в окне Logs
+- Создание файлов логов в Docs/Logs и удаление старых файлов
+                    </TextBlock>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</Window>
