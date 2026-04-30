@@ -25,11 +25,30 @@
             </Grid.RowDefinitions>
 
             <TextBlock Grid.Row="0" Style="{StaticResource HeaderTextStyle}" Text="Project Manager" />
-            <TextBox Grid.Row="2" Height="30" Text="{Binding Projects.NewProjectPath, UpdateSourceTrigger=PropertyChanged}" />
-            <Button Grid.Row="4" Height="30" VerticalAlignment="Top" Content="Add Project" Command="{Binding AddProjectCommand}" />
+            <TextBox Grid.Row="2"
+                     Height="30"
+                     Text="{Binding Projects.NewProjectPath, UpdateSourceTrigger=PropertyChanged}"
+                     ToolTip="Полный путь Windows к папке проекта, например D:\Work\HermesAgent" />
+
+            <StackPanel Grid.Row="4"
+                        Height="34"
+                        VerticalAlignment="Top"
+                        Orientation="Horizontal">
+                <Button Width="112"
+                        Height="30"
+                        Margin="0,0,10,0"
+                        Content="Add Project"
+                        Command="{Binding AddProjectCommand}"
+                        ToolTip="Добавить папку из поля или из «Обзор…»" />
+                <Button Width="112"
+                        Height="30"
+                        Content="Обзор…"
+                        Command="{Binding BrowseProjectFolderCommand}"
+                        ToolTip="Выбрать папку в диалоге" />
+            </StackPanel>
 
             <ListBox Grid.Row="4"
-                     Margin="0,42,0,0"
+                     Margin="0,46,0,0"
                      ItemsSource="{Binding Projects.Projects}"
                      SelectedItem="{Binding Projects.SelectedProject, Mode=TwoWay}"
                      DisplayMemberPath="Name" />

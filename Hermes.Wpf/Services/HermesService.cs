@@ -12,49 +12,88 @@ public sealed class HermesService
 
     public async Task<string> SendMessageAsync(string message, string wslWorkDir, HermesSettings settings, int timeoutSeconds = 60)
     {
-        var escaped = message.Replace("'", "\\'").Replace("\"", "\\\"");
-        var args = BuildWslArgs(
-            settings,
-            $"source {settings.VenvPath}/bin/activate && {settings.HermesCommand} chat -z '{escaped}'",
-            wslWorkDir);
+        // Double-quote the prompt — single-quoted -z '…' breaks for many non-ASCII prompts on Ubuntu/WSL.
+        var dq = EscapeForDoubleQuotedBash(message);
 
-        return await ExecuteRawAsync(args, timeoutSeconds);
+        // Global -z must appear before the subcommand name (see `hermes --help`: [-z PROMPT] … {chat,…}).
+        var script = ComposeScript(settings, wslWorkDir,
+            $"{ActivationLine(settings)} && {settings.HermesCommand} -z \"{dq}\" chat");
+
+        return await ExecuteWslArgvAsync(BuildWslArgv(settings, script), timeoutSeconds).ConfigureAwait(false);
     }
 
     public async Task<string> RunQuickActionAsync(string command, string wslWorkDir, HermesSettings settings)
     {
-        var args = BuildWslArgs(
-            settings,
-            $"source {settings.VenvPath}/bin/activate && {settings.HermesCommand} {command}",
-            wslWorkDir);
+        var script =
+            ComposeScript(settings, wslWorkDir, $"{ActivationLine(settings)} && {settings.HermesCommand} {command}");
 
-        return await ExecuteRawAsync(args, 120);
+        return await ExecuteWslArgvAsync(BuildWslArgv(settings, script), 120).ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// Builds wsl.exe arguments that reliably find /bin/bash on any WSL distro.
-    /// Never use -e bash because relay context may not have PATH configured.
-    /// </summary>
-    private static string BuildWslArgs(HermesSettings settings, string bashCommand, string? wslWorkDir = null)
+    private static string ComposeScript(HermesSettings settings, string wslWorkDir, string bashTail)
     {
-        var cdPrefix = string.IsNullOrWhiteSpace(wslWorkDir) ? string.Empty : $"cd '{wslWorkDir}' && ";
-        var fullCmd = $"{cdPrefix}{bashCommand}";
-        var escaped = fullCmd.Replace("\"", "\\\"");
+        var wp = (wslWorkDir ?? string.Empty).Trim();
+        var cdPrefix = string.IsNullOrEmpty(wp) ? string.Empty : $"cd {BashSingleQuotePosixPath(wp)} && ";
+        return $"{cdPrefix}{bashTail}";
+    }
 
-        if (!string.IsNullOrWhiteSpace(settings.WslDistro))
+    /// <summary>source …/bin/activate — mirrors ConnectionService tilde rules (~/ must not sit only inside double quotes alone).</summary>
+    private static string ActivationLine(HermesSettings settings)
+    {
+        var vp = settings.VenvPath.Trim();
+        if (string.IsNullOrEmpty(vp))
         {
-            return $"-d \"{settings.WslDistro}\" -- /bin/bash -lc \"{escaped}\"";
+            return "true";
         }
 
-        return $"-- /bin/bash -lc \"{escaped}\"";
+        if (vp.StartsWith("~/", StringComparison.Ordinal))
+        {
+            var rest = vp[2..];
+            return $"source \"$HOME/{rest}/bin/activate\"";
+        }
+
+        if (vp.StartsWith("/", StringComparison.Ordinal))
+        {
+            return $"source {BashSingleQuotePosixPath(vp)}/bin/activate";
+        }
+
+        return $"source \"{EscapeInnerDouble(vp)}/bin/activate\"";
     }
 
-    private async Task<string> ExecuteRawAsync(string arguments, int timeoutSeconds)
+    private static string BashSingleQuotePosixPath(string unixPath) =>
+        "'" + unixPath.Replace("'", "'\\''", StringComparison.Ordinal) + "'";
+
+    private static string EscapeInnerDouble(string s) =>
+        s.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal);
+
+    private static string EscapeForDoubleQuotedBash(string s) =>
+        s.Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("`", "\\`")
+            .Replace("\"", "\\\"", StringComparison.Ordinal)
+            .Replace("$", "\\$");
+
+    private static IReadOnlyList<string> BuildWslArgv(HermesSettings settings, string bashLcScriptOneArgument)
+    {
+        var argv = new List<string>();
+        if (!string.IsNullOrWhiteSpace(settings.WslDistro))
+        {
+            argv.Add("-d");
+            argv.Add(settings.WslDistro.Trim());
+        }
+
+        argv.Add("--");
+        argv.Add("/bin/bash");
+        argv.Add("-lc");
+        argv.Add(bashLcScriptOneArgument);
+
+        return argv;
+    }
+
+    private async Task<string> ExecuteWslArgvAsync(IReadOnlyList<string> argv, int timeoutSeconds)
     {
         var psi = new ProcessStartInfo
         {
             FileName = "wsl.exe",
-            Arguments = arguments,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -64,6 +103,12 @@ public sealed class HermesService
         };
 
         psi.Environment["WSL_UTF8"] = "1";
+
+        psi.ArgumentList.Clear();
+        foreach (var chunk in argv)
+        {
+            psi.ArgumentList.Add(chunk);
+        }
 
         using var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
         var sb = new StringBuilder();
@@ -96,7 +141,14 @@ public sealed class HermesService
         process.BeginErrorReadLine();
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
-        await process.WaitForExitAsync(cts.Token);
-        return sb.ToString().Trim();
+        await process.WaitForExitAsync(cts.Token).ConfigureAwait(false);
+
+        var text = sb.ToString().Trim();
+        if (process.ExitCode != 0 && !string.IsNullOrEmpty(text))
+        {
+            OutputReceived?.Invoke($"[exit {process.ExitCode}]");
+        }
+
+        return text;
     }
 }

@@ -17,6 +17,7 @@ public partial class MainWindow : Window
     private readonly ConnectionService _connectionService;
     private readonly SettingsService _settingsService;
     private HermesSettings? _settings;
+    private ChatWindow? _chatWindow;
     private LogsWindow? _logsWindow;
     private HelpWindow? _helpWindow;
     private SetupWizardWindow? _setupWizardWindow;
@@ -72,6 +73,7 @@ public partial class MainWindow : Window
             _settings);
 
         DataContext = vm;
+        OpenChatWindow();
         await vm.RefreshConnectionAsync();
 
         if (_settings.IsFirstRun)
@@ -88,6 +90,34 @@ public partial class MainWindow : Window
         {
             await _settingsService.SaveAsync(_settings);
         }
+    }
+
+    private void OpenChatButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        OpenChatWindow();
+    }
+
+    private void OpenChatWindow()
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (_chatWindow is null || !_chatWindow.IsLoaded)
+        {
+            _chatWindow = new ChatWindow(vm);
+            _chatWindow.Owner = this;
+            _chatWindow.Show();
+            return;
+        }
+
+        if (_chatWindow.WindowState == WindowState.Minimized)
+        {
+            _chatWindow.WindowState = WindowState.Normal;
+        }
+
+        _chatWindow.Activate();
     }
 
     private void OpenLogsButton_OnClick(object sender, RoutedEventArgs e)

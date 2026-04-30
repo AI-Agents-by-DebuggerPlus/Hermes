@@ -18,13 +18,27 @@
 
             <TextBlock Grid.Row="0" Style="{StaticResource HeaderTextStyle}" Text="Chat" />
 
-            <ListBox Grid.Row="2" ItemsSource="{Binding Chat.Messages}">
+            <ListBox x:Name="MessagesListBox"
+                     Grid.Row="2"
+                     ItemsSource="{Binding Chat.Messages}"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.CanContentScroll="False"
+                     VirtualizingPanel.ScrollUnit="Pixel">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Padding" Value="0" />
+                    </Style>
+                </ListBox.ItemContainerStyle>
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <Border Margin="0,0,0,8" Padding="8" BorderBrush="#30343D" BorderThickness="1" CornerRadius="6">
                             <StackPanel>
                                 <TextBlock FontWeight="Bold" Text="{Binding Role}" />
-                                <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Text="{Binding Text}" />
+                                <TextBlock Margin="0,4,0,0"
+                                           TextWrapping="Wrap"
+                                           TextAlignment="Left"
+                                           Text="{Binding Text}" />
                             </StackPanel>
                         </Border>
                     </DataTemplate>

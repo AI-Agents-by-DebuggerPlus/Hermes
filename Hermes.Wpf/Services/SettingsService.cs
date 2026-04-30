@@ -27,8 +27,9 @@ public sealed class SettingsService
         }
 
         await using var stream = File.OpenRead(_settingsFilePath);
-        var settings = await JsonSerializer.DeserializeAsync<HermesSettings>(stream);
-        return settings ?? new HermesSettings();
+        var settings = await JsonSerializer.DeserializeAsync<HermesSettings>(stream) ?? new HermesSettings();
+        settings.SavedProjectPaths ??= [];
+        return settings;
     }
 
     public async Task SaveAsync(HermesSettings settings)

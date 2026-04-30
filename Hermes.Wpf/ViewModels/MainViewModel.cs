@@ -1,7 +1,10 @@
 using System.Collections.ObjectModel;
+using System.IO;
+using System.Linq;
 using System.Windows;
-using System.Windows.Threading;
 using System.Windows.Input;
+using System.Windows.Threading;
+using Microsoft.Win32;
 using Hermes.Wpf.Commands;
 using Hermes.Wpf.Models;
 using Hermes.Wpf.Services;
@@ -45,13 +48,32 @@ public sealed class MainViewModel : BaseViewModel
         Projects = new ProjectViewModel();
         Projects.PropertyChanged += async (_, args) =>
         {
-            if (args.PropertyName == nameof(ProjectViewModel.SelectedProject) && Projects.SelectedProject is not null)
+            if (args.PropertyName != nameof(ProjectViewModel.SelectedProject))
+            {
+                return;
+            }
+
+            SnapshotProjectsIntoSettings();
+
+            try
+            {
+                await _settingsService.SaveAsync(Settings);
+            }
+            catch (Exception ex)
+            {
+                _logService.LogError($"[settings] Failed to save projects state: {ex.Message}");
+            }
+
+            if (Projects.SelectedProject is not null)
             {
                 await LoadProjectHistoryAsync(Projects.SelectedProject);
             }
         };
 
-        AddProjectCommand = new RelayCommand(_ => AddProject(), _ => !string.IsNullOrWhiteSpace(Projects.NewProjectPath));
+        RestoreProjectsFromSettings();
+
+        AddProjectCommand = new RelayCommand(_ => AddProject());
+        BrowseProjectFolderCommand = new RelayCommand(_ => BrowseProjectFolder());
         SendMessageCommand = new RelayCommand(async _ => await SendMessageAsync(), _ => CanExecuteProjectCommand() && !string.IsNullOrWhiteSpace(Chat.UserInput));
         GatewayRunCommand = new RelayCommand(async _ => await RunQuickActionAsync("gateway run"), _ => CanExecuteProjectCommand());
         StatusCommand = new RelayCommand(async _ => await RunQuickActionAsync("status"), _ => CanExecuteProjectCommand());
@@ -64,6 +86,16 @@ public sealed class MainViewModel : BaseViewModel
         {
             AppendTerminal(line);
         };
+
+        Chat.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ChatViewModel.UserInput))
+            {
+                CommandManager.InvalidateRequerySuggested();
+            }
+        };
+
+        Projects.PropertyChanged += (_, _) => CommandManager.InvalidateRequerySuggested();
 
         _watchdogTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(25) };
         _watchdogTimer.Tick += async (_, _) => await WatchdogTickAsync();
@@ -78,6 +110,7 @@ public sealed class MainViewModel : BaseViewModel
     public ObservableCollection<string> SessionHistoryTitles { get; } = [];
 
     public ICommand AddProjectCommand { get; }
+    public ICommand BrowseProjectFolderCommand { get; }
     public ICommand SendMessageCommand { get; }
     public ICommand GatewayRunCommand { get; }
     public ICommand StatusCommand { get; }
@@ -102,6 +135,54 @@ public sealed class MainViewModel : BaseViewModel
     {
         get => _terminalOutput;
         set => SetProperty(ref _terminalOutput, value);
+    }
+
+    private void SnapshotProjectsIntoSettings()
+    {
+        Settings.SavedProjectPaths = [.. Projects.Projects.Select(p => p.WindowsPath)];
+        Settings.LastSelectedProjectPath = Projects.SelectedProject?.WindowsPath;
+    }
+
+    private void RestoreProjectsFromSettings()
+    {
+        var paths = Settings.SavedProjectPaths ?? [];
+        foreach (var raw in paths.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var trimmed = raw?.Trim();
+            if (string.IsNullOrEmpty(trimmed) || !Directory.Exists(trimmed))
+            {
+                continue;
+            }
+
+            try
+            {
+                var project = _projectService.BuildProject(trimmed);
+                if (Projects.Projects.Any(p =>
+                        string.Equals(p.WindowsPath, project.WindowsPath, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                Projects.Projects.Add(project);
+            }
+            catch (Exception ex)
+            {
+                _logService.LogError($"[project] Skip restore '{trimmed}': {ex.Message}");
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(Settings.LastSelectedProjectPath))
+        {
+            return;
+        }
+
+        var target = Settings.LastSelectedProjectPath.Trim();
+        var selected = Projects.Projects.FirstOrDefault(p =>
+            string.Equals(p.WindowsPath, target, StringComparison.OrdinalIgnoreCase));
+        if (selected is not null)
+        {
+            Projects.SelectedProject = selected;
+        }
     }
 
     public async Task LoadProjectHistoryAsync(HermesProject project)
@@ -165,7 +246,20 @@ public sealed class MainViewModel : BaseViewModel
 
     private void AddProject()
     {
-        var project = _projectService.BuildProject(Projects.NewProjectPath);
+        var raw = Projects.NewProjectPath?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            AppendTerminal("[project] Укажите путь к папке или нажмите «Обзор…».", isError: true);
+            return;
+        }
+
+        if (!Directory.Exists(raw))
+        {
+            AppendTerminal($"[project] Папка не найдена: {raw}", isError: true);
+            return;
+        }
+
+        var project = _projectService.BuildProject(raw);
         if (Projects.Projects.Any(p => string.Equals(p.WindowsPath, project.WindowsPath, StringComparison.OrdinalIgnoreCase)))
         {
             AppendTerminal($"Project already added: {project.WindowsPath}");
@@ -176,6 +270,59 @@ public sealed class MainViewModel : BaseViewModel
         Projects.SelectedProject = project;
         Projects.NewProjectPath = string.Empty;
         AppendTerminal($"Project added: {project.Name}");
+        CommandManager.InvalidateRequerySuggested();
+    }
+
+    private async void BrowseProjectFolder()
+    {
+        var dlg = new OpenFolderDialog
+        {
+            Title = "Выберите папку проекта",
+            InitialDirectory = ResolveInitialDirectoryHint()
+        };
+
+        if (dlg.ShowDialog(Application.Current.MainWindow) != true)
+        {
+            return;
+        }
+
+        var path = dlg.FolderName;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        Settings.LastProjectBrowsePath = path;
+        Projects.NewProjectPath = path;
+        SnapshotProjectsIntoSettings();
+
+        try
+        {
+            await _settingsService.SaveAsync(Settings);
+        }
+        catch (Exception ex)
+        {
+            _logService.LogError($"[settings] Failed to save browse folder: {ex.Message}");
+        }
+
+        CommandManager.InvalidateRequerySuggested();
+    }
+
+    private string? ResolveInitialDirectoryHint()
+    {
+        var browse = Settings.LastProjectBrowsePath?.Trim();
+        if (!string.IsNullOrEmpty(browse) && Directory.Exists(browse))
+        {
+            return browse;
+        }
+
+        var p = Projects.NewProjectPath?.Trim();
+        if (!string.IsNullOrEmpty(p) && Directory.Exists(p))
+        {
+            return p;
+        }
+
+        return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
     }
 
     private async Task SendMessageAsync()
@@ -194,10 +341,12 @@ public sealed class MainViewModel : BaseViewModel
     {
         if (Projects.SelectedProject is null)
         {
+            AppendTerminal("[chat] Select a project in the left panel (Add Project) before sending.", isError: true);
             return;
         }
 
         _isBusy = true;
+        CommandManager.InvalidateRequerySuggested();
         var project = Projects.SelectedProject;
         var wslPath = _projectService.ConvertToWslPath(project.WindowsPath);
         Chat.Messages.Add(new ChatMessage { Role = "User", Text = text });
@@ -215,6 +364,7 @@ public sealed class MainViewModel : BaseViewModel
         finally
         {
             _isBusy = false;
+            CommandManager.InvalidateRequerySuggested();
         }
     }
 
@@ -222,10 +372,12 @@ public sealed class MainViewModel : BaseViewModel
     {
         if (Projects.SelectedProject is null)
         {
+            AppendTerminal("[chat] Select a project before running quick actions.", isError: true);
             return;
         }
 
         _isBusy = true;
+        CommandManager.InvalidateRequerySuggested();
         var wslPath = _projectService.ConvertToWslPath(Projects.SelectedProject.WindowsPath);
         AppendTerminal($"> hermes {command}");
 
@@ -241,6 +393,7 @@ public sealed class MainViewModel : BaseViewModel
         finally
         {
             _isBusy = false;
+            CommandManager.InvalidateRequerySuggested();
         }
     }
 

@@ -7,9 +7,9 @@
         mc:Ignorable="d"
         Title="Hermes Command Center"
         Height="700"
-        Width="1200"
+        Width="1000"
         MinHeight="600"
-        MinWidth="980"
+        MinWidth="720"
         Background="{StaticResource AppBackgroundBrush}"
         Foreground="{StaticResource PrimaryTextBrush}">
     <Grid Margin="12" Background="{StaticResource AppBackgroundBrush}">
@@ -26,14 +26,11 @@
                 <ColumnDefinition Width="320" />
                 <ColumnDefinition Width="10" />
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="10" />
-                <ColumnDefinition Width="360" />
             </Grid.ColumnDefinitions>
 
             <views:ProjectPanel Grid.Column="0" />
-            <views:ChatView Grid.Column="2" />
 
-            <Grid Grid.Column="4">
+            <Grid Grid.Column="2">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="10" />
@@ -54,6 +51,10 @@
                             Margin="0,0,8,0"
                             Content="Help"
                             Click="OpenHelpButton_OnClick" />
+                    <Button Width="90"
+                            Margin="0,0,8,0"
+                            Content="Chat"
+                            Click="OpenChatButton_OnClick" />
                     <Button Width="90"
                             Content="Logs"
                             Click="OpenLogsButton_OnClick" />
