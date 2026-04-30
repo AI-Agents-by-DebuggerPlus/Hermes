@@ -16,6 +16,7 @@ public partial class MainWindow : Window
     private readonly HistoryService _historyService;
     private readonly ConnectionService _connectionService;
     private readonly SettingsService _settingsService;
+    private readonly ChatLogService _chatLogService;
     private HermesSettings? _settings;
     private ChatWindow? _chatWindow;
     private LogsWindow? _logsWindow;
@@ -30,7 +31,8 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         _logService = new LogService();
-        _hermesService = new HermesService();
+        _chatLogService = new ChatLogService(_logService);
+        _hermesService = new HermesService(_logService);
         _projectService = new ProjectService();
         _historyService = new HistoryService();
         _settingsService = new SettingsService();
@@ -65,6 +67,7 @@ public partial class MainWindow : Window
 
         var vm = new MainViewModel(
             _logService,
+            _chatLogService,
             _hermesService,
             _projectService,
             _historyService,
@@ -172,7 +175,14 @@ public partial class MainWindow : Window
         {
             _settingsWindow = new SettingsWindow(_settings);
             _settingsWindow.Owner = this;
-            _settingsWindow.Closed += async (_, _) => await _settingsService.SaveAsync(_settings);
+            _settingsWindow.Closed += async (_, _) =>
+            {
+                await _settingsService.SaveAsync(_settings);
+                if (DataContext is MainViewModel vm)
+                {
+                    vm.ReloadAppearanceFromSettings();
+                }
+            };
             _settingsWindow.Show();
             return;
         }

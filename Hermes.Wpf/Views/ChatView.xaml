@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             x:Name="Root"
              mc:Ignorable="d">
     <Border Style="{StaticResource PanelBorderStyle}">
         <Grid>
@@ -16,26 +17,34 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <TextBlock Grid.Row="0" Style="{StaticResource HeaderTextStyle}" Text="Chat" />
+            <TextBlock Grid.Row="0"
+                       Style="{StaticResource HeaderTextStyle}"
+                       FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
+                       Text="Chat" />
 
             <ListBox x:Name="MessagesListBox"
                      Grid.Row="2"
+                     FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
                      ItemsSource="{Binding Chat.Messages}"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                      ScrollViewer.CanContentScroll="False"
                      VirtualizingPanel.ScrollUnit="Pixel">
                 <ListBox.ItemContainerStyle>
-                    <Style TargetType="ListBoxItem">
-                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                        <Setter Property="Padding" Value="0" />
-                    </Style>
+                    <Style BasedOn="{StaticResource ChatMessageListBoxItemStyle}" TargetType="ListBoxItem" />
                 </ListBox.ItemContainerStyle>
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <Border Margin="0,0,0,8" Padding="8" BorderBrush="#30343D" BorderThickness="1" CornerRadius="6">
+                        <Border Margin="0,0,0,8"
+                                Padding="8"
+                                BorderBrush="#30343D"
+                                BorderThickness="1"
+                                CornerRadius="6">
                             <StackPanel>
-                                <TextBlock FontWeight="Bold" Text="{Binding Role}" />
+                                <TextBlock FontWeight="Bold"
+                                           FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
+                                           Text="{Binding Role}" />
                                 <TextBlock Margin="0,4,0,0"
+                                           FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
                                            TextWrapping="Wrap"
                                            TextAlignment="Left"
                                            Text="{Binding Text}" />
@@ -48,13 +57,21 @@
             <TextBox Grid.Row="4"
                      x:Name="MessageInputTextBox"
                      Height="70"
+                     FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
                      AcceptsReturn="True"
                      TextWrapping="Wrap"
                      PreviewKeyDown="MessageInputTextBox_OnPreviewKeyDown"
                      Text="{Binding Chat.UserInput, UpdateSourceTrigger=PropertyChanged}" />
             <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Width="120" Margin="0,0,8,0" Content="Analyze Code" Command="{Binding AnalyzeCodeCommand}" />
-                <Button Width="100" Content="Send" Command="{Binding SendMessageCommand}" />
+                <Button Width="120"
+                        Margin="0,0,8,0"
+                        FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
+                        Content="Analyze Code"
+                        Command="{Binding AnalyzeCodeCommand}" />
+                <Button Width="100"
+                        FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
+                        Content="Send"
+                        Command="{Binding SendMessageCommand}" />
             </StackPanel>
         </Grid>
     </Border>

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Hermes.Wpf.Models;
 
 namespace Hermes.Wpf.ViewModels;
@@ -9,7 +10,16 @@ public sealed class SettingsViewModel : BaseViewModel
     private string _venvPath;
     private string _hermesCommand;
     private int _chatTimeoutSeconds;
+    /// <summary>Committed value backing <see cref="HermesSettings.ChatFontSize"/>.</summary>
+    private double _chatFontSizeCommitted;
+
+    private string _chatFontSizeEdit = string.Empty;
     private bool _autoReconnect;
+    private bool _diagnosticLogHermesCommands;
+    private bool _appendVisionScopeReminder;
+    private string _visionScopeReminderNote;
+    private string _workspaceRootWindowsPath;
+    private string _lastWorkspaceBrowsePath;
 
     public SettingsViewModel(HermesSettings settings)
     {
@@ -18,7 +28,15 @@ public sealed class SettingsViewModel : BaseViewModel
         _venvPath = settings.VenvPath;
         _hermesCommand = settings.HermesCommand;
         _chatTimeoutSeconds = settings.ChatTimeoutSeconds;
+        _chatFontSizeCommitted = ClampChatFont(settings.ChatFontSize);
+        settings.ChatFontSize = _chatFontSizeCommitted;
+        _chatFontSizeEdit = FormatChatFontEdit(_chatFontSizeCommitted);
         _autoReconnect = settings.AutoReconnect;
+        _diagnosticLogHermesCommands = settings.DiagnosticLogHermesCommands;
+        _appendVisionScopeReminder = settings.AppendVisionScopeReminder;
+        _visionScopeReminderNote = settings.VisionScopeReminderNote ?? string.Empty;
+        _workspaceRootWindowsPath = settings.WorkspaceRootWindowsPath ?? string.Empty;
+        _lastWorkspaceBrowsePath = settings.LastWorkspaceBrowsePath ?? string.Empty;
     }
 
     public string WslDistro
@@ -61,6 +79,61 @@ public sealed class SettingsViewModel : BaseViewModel
         }
     }
 
+    /// <summary>Editable text for chat font box; parse and clamp in <see cref="CommitChatFontSize"/>.</summary>
+    public string ChatFontSizeEdit
+    {
+        get => _chatFontSizeEdit;
+        set => SetProperty(ref _chatFontSizeEdit, value ?? string.Empty);
+    }
+
+    /// <summary>Call from Settings window when the chat font TextBox loses focus (avoids per-keystroke clamp).</summary>
+    public void CommitChatFontSize()
+    {
+        var raw = _chatFontSizeEdit?.Trim() ?? string.Empty;
+        if (raw.Length == 0)
+        {
+            var fallback = ClampChatFont(14);
+            ApplyCommittedChatFontSize(fallback);
+            return;
+        }
+
+        if (!TryParseFlexible(raw, out var parsed))
+        {
+            SyncEditTextFromCommitted();
+            return;
+        }
+
+        ApplyCommittedChatFontSize(ClampChatFont(parsed));
+    }
+
+    private void ApplyCommittedChatFontSize(double c)
+    {
+        _chatFontSizeCommitted = c;
+        _settings.ChatFontSize = c;
+        var formatted = FormatChatFontEdit(c);
+        SetProperty(ref _chatFontSizeEdit, formatted, nameof(ChatFontSizeEdit));
+    }
+
+    private void SyncEditTextFromCommitted() =>
+        SetProperty(ref _chatFontSizeEdit, FormatChatFontEdit(_chatFontSizeCommitted), nameof(ChatFontSizeEdit));
+
+    private static string FormatChatFontEdit(double c) =>
+        Math.Abs(c - Math.Round(c)) < 0.0001
+            ? Math.Round(c).ToString("0", CultureInfo.InvariantCulture)
+            : c.ToString("0.##", CultureInfo.InvariantCulture);
+
+    private static bool TryParseFlexible(string raw, out double value)
+    {
+        if (double.TryParse(raw, NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign, CultureInfo.CurrentCulture,
+                out value))
+        {
+            return true;
+        }
+
+        return double.TryParse(raw.Replace(',', '.'), NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign,
+            CultureInfo.InvariantCulture, out value);
+    }
+
     public bool AutoReconnect
     {
         get => _autoReconnect;
@@ -69,5 +142,74 @@ public sealed class SettingsViewModel : BaseViewModel
             _settings.AutoReconnect = value;
             SetProperty(ref _autoReconnect, value);
         }
+    }
+
+    public bool DiagnosticLogHermesCommands
+    {
+        get => _diagnosticLogHermesCommands;
+        set
+        {
+            _settings.DiagnosticLogHermesCommands = value;
+            SetProperty(ref _diagnosticLogHermesCommands, value);
+        }
+    }
+
+    public bool AppendVisionScopeReminder
+    {
+        get => _appendVisionScopeReminder;
+        set
+        {
+            _settings.AppendVisionScopeReminder = value;
+            SetProperty(ref _appendVisionScopeReminder, value);
+        }
+    }
+
+    public string VisionScopeReminderNote
+    {
+        get => _visionScopeReminderNote;
+        set
+        {
+            _settings.VisionScopeReminderNote = value ?? string.Empty;
+            SetProperty(ref _visionScopeReminderNote, value ?? string.Empty);
+        }
+    }
+
+    public string WorkspaceRootWindowsPath
+    {
+        get => _workspaceRootWindowsPath;
+        set
+        {
+            var v = value ?? string.Empty;
+            _settings.WorkspaceRootWindowsPath = v;
+            SetProperty(ref _workspaceRootWindowsPath, v);
+        }
+    }
+
+    public string LastWorkspaceBrowsePath
+    {
+        get => _lastWorkspaceBrowsePath;
+        set
+        {
+            var v = value ?? string.Empty;
+            _settings.LastWorkspaceBrowsePath = string.IsNullOrWhiteSpace(v) ? null : v.Trim();
+            SetProperty(ref _lastWorkspaceBrowsePath, v);
+        }
+    }
+
+    private static double ClampChatFont(double value)
+    {
+        if (double.IsNaN(value) || double.IsInfinity(value))
+        {
+            return 14;
+        }
+
+        const double min = 8;
+        const double max = 36;
+        if (value < min)
+        {
+            return min;
+        }
+
+        return value > max ? max : value;
     }
 }

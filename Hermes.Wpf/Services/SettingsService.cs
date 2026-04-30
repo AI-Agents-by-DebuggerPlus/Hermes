@@ -29,6 +29,14 @@ public sealed class SettingsService
         await using var stream = File.OpenRead(_settingsFilePath);
         var settings = await JsonSerializer.DeserializeAsync<HermesSettings>(stream) ?? new HermesSettings();
         settings.SavedProjectPaths ??= [];
+        settings.VisionScopeReminderNote ??= string.Empty;
+        settings.WorkspaceRootWindowsPath ??= string.Empty;
+        settings.LastWorkspaceBrowsePath ??= string.Empty;
+        if (settings.ChatFontSize is < 8 or > 36 or double.NaN or double.PositiveInfinity or double.NegativeInfinity)
+        {
+            settings.ChatFontSize = 14;
+        }
+
         return settings;
     }
 

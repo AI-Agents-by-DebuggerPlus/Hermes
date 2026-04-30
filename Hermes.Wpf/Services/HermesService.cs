@@ -8,26 +8,102 @@ public sealed class HermesService
 {
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
+    private readonly LogService _log;
+
+    public HermesService(LogService logService)
+    {
+        _log = logService;
+    }
+
     public event Action<string>? OutputReceived;
 
-    public async Task<string> SendMessageAsync(string message, string wslWorkDir, HermesSettings settings, int timeoutSeconds = 60)
+    public async Task<HermesExecutionResult> SendMessageAsync(
+        string message,
+        string wslWorkDir,
+        HermesSettings settings,
+        int timeoutSeconds = 180)
     {
-        // Double-quote the prompt — single-quoted -z '…' breaks for many non-ASCII prompts on Ubuntu/WSL.
         var dq = EscapeForDoubleQuotedBash(message);
-
-        // Global -z must appear before the subcommand name (see `hermes --help`: [-z PROMPT] … {chat,…}).
         var script = ComposeScript(settings, wslWorkDir,
             $"{ActivationLine(settings)} && {settings.HermesCommand} -z \"{dq}\" chat");
 
+        MaybeLogDiagnosticScript(settings, script, "chat");
         return await ExecuteWslArgvAsync(BuildWslArgv(settings, script), timeoutSeconds).ConfigureAwait(false);
     }
 
-    public async Task<string> RunQuickActionAsync(string command, string wslWorkDir, HermesSettings settings)
+    /// <param name="timeoutSeconds">Use at least ~120s for long gateway sessions (or match chat timeout).</param>
+    public async Task<HermesExecutionResult> RunQuickActionAsync(
+        string command,
+        string wslWorkDir,
+        HermesSettings settings,
+        int timeoutSeconds = 120)
     {
         var script =
             ComposeScript(settings, wslWorkDir, $"{ActivationLine(settings)} && {settings.HermesCommand} {command}");
 
-        return await ExecuteWslArgvAsync(BuildWslArgv(settings, script), 120).ConfigureAwait(false);
+        MaybeLogDiagnosticScript(settings, script, $"quick:{command.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "?"}");
+        return await ExecuteWslArgvAsync(BuildWslArgv(settings, script), timeoutSeconds).ConfigureAwait(false);
+    }
+
+    private void MaybeLogDiagnosticScript(HermesSettings settings, string script, string kind)
+    {
+#if DEBUG
+        const bool forceDebug = true;
+#else
+        const bool forceDebug = false;
+#endif
+        if (!forceDebug && !settings.DiagnosticLogHermesCommands)
+        {
+            return;
+        }
+
+        var sanitized = string.Equals(kind, "chat", StringComparison.Ordinal)
+            ? SanitizeChatScriptForLog(script)
+            : TruncateForLog(script, 320);
+
+        _log.LogInfo($"[hermes] diag bash-lc ({kind}): {sanitized}");
+    }
+
+    /// <summary>Redacts the <c>-z "…"</c> prompt payload for logs (length only).</summary>
+    private static string SanitizeChatScriptForLog(string script)
+    {
+        const string marker = "-z \"";
+        var idx = script.IndexOf(marker, StringComparison.Ordinal);
+        if (idx < 0)
+        {
+            return TruncateForLog(script, 400);
+        }
+
+        var contentStart = idx + marker.Length;
+        var i = contentStart;
+        while (i < script.Length)
+        {
+            if (script[i] == '\\' && i + 1 < script.Length)
+            {
+                i += 2;
+                continue;
+            }
+
+            if (script[i] == '"')
+            {
+                var len = i - contentStart;
+                return script[..contentStart] + $"<omitted len={len}>\"" + script[(i + 1)..];
+            }
+
+            i++;
+        }
+
+        return TruncateForLog(script, 400);
+    }
+
+    private static string TruncateForLog(string s, int maxLen)
+    {
+        if (s.Length <= maxLen)
+        {
+            return s;
+        }
+
+        return s[..maxLen] + "…";
     }
 
     private static string ComposeScript(HermesSettings settings, string wslWorkDir, string bashTail)
@@ -37,7 +113,6 @@ public sealed class HermesService
         return $"{cdPrefix}{bashTail}";
     }
 
-    /// <summary>source …/bin/activate — mirrors ConnectionService tilde rules (~/ must not sit only inside double quotes alone).</summary>
     private static string ActivationLine(HermesSettings settings)
     {
         var vp = settings.VenvPath.Trim();
@@ -89,7 +164,7 @@ public sealed class HermesService
         return argv;
     }
 
-    private async Task<string> ExecuteWslArgvAsync(IReadOnlyList<string> argv, int timeoutSeconds)
+    private async Task<HermesExecutionResult> ExecuteWslArgvAsync(IReadOnlyList<string> argv, int timeoutSeconds)
     {
         var psi = new ProcessStartInfo
         {
@@ -112,6 +187,7 @@ public sealed class HermesService
 
         using var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
         var sb = new StringBuilder();
+        string? lastStderrRaw = null;
 
         process.OutputDataReceived += (_, e) =>
         {
@@ -131,6 +207,7 @@ public sealed class HermesService
                 return;
             }
 
+            lastStderrRaw = e.Data;
             var line = $"[stderr] {e.Data}";
             sb.AppendLine(line);
             OutputReceived?.Invoke(line);
@@ -141,14 +218,38 @@ public sealed class HermesService
         process.BeginErrorReadLine();
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
-        await process.WaitForExitAsync(cts.Token).ConfigureAwait(false);
-
-        var text = sb.ToString().Trim();
-        if (process.ExitCode != 0 && !string.IsNullOrEmpty(text))
+        int exitCode;
+        try
         {
-            OutputReceived?.Invoke($"[exit {process.ExitCode}]");
+            await process.WaitForExitAsync(cts.Token).ConfigureAwait(false);
+            exitCode = process.ExitCode;
+        }
+        catch (OperationCanceledException)
+        {
+            try
+            {
+                process.Kill(entireProcessTree: true);
+            }
+            catch
+            {
+                // ignore
+            }
+
+            exitCode = -1;
+            lastStderrRaw ??= "Timed out waiting for Hermes (wsl/bash).";
         }
 
-        return text;
+        var combined = sb.ToString().Trim();
+        if (exitCode != 0 && !string.IsNullOrEmpty(combined))
+        {
+            OutputReceived?.Invoke($"[exit {exitCode}]");
+        }
+
+        return new HermesExecutionResult
+        {
+            ExitCode = exitCode,
+            CombinedText = combined,
+            LastStderrLine = lastStderrRaw
+        };
     }
 }

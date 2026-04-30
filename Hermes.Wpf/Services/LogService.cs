@@ -11,26 +11,35 @@ public sealed class LogService
     /// <summary>BOM helps viewers (Notepad/PowerShell) detect UTF‑8 when Cyrillic is logged.</summary>
     private static readonly Encoding SessionFileEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
 
-    private readonly string _logDirectory = @"D:\Programming\AI_Agents\Hermes\Docs\Logs";
+    private readonly string _logDirectory;
     private readonly string _sessionLogFilePath;
 
     public LogService()
     {
+        _logDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "HermesWpf",
+            "logs");
+
         Directory.CreateDirectory(_logDirectory);
 
-        var fileName = $"hermes_session_{DateTime.Now:yyyyMMdd_HHmmss}.log";
+        SessionStamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        var fileName = $"hermes_session_{SessionStamp}.log";
         _sessionLogFilePath = Path.Combine(_logDirectory, fileName);
         File.AppendAllText(_sessionLogFilePath, $"=== Session started {DateTime.Now:O} ==={Environment.NewLine}",
             SessionFileEncoding);
-        DeleteOldLogs(keepLatest: 3);
+        DeleteOldLogs(keepLatest: 10);
     }
+
+    /// <summary>Matches <c>hermes_session_{SessionStamp}.log</c> and sibling <c>chat_{SessionStamp}.log</c>.</summary>
+    public string SessionStamp { get; }
 
     public ObservableCollection<string> Entries { get; } = [];
 
     public string CurrentLogFilePath => _sessionLogFilePath;
 
     public void LogInfo(string message) => Log("INFO", message);
-
+    public void LogWarn(string message) => Log("WARN", message);
     public void LogError(string message) => Log("ERROR", message);
 
     public void LogTerminal(string message) => Log("TERM", message);
@@ -64,7 +73,7 @@ public sealed class LogService
     {
         var logs = new DirectoryInfo(_logDirectory)
             .GetFiles("*.log", SearchOption.TopDirectoryOnly)
-            .OrderByDescending(file => file.CreationTimeUtc)
+            .OrderByDescending(file => file.LastWriteTimeUtc)
             .ToList();
 
         foreach (var oldLog in logs.Skip(keepLatest))
