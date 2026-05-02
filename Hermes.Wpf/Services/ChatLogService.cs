@@ -24,6 +24,35 @@ public sealed class ChatLogService
             _filePath,
             $"=== Chat transcript (session {logService.SessionStamp}) started {DateTime.Now:O} ==={Environment.NewLine}",
             FileEncoding);
+
+        DeleteOldChatLogs(root, keepLatest: 12);
+    }
+
+    private static void DeleteOldChatLogs(string directory, int keepLatest)
+    {
+        try
+        {
+            var logs = new DirectoryInfo(directory)
+                .GetFiles("chat_*.log", SearchOption.TopDirectoryOnly)
+                .OrderByDescending(f => f.LastWriteTimeUtc)
+                .ToList();
+
+            foreach (var old in logs.Skip(keepLatest))
+            {
+                try
+                {
+                    old.Delete();
+                }
+                catch
+                {
+                    // ignore locked files
+                }
+            }
+        }
+        catch
+        {
+            // non-fatal
+        }
     }
 
     public string CurrentChatLogPath => _filePath;

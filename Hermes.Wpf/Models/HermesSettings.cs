@@ -42,4 +42,24 @@ public sealed class HermesSettings
 
     /// <summary>Remember last folder picker for workspace root browse.</summary>
     public string? LastWorkspaceBrowsePath { get; set; }
+
+    /// <summary>Mirror chat with DesktopVoiceChat / Android: Supabase Postgres table <c>messages</c>.</summary>
+    public bool SupabaseRelayEnabled { get; set; }
+
+    public string SupabaseUrl { get; set; } = string.Empty;
+    public string SupabaseAnonKey { get; set; } = string.Empty;
+
+    /// <summary>Polling interval while relay is enabled (seconds).</summary>
+    public int SupabasePollIntervalSeconds { get; set; } = 3;
+
+    public bool SupabaseUseAnonymousAuth { get; set; } = true;
+
+    /// <summary>If true, first connect pulls the full remote transcript into the UI (no agent rerun).</summary>
+    public bool SupabaseImportFullHistoryOnConnect { get; set; }
+
+    /// <summary>Value stored in <c>sender_name</c> for rows published by Hermes.Wpf (mirror of DesktopVoiceChat convention).</summary>
+    public string SupabaseHermesSenderName { get; set; } = "Hermes";
+
+    /// <summary><c>sender_name</c> for rows inserted when the user sends from this desktop (must differ from <see cref="SupabaseHermesSenderName"/> and from mobile clients).</summary>
+    public string SupabaseLocalSenderName { get; set; } = "Desktop";
 }

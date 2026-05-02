@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -36,6 +37,14 @@ public sealed class MainViewModel : BaseViewModel
 
     /// <summary>Set when first Hermes subprocess uses <see cref="HermesSettings.WorkspaceRootWindowsPath"/>.</summary>
     private bool _hermesWorkspaceLogged;
+
+    private readonly SemaphoreSlim _supabasePollGate = new(1, 1);
+    private SupabaseChatRelayService? _supabaseRelay;
+    private readonly SupabaseHermesEchoTracker _supabaseEchoTracker = new();
+    private readonly HashSet<Guid> _supabaseSeenMessageIds = [];
+    private DispatcherTimer? _supabaseRelayTimer;
+    /// <summary>False until first successful relay fetch completes (polling stays idle before that).</summary>
+    private bool _supabasePollingEnabled;
 
     public MainViewModel(
         LogService logService,
@@ -149,7 +158,26 @@ public sealed class MainViewModel : BaseViewModel
                 ? $"[startup] Hermes workspace root (when set): {Path.GetFullPath(ws)}"
                 : $"[startup] Hermes workspace root is set but folder not found: {ws}");
         }
+
+        if (!string.IsNullOrWhiteSpace(Settings.SupabaseUrl)
+            && !string.IsNullOrWhiteSpace(Settings.SupabaseAnonKey)
+            && !Settings.SupabaseRelayEnabled)
+        {
+            _logService.LogWarn(
+                "[supabase] Заданы URL и anon key, но «Relay enabled» выключен — сообщения из Supabase не попадут в основной чат и ответы не публикуются.");
+        }
     }
+
+    public Task InitializeSupabaseRelayAsync() => StartSupabaseRelayCoreAsync();
+
+    /// <summary>When Settings closes or relay options change.</summary>
+    public async Task RestartSupabaseRelayAsync()
+    {
+        await StopSupabaseRelayCoreAsync();
+        await StartSupabaseRelayCoreAsync();
+    }
+
+    public Task ShutdownSupabaseRelayAsync() => StopSupabaseRelayCoreAsync();
 
     /// <summary>WPF chat binds here; sync from <see cref="Settings"/> after Settings window closes.</summary>
     public double ChatFontSize
@@ -509,7 +537,13 @@ public sealed class MainViewModel : BaseViewModel
         await SendMessageTextAsync(text);
     }
 
-    private async Task SendMessageTextAsync(string text)
+    private Task SendMessageTextAsync(string text) =>
+        ExecuteHermesUserTurnAsync(prependUserBubble: true, agentUserPayload: text, uiUserBubbleLine: null);
+
+    /// <param name="prependUserBubble">Local chat sends <c>true</c>; inbound Supabase already pushed the bubble → <c>false</c>.</param>
+    /// <param name="agentUserPayload">Plain user text forwarded to Hermes outbound prompt builder.</param>
+    /// <param name="uiUserBubbleLine">When prepending user bubble and null, defaults to payload.</param>
+    private async Task ExecuteHermesUserTurnAsync(bool prependUserBubble, string agentUserPayload, string? uiUserBubbleLine = null)
     {
         if (Projects.SelectedProject is null)
         {
@@ -521,14 +555,21 @@ public sealed class MainViewModel : BaseViewModel
         CommandManager.InvalidateRequerySuggested();
         var project = Projects.SelectedProject;
         var wslPath = ResolveHermesWslWorkingDirectory(project.WindowsPath);
-        Chat.Messages.Add(new ChatMessage { Role = "User", Text = text });
-        _chatLogService.AppendMessage(project.Name, "User", text);
+
+        if (prependUserBubble)
+        {
+            var bubbleText = uiUserBubbleLine ?? agentUserPayload;
+            Chat.Messages.Add(new ChatMessage { Role = "User", Text = bubbleText });
+            _chatLogService.AppendMessage(project.Name, "User", bubbleText);
+            await PublishUserTurnToSupabaseIfPossibleAsync(bubbleText);
+        }
 
         try
         {
-            var outbound = BuildOutboundHermesPrompt(text);
+            var outbound = BuildOutboundHermesPrompt(agentUserPayload);
             var timeout = ClampChatTimeout(Settings.ChatTimeoutSeconds);
-            var result = await _hermesService.SendMessageAsync(outbound, wslPath, Settings, timeout);
+            // HermesService uses ConfigureAwait(false) internally — force UI context before touching chat / Supabase.
+            var result = await _hermesService.SendMessageAsync(outbound, wslPath, Settings, timeout).ConfigureAwait(true);
             if (!result.Success)
             {
                 var hint = PickUserFacingHermesSummary(result);
@@ -536,14 +577,16 @@ public sealed class MainViewModel : BaseViewModel
                 var errBubble = $"Ошибка CLI (exit {result.ExitCode}): {hint}";
                 Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = errBubble });
                 _chatLogService.AppendMessage(project.Name, "Hermes", errBubble);
-                await SaveHistoryAsync(project.Name);
+                await PublishAssistantTurnToSupabaseIfPossibleAsync(errBubble);
+                await TrySaveHistoryAfterTurnAsync(project.Name);
                 return;
             }
 
             var response = string.IsNullOrWhiteSpace(result.CombinedText) ? "(пустой ответ)" : result.CombinedText;
             Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = response });
             _chatLogService.AppendMessage(project.Name, "Hermes", response);
-            await SaveHistoryAsync(project.Name);
+            await PublishAssistantTurnToSupabaseIfPossibleAsync(response);
+            await TrySaveHistoryAfterTurnAsync(project.Name);
         }
         catch (Exception ex)
         {
@@ -555,6 +598,392 @@ public sealed class MainViewModel : BaseViewModel
             _isBusy = false;
             CommandManager.InvalidateRequerySuggested();
         }
+    }
+
+    private async Task TrySaveHistoryAfterTurnAsync(string projectName)
+    {
+        try
+        {
+            await SaveHistoryAsync(projectName);
+        }
+        catch (Exception ex)
+        {
+            _logService.LogError($"[history] Не удалось сохранить историю чата ({projectName}): {ex.Message}");
+        }
+    }
+
+    private async Task PublishAssistantTurnToSupabaseIfPossibleAsync(string assistantPlainText)
+    {
+        if (!Settings.SupabaseRelayEnabled)
+        {
+            if (!string.IsNullOrWhiteSpace(Settings.SupabaseUrl)
+                && !string.IsNullOrWhiteSpace(Settings.SupabaseAnonKey))
+            {
+                _logService.LogWarn(
+                    "[supabase] Ответ агента не отправлен в Supabase: включите «Relay enabled» в настройках (заданы URL и anon key).");
+            }
+
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(assistantPlainText))
+        {
+            return;
+        }
+
+        await EnsureSupabaseRelayReadyForPublishAsync();
+
+        if (_supabaseRelay is not { IsConnected: true })
+        {
+            _logService.LogError(
+                "[supabase] Ответ агента не отправлен в Supabase: relay не подключён (включите «Relay enabled», проверьте URL/key и лог при старте/в Settings).");
+            return;
+        }
+
+        var label = CanonicalHermesSenderName();
+
+        try
+        {
+            await _supabaseRelay.InsertAssistantRowAsync(label, assistantPlainText);
+            _supabaseEchoTracker.RegisterAfterSuccessfulPublish(label, assistantPlainText);
+            _logService.LogInfo(
+                $"[supabase] Ответ агента записан в messages (sender_name={label}, chars={assistantPlainText.Length}).");
+        }
+        catch (Exception ex)
+        {
+            _logService.LogError($"[supabase] Не удалось записать ответ агента в Supabase: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// If relay is enabled but the client is missing (e.g. started with relay off, then enabled without full restart),
+    /// reconnect once before INSERT.
+    /// </summary>
+    private async Task EnsureSupabaseRelayReadyForPublishAsync()
+    {
+        if (!Settings.SupabaseRelayEnabled)
+        {
+            return;
+        }
+
+        if (_supabaseRelay is { IsConnected: true })
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(Settings.SupabaseUrl) ||
+            string.IsNullOrWhiteSpace(Settings.SupabaseAnonKey))
+        {
+            _logService.LogWarn(
+                "[supabase] Не удалось восстановить relay перед публикацией: задайте Supabase URL и anon key в настройках.");
+            return;
+        }
+
+        _logService.LogWarn("[supabase] Relay: клиент не активен перед публикацией — выполняю StartSupabaseRelayCoreAsync().");
+        await StartSupabaseRelayCoreAsync();
+    }
+
+    private async Task PublishUserTurnToSupabaseIfPossibleAsync(string userBubbleText)
+    {
+        if (!Settings.SupabaseRelayEnabled)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(userBubbleText))
+        {
+            return;
+        }
+
+        await EnsureSupabaseRelayReadyForPublishAsync();
+
+        if (_supabaseRelay is not { IsConnected: true })
+        {
+            return;
+        }
+
+        var tag = LocalSenderDisplayName();
+        if (string.Equals(tag, CanonicalHermesSenderName(), StringComparison.OrdinalIgnoreCase))
+        {
+            _logService.LogWarn(
+                "[supabase] Desktop sender_name совпадает с Assistant sender_name — задайте разные значения в Settings.");
+            return;
+        }
+
+        try
+        {
+            await _supabaseRelay.InsertAssistantRowAsync(tag, userBubbleText, CancellationToken.None, logPublish: false);
+            _logService.LogInfo($"[supabase] Опубликовано пользовательское сообщение в таблицу messages (sender_name={tag}).");
+        }
+        catch (Exception ex)
+        {
+            _logService.LogError($"[supabase] Не удалось опубликовать сообщение пользователя: {ex.Message}");
+        }
+    }
+
+    private string LocalSenderDisplayName()
+    {
+        var s = Settings.SupabaseLocalSenderName?.Trim();
+        return string.IsNullOrEmpty(s) ? "Desktop" : s;
+    }
+
+    /// <summary>Our own INSERT echoed by polling — do not append UI or run Hermes again.</summary>
+    private bool IsOwnMirroredUserRow(SupabaseMessageRow m)
+    {
+        if (_supabaseRelay?.CurrentUserId is not { Length: > 0 } uid)
+        {
+            return false;
+        }
+
+        if (!string.Equals((m.SenderId ?? string.Empty).Trim(), uid, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return string.Equals(
+            (m.SenderName ?? string.Empty).Trim(),
+            LocalSenderDisplayName(),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string CanonicalHermesSenderName()
+    {
+        var s = Settings.SupabaseHermesSenderName?.Trim();
+        return string.IsNullOrEmpty(s) ? "Hermes" : s;
+    }
+
+    private static bool IsHermesSenderRow(SupabaseMessageRow m, string canonical) =>
+        string.Equals((m.SenderName ?? string.Empty).Trim(), canonical.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    private async Task StartSupabaseRelayCoreAsync()
+    {
+        await StopSupabaseRelayCoreAsync();
+        _supabaseEchoTracker.Clear();
+        _supabasePollingEnabled = false;
+
+        if (!Settings.SupabaseRelayEnabled)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(Settings.SupabaseUrl) ||
+            string.IsNullOrWhiteSpace(Settings.SupabaseAnonKey))
+        {
+            _logService.LogError("[supabase] URL or anon key empty; relay not started.");
+            return;
+        }
+
+        _supabaseRelay = new SupabaseChatRelayService(_logService);
+        try
+        {
+            await _supabaseRelay.ConnectAsync(Settings.SupabaseUrl.Trim(), Settings.SupabaseAnonKey.Trim());
+            if (Settings.SupabaseUseAnonymousAuth)
+            {
+                await _supabaseRelay.EnsureAnonymousSessionAsync();
+            }
+            else if (string.IsNullOrWhiteSpace(_supabaseRelay.CurrentUserId))
+            {
+                _logService.LogWarn(
+                    "[supabase] Анонимный вход выключен в Hermes и сессии нет — INSERT в messages часто отклоняется RLS. Включите «Anonymous sign-in» в Hermes или провайдер Anonymous в Supabase.");
+            }
+
+            var rows = await _supabaseRelay.FetchAllSortedAsync();
+            _supabaseSeenMessageIds.Clear();
+            foreach (var m in rows)
+            {
+                _supabaseSeenMessageIds.Add(m.Id);
+            }
+
+            if (Settings.SupabaseImportFullHistoryOnConnect)
+            {
+                foreach (var m in rows)
+                {
+                    HydrateSupabaseSnapshotRowIntoChat(m);
+                }
+
+                var proj = Projects.SelectedProject;
+                if (proj is not null)
+                {
+                    await SaveHistoryAsync(proj.Name);
+                }
+            }
+
+            _supabasePollingEnabled = true;
+            StartSupabasePollTimer();
+
+            if (string.Equals(
+                    LocalSenderDisplayName(),
+                    CanonicalHermesSenderName(),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                _logService.LogWarn(
+                    "[supabase] Desktop sender_name и Assistant sender_name совпадают — polling может зациклить агента. Задайте разные имена.");
+            }
+
+            var importMode = Settings.SupabaseImportFullHistoryOnConnect ? "full" : "none";
+            _logService.LogInfo(
+                $"[supabase] Hermes relay: polling on, snapshot rows={rows.Count}, import={importMode}.");
+            if (!Settings.SupabaseImportFullHistoryOnConnect && rows.Count > 0)
+            {
+                _logService.LogInfo(
+                    "[supabase] Строки, уже в таблице на момент подключения, помечены как просмотренные и в основной чат не подставляются; " +
+                    "появятся только новые сообщения после этого. Чтобы увидеть текущую таблицу в чате, включите «Импорт полной истории при подключении» в настройках Supabase.");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logService.LogError($"[supabase] Connect failed: {ex.Message}");
+            _supabaseRelay.Disconnect();
+            _supabaseRelay = null;
+            _supabasePollingEnabled = false;
+        }
+    }
+
+    private Task StopSupabaseRelayCoreAsync()
+    {
+        StopSupabasePollTimerOnly();
+        _supabaseRelay?.Disconnect();
+        _supabaseRelay = null;
+        _supabasePollingEnabled = false;
+        _supabaseSeenMessageIds.Clear();
+        return Task.CompletedTask;
+    }
+
+    private void HydrateSupabaseSnapshotRowIntoChat(SupabaseMessageRow m)
+    {
+        if (IsOwnMirroredUserRow(m))
+        {
+            return;
+        }
+
+        var canon = CanonicalHermesSenderName();
+        if (IsHermesSenderRow(m, canon))
+        {
+            Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = m.Content ?? string.Empty });
+            return;
+        }
+
+        var name = string.IsNullOrWhiteSpace(m.SenderName) ? "Remote" : m.SenderName.Trim();
+        Chat.Messages.Add(new ChatMessage { Role = "User", Text = $"{name}: {m.Content}" });
+    }
+
+    private void StartSupabasePollTimer()
+    {
+        StopSupabasePollTimerOnly();
+        var interval = ClampSupabasePollSeconds(Settings.SupabasePollIntervalSeconds);
+        _supabaseRelayTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(interval) };
+        _supabaseRelayTimer.Tick += SupabaseRelayTimer_OnTick;
+        _supabaseRelayTimer.Start();
+    }
+
+    private static int ClampSupabasePollSeconds(int seconds)
+    {
+        if (seconds < 1)
+        {
+            return 1;
+        }
+
+        return seconds > 120 ? 120 : seconds;
+    }
+
+    private void StopSupabasePollTimerOnly()
+    {
+        if (_supabaseRelayTimer is null)
+        {
+            return;
+        }
+
+        _supabaseRelayTimer.Stop();
+        _supabaseRelayTimer.Tick -= SupabaseRelayTimer_OnTick;
+        _supabaseRelayTimer = null;
+    }
+
+    private async void SupabaseRelayTimer_OnTick(object? sender, EventArgs e) =>
+        await PollSupabaseInboxIncrementalOnceAsync();
+
+    private async Task PollSupabaseInboxIncrementalOnceAsync()
+    {
+        if (!Settings.SupabaseRelayEnabled ||
+            !_supabasePollingEnabled ||
+            _supabaseRelay is not { IsConnected: true })
+        {
+            return;
+        }
+
+        if (!await _supabasePollGate.WaitAsync(0))
+        {
+            return;
+        }
+
+        try
+        {
+            var rows = await _supabaseRelay.FetchAllSortedAsync();
+            foreach (var m in rows.OrderBy(x => x.CreatedAt))
+            {
+                if (!_supabaseSeenMessageIds.Add(m.Id))
+                {
+                    continue;
+                }
+
+                await HandleInboundSupabaseRowAsync(m);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logService.LogError($"[supabase] Poll/incremental fetch failed: {ex.Message}");
+        }
+        finally
+        {
+            _supabasePollGate.Release();
+        }
+    }
+
+    private async Task HandleInboundSupabaseRowAsync(SupabaseMessageRow m)
+    {
+        var canon = CanonicalHermesSenderName();
+        if (IsHermesSenderRow(m, canon))
+        {
+            if (_supabaseEchoTracker.TryConsumeEcho(m, canon))
+            {
+                return;
+            }
+
+            Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = m.Content ?? string.Empty });
+            var projHermes = Projects.SelectedProject;
+            if (projHermes is not null)
+            {
+                _chatLogService.AppendMessage(projHermes.Name, "Hermes", m.Content ?? string.Empty);
+                await SaveHistoryAsync(projHermes.Name);
+            }
+
+            return;
+        }
+
+        if (IsOwnMirroredUserRow(m))
+        {
+            return;
+        }
+
+        var remoteName = string.IsNullOrWhiteSpace(m.SenderName) ? "Remote" : m.SenderName.Trim();
+        var bubble = $"{remoteName}: {m.Content}";
+        var payloadForAgent = string.IsNullOrEmpty((m.Content ?? string.Empty).Trim())
+            ? "(пустое сообщение из Supabase)"
+            : (m.Content ?? string.Empty).Trim();
+
+        Chat.Messages.Add(new ChatMessage { Role = "User", Text = bubble });
+
+        if (Projects.SelectedProject is null)
+        {
+            _logService.LogWarn(
+                "[supabase] Входящее сообщение из Supabase показано в чате; ответ Hermes не запущен — выберите проект в списке.");
+            return;
+        }
+
+        _chatLogService.AppendMessage(Projects.SelectedProject.Name, "User", bubble);
+
+        await ExecuteHermesUserTurnAsync(
+            prependUserBubble: false,
+            agentUserPayload: payloadForAgent);
     }
 
     private async Task RunQuickActionAsync(string command)

@@ -55,6 +55,10 @@
                             Margin="0,0,8,0"
                             Content="Chat"
                             Click="OpenChatButton_OnClick" />
+                    <Button Width="118"
+                            Margin="0,0,8,0"
+                            Content="Supabase test"
+                            Click="OpenSupabaseTestChat_OnClick" />
                     <Button Width="90"
                             Content="Logs"
                             Click="OpenLogsButton_OnClick" />

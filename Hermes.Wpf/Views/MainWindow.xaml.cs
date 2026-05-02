@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private HelpWindow? _helpWindow;
     private SetupWizardWindow? _setupWizardWindow;
     private SettingsWindow? _settingsWindow;
+    private SupabaseTestChatWindow? _supabaseTestChatWindow;
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
@@ -79,6 +80,11 @@ public partial class MainWindow : Window
         OpenChatWindow();
         await vm.RefreshConnectionAsync();
 
+        // Project history loads asynchronously when the selected project is restored; give it a moment
+        // before Supabase snapshot/hydration so LoadProjectHistoryAsync does not clear imported rows.
+        await Task.Delay(400);
+        await vm.InitializeSupabaseRelayAsync();
+
         if (_settings.IsFirstRun)
         {
             OpenSetupWizard();
@@ -89,6 +95,11 @@ public partial class MainWindow : Window
 
     private async void MainWindow_OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
+        if (DataContext is MainViewModel vm)
+        {
+            await vm.ShutdownSupabaseRelayAsync();
+        }
+
         if (_settings is not null)
         {
             await _settingsService.SaveAsync(_settings);
@@ -121,6 +132,29 @@ public partial class MainWindow : Window
         }
 
         _chatWindow.Activate();
+    }
+
+    private void OpenSupabaseTestChat_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (_settings is null)
+        {
+            return;
+        }
+
+        if (_supabaseTestChatWindow is null || !_supabaseTestChatWindow.IsLoaded)
+        {
+            _supabaseTestChatWindow = new SupabaseTestChatWindow(_settings, _logService, _settingsService);
+            _supabaseTestChatWindow.Owner = this;
+            _supabaseTestChatWindow.Show();
+            return;
+        }
+
+        if (_supabaseTestChatWindow.WindowState == WindowState.Minimized)
+        {
+            _supabaseTestChatWindow.WindowState = WindowState.Normal;
+        }
+
+        _supabaseTestChatWindow.Activate();
     }
 
     private void OpenLogsButton_OnClick(object sender, RoutedEventArgs e)
@@ -181,6 +215,7 @@ public partial class MainWindow : Window
                 if (DataContext is MainViewModel vm)
                 {
                     vm.ReloadAppearanceFromSettings();
+                    await vm.RestartSupabaseRelayAsync();
                 }
             };
             _settingsWindow.Show();

@@ -32,6 +32,16 @@ public sealed class SettingsService
         settings.VisionScopeReminderNote ??= string.Empty;
         settings.WorkspaceRootWindowsPath ??= string.Empty;
         settings.LastWorkspaceBrowsePath ??= string.Empty;
+        settings.SupabaseUrl ??= string.Empty;
+        settings.SupabaseAnonKey ??= string.Empty;
+        settings.SupabaseHermesSenderName = string.IsNullOrWhiteSpace(settings.SupabaseHermesSenderName)
+            ? "Hermes"
+            : settings.SupabaseHermesSenderName.Trim();
+        settings.SupabaseLocalSenderName = string.IsNullOrWhiteSpace(settings.SupabaseLocalSenderName)
+            ? "Desktop"
+            : settings.SupabaseLocalSenderName.Trim();
+        settings.SupabasePollIntervalSeconds =
+            Math.Clamp(settings.SupabasePollIntervalSeconds, 1, 120);
         if (settings.ChatFontSize is < 8 or > 36 or double.NaN or double.PositiveInfinity or double.NegativeInfinity)
         {
             settings.ChatFontSize = 14;
@@ -42,6 +52,25 @@ public sealed class SettingsService
 
     public async Task SaveAsync(HermesSettings settings)
     {
+        settings.SupabasePollIntervalSeconds = Math.Clamp(settings.SupabasePollIntervalSeconds, 1, 120);
+        if (string.IsNullOrWhiteSpace(settings.SupabaseHermesSenderName))
+        {
+            settings.SupabaseHermesSenderName = "Hermes";
+        }
+        else
+        {
+            settings.SupabaseHermesSenderName = settings.SupabaseHermesSenderName.Trim();
+        }
+
+        if (string.IsNullOrWhiteSpace(settings.SupabaseLocalSenderName))
+        {
+            settings.SupabaseLocalSenderName = "Desktop";
+        }
+        else
+        {
+            settings.SupabaseLocalSenderName = settings.SupabaseLocalSenderName.Trim();
+        }
+
         await using var stream = File.Create(_settingsFilePath);
         await JsonSerializer.SerializeAsync(stream, settings, _jsonOptions);
     }

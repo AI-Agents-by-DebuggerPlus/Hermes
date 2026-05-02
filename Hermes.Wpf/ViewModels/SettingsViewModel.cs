@@ -20,6 +20,14 @@ public sealed class SettingsViewModel : BaseViewModel
     private string _visionScopeReminderNote;
     private string _workspaceRootWindowsPath;
     private string _lastWorkspaceBrowsePath;
+    private bool _supabaseRelayEnabled;
+    private string _supabaseUrl = string.Empty;
+    private string _supabaseAnonKey = string.Empty;
+    private int _supabasePollIntervalSeconds;
+    private bool _supabaseUseAnonymousAuth;
+    private bool _supabaseImportFullHistoryOnConnect;
+    private string _supabaseHermesSenderName = "Hermes";
+    private string _supabaseLocalSenderName = "Desktop";
 
     public SettingsViewModel(HermesSettings settings)
     {
@@ -37,6 +45,28 @@ public sealed class SettingsViewModel : BaseViewModel
         _visionScopeReminderNote = settings.VisionScopeReminderNote ?? string.Empty;
         _workspaceRootWindowsPath = settings.WorkspaceRootWindowsPath ?? string.Empty;
         _lastWorkspaceBrowsePath = settings.LastWorkspaceBrowsePath ?? string.Empty;
+        _supabaseRelayEnabled = settings.SupabaseRelayEnabled;
+        _supabaseUrl = settings.SupabaseUrl ?? string.Empty;
+        _supabaseAnonKey = settings.SupabaseAnonKey ?? string.Empty;
+        _supabasePollIntervalSeconds = ClampPollInterval(settings.SupabasePollIntervalSeconds);
+        _supabaseUseAnonymousAuth = settings.SupabaseUseAnonymousAuth;
+        _supabaseImportFullHistoryOnConnect = settings.SupabaseImportFullHistoryOnConnect;
+        _supabaseHermesSenderName = string.IsNullOrWhiteSpace(settings.SupabaseHermesSenderName)
+            ? "Hermes"
+            : settings.SupabaseHermesSenderName.Trim();
+        _supabaseLocalSenderName = string.IsNullOrWhiteSpace(settings.SupabaseLocalSenderName)
+            ? "Desktop"
+            : settings.SupabaseLocalSenderName.Trim();
+    }
+
+    private static int ClampPollInterval(int seconds)
+    {
+        if (seconds < 1)
+        {
+            return 1;
+        }
+
+        return seconds > 120 ? 120 : seconds;
     }
 
     public string WslDistro
@@ -193,6 +223,91 @@ public sealed class SettingsViewModel : BaseViewModel
             var v = value ?? string.Empty;
             _settings.LastWorkspaceBrowsePath = string.IsNullOrWhiteSpace(v) ? null : v.Trim();
             SetProperty(ref _lastWorkspaceBrowsePath, v);
+        }
+    }
+
+    public bool SupabaseRelayEnabled
+    {
+        get => _supabaseRelayEnabled;
+        set
+        {
+            _settings.SupabaseRelayEnabled = value;
+            SetProperty(ref _supabaseRelayEnabled, value);
+        }
+    }
+
+    public string SupabaseUrl
+    {
+        get => _supabaseUrl;
+        set
+        {
+            var v = value ?? string.Empty;
+            _settings.SupabaseUrl = v;
+            SetProperty(ref _supabaseUrl, v);
+        }
+    }
+
+    public string SupabaseAnonKey
+    {
+        get => _supabaseAnonKey;
+        set
+        {
+            var v = value ?? string.Empty;
+            _settings.SupabaseAnonKey = v;
+            SetProperty(ref _supabaseAnonKey, v);
+        }
+    }
+
+    public int SupabasePollIntervalSeconds
+    {
+        get => _supabasePollIntervalSeconds;
+        set
+        {
+            var c = ClampPollInterval(value);
+            _settings.SupabasePollIntervalSeconds = c;
+            SetProperty(ref _supabasePollIntervalSeconds, c);
+        }
+    }
+
+    public bool SupabaseUseAnonymousAuth
+    {
+        get => _supabaseUseAnonymousAuth;
+        set
+        {
+            _settings.SupabaseUseAnonymousAuth = value;
+            SetProperty(ref _supabaseUseAnonymousAuth, value);
+        }
+    }
+
+    public bool SupabaseImportFullHistoryOnConnect
+    {
+        get => _supabaseImportFullHistoryOnConnect;
+        set
+        {
+            _settings.SupabaseImportFullHistoryOnConnect = value;
+            SetProperty(ref _supabaseImportFullHistoryOnConnect, value);
+        }
+    }
+
+    public string SupabaseHermesSenderName
+    {
+        get => _supabaseHermesSenderName;
+        set
+        {
+            var v = string.IsNullOrWhiteSpace(value) ? "Hermes" : value.Trim();
+            _settings.SupabaseHermesSenderName = v;
+            SetProperty(ref _supabaseHermesSenderName, v);
+        }
+    }
+
+    public string SupabaseLocalSenderName
+    {
+        get => _supabaseLocalSenderName;
+        set
+        {
+            var v = string.IsNullOrWhiteSpace(value) ? "Desktop" : value.Trim();
+            _settings.SupabaseLocalSenderName = v;
+            SetProperty(ref _supabaseLocalSenderName, v);
         }
     }
 

@@ -8,5 +8,13 @@ MyHermesBot
 https://api.telegram.org/bot8567681642:AAHXP-5S494r_OHzjmGq7zK1eU70uJQzlz8/deleteWebhook?drop_pending_updates=true
 
 
+SupaBase Project Hermes 
+Password: JaguarSD7455$
+
+Project URL: https://dauvhkttddxmqfkfunqg.supabase.co
+
+Publishable key: sb_publishable_D1-ieyE_Tskl6BUrOSJ7RA_x-9spRcz
+
+
 
 \\wsl$\Ubuntu\home\busin\hermes-agent
