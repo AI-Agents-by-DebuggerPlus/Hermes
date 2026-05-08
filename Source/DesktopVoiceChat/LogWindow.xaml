@@ -1,0 +1,34 @@
+<Window x:Class="DesktopVoiceChat.LogWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Журнал"
+        Height="480"
+        Width="720"
+        MinHeight="320"
+        MinWidth="480"
+        WindowStartupLocation="Manual">
+    <DockPanel Margin="8">
+        <StackPanel DockPanel.Dock="Top"
+                    Margin="0,0,0,8"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+            <Button x:Name="ButtonOpenFolder"
+                    Margin="0,0,8,0"
+                    Padding="12,6"
+                    Content="Папка логов"
+                    Click="OnOpenFolderClick" />
+            <Button x:Name="ButtonClearView"
+                    Padding="12,6"
+                    Content="Очистить экран"
+                    Click="OnClearViewClick" />
+        </StackPanel>
+        <TextBox x:Name="LogTextBox"
+                 AcceptsReturn="True"
+                 IsReadOnly="True"
+                 VerticalScrollBarVisibility="Auto"
+                 HorizontalScrollBarVisibility="Auto"
+                 TextWrapping="Wrap"
+                 FontFamily="Consolas"
+                 FontSize="12" />
+    </DockPanel>
+</Window>

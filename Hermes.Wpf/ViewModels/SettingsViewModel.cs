@@ -21,6 +21,7 @@ public sealed class SettingsViewModel : BaseViewModel
     private string _workspaceRootWindowsPath;
     private string _lastWorkspaceBrowsePath;
     private bool _supabaseRelayEnabled;
+    private bool _hermesAgentPaused;
     private string _supabaseUrl = string.Empty;
     private string _supabaseAnonKey = string.Empty;
     private int _supabasePollIntervalSeconds;
@@ -28,6 +29,11 @@ public sealed class SettingsViewModel : BaseViewModel
     private bool _supabaseImportFullHistoryOnConnect;
     private string _supabaseHermesSenderName = "Hermes";
     private string _supabaseLocalSenderName = "Desktop";
+    private string _externalBrainMemoryPath = string.Empty;
+    private bool _externalBrainInjectIntoPrompt = true;
+    private int _externalBrainMaxContextItems = 10;
+    private string _externalBrainMaxContextEdit = "10";
+    private bool _desktopMouseSkillEnabled;
 
     public SettingsViewModel(HermesSettings settings)
     {
@@ -46,6 +52,7 @@ public sealed class SettingsViewModel : BaseViewModel
         _workspaceRootWindowsPath = settings.WorkspaceRootWindowsPath ?? string.Empty;
         _lastWorkspaceBrowsePath = settings.LastWorkspaceBrowsePath ?? string.Empty;
         _supabaseRelayEnabled = settings.SupabaseRelayEnabled;
+        _hermesAgentPaused = settings.HermesAgentPaused;
         _supabaseUrl = settings.SupabaseUrl ?? string.Empty;
         _supabaseAnonKey = settings.SupabaseAnonKey ?? string.Empty;
         _supabasePollIntervalSeconds = ClampPollInterval(settings.SupabasePollIntervalSeconds);
@@ -57,6 +64,10 @@ public sealed class SettingsViewModel : BaseViewModel
         _supabaseLocalSenderName = string.IsNullOrWhiteSpace(settings.SupabaseLocalSenderName)
             ? "Desktop"
             : settings.SupabaseLocalSenderName.Trim();
+        _externalBrainMemoryPath = settings.ExternalBrainMemoryPath ?? string.Empty;
+        _externalBrainInjectIntoPrompt = settings.ExternalBrainInjectIntoPrompt;
+        _externalBrainMaxContextItems = Math.Clamp(settings.ExternalBrainMaxContextItems, 1, 20);
+        _externalBrainMaxContextEdit = _externalBrainMaxContextItems.ToString(CultureInfo.InvariantCulture);
     }
 
     private static int ClampPollInterval(int seconds)
@@ -236,6 +247,16 @@ public sealed class SettingsViewModel : BaseViewModel
         }
     }
 
+    public bool HermesAgentPaused
+    {
+        get => _hermesAgentPaused;
+        set
+        {
+            _settings.HermesAgentPaused = value;
+            SetProperty(ref _hermesAgentPaused, value);
+        }
+    }
+
     public string SupabaseUrl
     {
         get => _supabaseUrl;
@@ -309,6 +330,74 @@ public sealed class SettingsViewModel : BaseViewModel
             _settings.SupabaseLocalSenderName = v;
             SetProperty(ref _supabaseLocalSenderName, v);
         }
+    }
+
+    public string ExternalBrainMemoryPath
+    {
+        get => _externalBrainMemoryPath;
+        set
+        {
+            var v = value ?? string.Empty;
+            _settings.ExternalBrainMemoryPath = v;
+            SetProperty(ref _externalBrainMemoryPath, v);
+        }
+    }
+
+    public bool ExternalBrainInjectIntoPrompt
+    {
+        get => _externalBrainInjectIntoPrompt;
+        set
+        {
+            _settings.ExternalBrainInjectIntoPrompt = value;
+            SetProperty(ref _externalBrainInjectIntoPrompt, value);
+        }
+    }
+
+    public bool DesktopMouseSkillEnabled
+    {
+        get => _desktopMouseSkillEnabled;
+        set
+        {
+            _settings.DesktopMouseSkillEnabled = value;
+            SetProperty(ref _desktopMouseSkillEnabled, value);
+        }
+    }
+
+    public string ExternalBrainMaxContextItemsEdit
+    {
+        get => _externalBrainMaxContextEdit;
+        set
+        {
+            _externalBrainMaxContextEdit = value ?? string.Empty;
+            RaisePropertyChanged(nameof(ExternalBrainMaxContextItemsEdit));
+            CommitExternalBrainMaxIfParsed();
+        }
+    }
+
+    public void NormalizeExternalBrainMaxEditField()
+    {
+        if (!int.TryParse(_externalBrainMaxContextEdit.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
+        {
+            _externalBrainMaxContextEdit = _externalBrainMaxContextItems.ToString(CultureInfo.InvariantCulture);
+            RaisePropertyChanged(nameof(ExternalBrainMaxContextItemsEdit));
+            return;
+        }
+
+        CommitExternalBrainMaxIfParsed();
+    }
+
+    private void CommitExternalBrainMaxIfParsed()
+    {
+        if (!int.TryParse(_externalBrainMaxContextEdit.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var n))
+        {
+            return;
+        }
+
+        n = Math.Clamp(n, 1, 20);
+        _externalBrainMaxContextItems = n;
+        _settings.ExternalBrainMaxContextItems = n;
+        _externalBrainMaxContextEdit = n.ToString(CultureInfo.InvariantCulture);
+        RaisePropertyChanged(nameof(ExternalBrainMaxContextItemsEdit));
     }
 
     private static double ClampChatFont(double value)

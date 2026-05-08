@@ -106,12 +106,13 @@ public sealed class SupabaseChatRelayService
         var currentUserId = CurrentUserId
                             ?? throw new InvalidOperationException("Supabase session has no user id.");
 
-        await _client!.From<SupabaseMessageRow>()
-            .Insert(new SupabaseMessageRow
+        await _client!.From<SupabaseMessageInsertRow>()
+            .Insert(new SupabaseMessageInsertRow
                 {
                     SenderId = currentUserId,
                     SenderName = senderDisplayName,
-                    Content = content
+                    Content = content,
+                    CreatedAt = DateTime.UtcNow
                 },
                 cancellationToken: cancellationToken);
 

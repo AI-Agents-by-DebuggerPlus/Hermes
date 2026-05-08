@@ -14,6 +14,28 @@ public partial class SettingsWindow : Window
         DataContext = new SettingsViewModel(settings);
     }
 
+    private void BrowseExternalBrainMemory_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SettingsViewModel vm)
+        {
+            return;
+        }
+
+        var dlg = new OpenFolderDialog
+        {
+            Title = "Папка внешней памяти (Obsidian vault) — искать Markdown рекурсивно",
+            InitialDirectory =
+                ResolveBrowseHint(vm.ExternalBrainMemoryPath, Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)),
+        };
+
+        if (dlg.ShowDialog(this) != true || string.IsNullOrWhiteSpace(dlg.FolderName))
+        {
+            return;
+        }
+
+        vm.ExternalBrainMemoryPath = dlg.FolderName.Trim();
+    }
+
     private void BrowseWorkspaceRoot_OnClick(object sender, RoutedEventArgs e)
     {
         if (DataContext is not SettingsViewModel vm)
@@ -69,6 +91,15 @@ public partial class SettingsWindow : Window
         if (DataContext is SettingsViewModel vm)
         {
             vm.CommitChatFontSize();
+            vm.NormalizeExternalBrainMaxEditField();
+        }
+    }
+
+    private void ExternalBrainMax_OnLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is SettingsViewModel vm)
+        {
+            vm.NormalizeExternalBrainMaxEditField();
         }
     }
 

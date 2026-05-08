@@ -54,10 +54,26 @@
                      DisplayMemberPath="Name" />
 
             <TextBlock Grid.Row="6" Style="{StaticResource HeaderTextStyle}" Text="Quick Actions" />
-            <Button Grid.Row="8" Height="30" Content="Status" Command="{Binding StatusCommand}" />
-            <Button Grid.Row="10" Height="30" Content="Gateway Run" Command="{Binding GatewayRunCommand}" />
-            <Button Grid.Row="12" Height="30" Content="Reset Webhook" Command="{Binding ResetWebhookCommand}" />
-            <Button Grid.Row="14" Height="30" Content="Analyze Code" Command="{Binding AnalyzeCodeCommand}" />
+            <Button Grid.Row="8"
+                    Height="30"
+                    Content="Status"
+                    Command="{Binding StatusCommand}"
+                    ToolTip="Hermes CLI: вызов `status` в WSL для выбранного проекта (работоспособность агента, без сообщения модели)." />
+            <Button Grid.Row="10"
+                    Height="30"
+                    Content="Gateway Run"
+                    Command="{Binding GatewayRunCommand}"
+                    ToolTip="Hermes CLI: `gateway run` — поднять/проверить gateway внутри текущего проекта." />
+            <Button Grid.Row="12"
+                    Height="30"
+                    Content="Reset Webhook"
+                    Command="{Binding ResetWebhookCommand}"
+                    ToolTip="Hermes CLI: `gateway reset-webhook` — сброс точки входа webhook (если заточено под ваш дистрибутив)." />
+            <Button Grid.Row="14"
+                    Height="30"
+                    Content="Analyze Code"
+                    Command="{Binding AnalyzeCodeCommand}"
+                    ToolTip="Открыть обычный чат модели Hermes с запросом проанализировать код выбранного проекта (через `hermes chat`, не только терминальный quick-command)." />
         </Grid>
     </Border>
 </UserControl>

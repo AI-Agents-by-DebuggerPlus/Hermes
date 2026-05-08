@@ -42,6 +42,9 @@ public sealed class SettingsService
             : settings.SupabaseLocalSenderName.Trim();
         settings.SupabasePollIntervalSeconds =
             Math.Clamp(settings.SupabasePollIntervalSeconds, 1, 120);
+        settings.ExternalBrainMemoryPath ??= string.Empty;
+        settings.ExternalBrainMaxContextItems =
+            Math.Clamp(settings.ExternalBrainMaxContextItems, 1, 20);
         if (settings.ChatFontSize is < 8 or > 36 or double.NaN or double.PositiveInfinity or double.NegativeInfinity)
         {
             settings.ChatFontSize = 14;
@@ -52,6 +55,8 @@ public sealed class SettingsService
 
     public async Task SaveAsync(HermesSettings settings)
     {
+        settings.ExternalBrainMemoryPath ??= string.Empty;
+        settings.ExternalBrainMaxContextItems = Math.Clamp(settings.ExternalBrainMaxContextItems, 1, 20);
         settings.SupabasePollIntervalSeconds = Math.Clamp(settings.SupabasePollIntervalSeconds, 1, 120);
         if (string.IsNullOrWhiteSpace(settings.SupabaseHermesSenderName))
         {

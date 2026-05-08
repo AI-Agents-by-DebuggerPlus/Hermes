@@ -1,4 +1,4 @@
-using System.Windows;
+ using System.Windows;
 using System.Windows.Interop;
 using System.Runtime.InteropServices;
 using Hermes.Wpf.Models;
@@ -24,6 +24,8 @@ public partial class MainWindow : Window
     private SetupWizardWindow? _setupWizardWindow;
     private SettingsWindow? _settingsWindow;
     private SupabaseTestChatWindow? _supabaseTestChatWindow;
+    private ExternalBrainService? _externalBrainService;
+    private ExternalBrainWindow? _externalBrainWindow;
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
@@ -66,6 +68,11 @@ public partial class MainWindow : Window
         ApplyDarkTitleBar();
         _settings = await _settingsService.LoadAsync();
 
+        _externalBrainService = new ExternalBrainService(
+            _logService,
+            _settings,
+            Application.Current!.Dispatcher);
+
         var vm = new MainViewModel(
             _logService,
             _chatLogService,
@@ -74,9 +81,11 @@ public partial class MainWindow : Window
             _historyService,
             _connectionService,
             _settingsService,
-            _settings);
+            _settings,
+            _externalBrainService);
 
         DataContext = vm;
+        vm.AttachSaveExperienceOpener(OpenSaveExperienceUi);
         OpenChatWindow();
         await vm.RefreshConnectionAsync();
 
@@ -97,6 +106,7 @@ public partial class MainWindow : Window
     {
         if (DataContext is MainViewModel vm)
         {
+            vm.ShutdownFlashcardSkillBeforeRelay();
             await vm.ShutdownSupabaseRelayAsync();
         }
 
@@ -157,6 +167,77 @@ public partial class MainWindow : Window
         _supabaseTestChatWindow.Activate();
     }
 
+    private void OpenSaveExperience_OnClick(object sender, RoutedEventArgs e)
+    {
+        OpenSaveExperienceUi();
+    }
+
+    private void OpenSaveExperienceUi()
+    {
+        if (_externalBrainService is null || DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var vault = (_externalBrainService.ResolveEffectiveMemoryPath() ?? string.Empty).Trim();
+        if (vault.Length == 0 || !System.IO.Directory.Exists(vault))
+        {
+            MessageBox.Show(
+                this,
+                "Настройте путь External Brain / Memory или создайте папку.",
+                "Hermes · Memory",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
+        var draft = vm.GetLastExperienceDraft()
+            ?? TryDraftFromChatMessages(vm)
+            ?? new MemoryDraft();
+
+        var projectName = vm.Projects.SelectedProject?.Name?.Trim() ?? string.Empty;
+        var w = new MemoryEditorWindow(_externalBrainService, _logService, draft, projectName);
+        w.Owner = this;
+        w.ShowDialog();
+    }
+
+    private static MemoryDraft? TryDraftFromChatMessages(MainViewModel vm)
+    {
+        try
+        {
+            var extractor = new MemoryExtractorService();
+            return extractor.TryExtractFromMessages(vm.Chat.Messages.ToList());
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private void OpenExternalBrain_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (_externalBrainService is null)
+        {
+            return;
+        }
+
+        if (_externalBrainWindow is null || !_externalBrainWindow.IsLoaded)
+        {
+            var evm = new ExternalBrainViewModel(_externalBrainService, _logService);
+            _externalBrainWindow = new ExternalBrainWindow(evm);
+            _externalBrainWindow.Owner = this;
+            _externalBrainWindow.Show();
+            return;
+        }
+
+        if (_externalBrainWindow.WindowState == WindowState.Minimized)
+        {
+            _externalBrainWindow.WindowState = WindowState.Normal;
+        }
+
+        _externalBrainWindow.Activate();
+    }
+
     private void OpenLogsButton_OnClick(object sender, RoutedEventArgs e)
     {
         if (_logsWindow is null || !_logsWindow.IsLoaded)
@@ -212,6 +293,7 @@ public partial class MainWindow : Window
             _settingsWindow.Closed += async (_, _) =>
             {
                 await _settingsService.SaveAsync(_settings);
+                _externalBrainService?.RestartWatcherAndReload("settings");
                 if (DataContext is MainViewModel vm)
                 {
                     vm.ReloadAppearanceFromSettings();

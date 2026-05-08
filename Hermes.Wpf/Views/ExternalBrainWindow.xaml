@@ -1,0 +1,121 @@
+<Window x:Class="Hermes.Wpf.Views.ExternalBrainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="External Brain (Obsidian / Markdown)"
+        Height="640"
+        Width="1000"
+        MinHeight="460"
+        MinWidth="780"
+        Background="{StaticResource AppBackgroundBrush}"
+        Foreground="{StaticResource PrimaryTextBrush}">
+    <Grid Margin="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="340" />
+            <ColumnDefinition Width="10" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Style="{StaticResource PanelBorderStyle}">
+            <DockPanel LastChildFill="True">
+                <TextBlock DockPanel.Dock="Top"
+                           Style="{StaticResource HeaderTextStyle}"
+                           FontSize="16"
+                           Text="Память" />
+
+                <TextBox DockPanel.Dock="Top"
+                         Margin="0,8,0,0"
+                         ToolTip="Поиск по содержимому, тегам и именам файлов"
+                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+
+                <StackPanel DockPanel.Dock="Top" Margin="0,8,0,0" Orientation="Horizontal">
+                    <TextBlock VerticalAlignment="Center" Text="Тег:" Margin="0,0,6,0" />
+                    <TextBox Width="110"
+                             Text="{Binding TagFilter, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Margin="12,0,6,0"
+                               VerticalAlignment="Center"
+                               Text="Время:" />
+                    <ComboBox Width="120"
+                              DisplayMemberPath="Label"
+                              ItemsSource="{Binding TimeChoices}"
+                              SelectedItem="{Binding SelectedTimeChoice, Mode=TwoWay}" />
+                </StackPanel>
+
+                <StackPanel DockPanel.Dock="Bottom"
+                            Margin="0,8,0,0"
+                            Orientation="Horizontal">
+                    <Button Width="76"
+                            Margin="0,0,8,0"
+                            Content="Найти"
+                            Command="{Binding SearchCommand}" />
+                    <Button Width="96"
+                            Margin="0,0,8,0"
+                            Content="Обновить"
+                            Command="{Binding RefreshCommand}" />
+                    <Button Width="128"
+                            Content="Папка vault"
+                            Command="{Binding OpenVaultFolderCommand}" />
+                </StackPanel>
+
+                <ListView Margin="0,8,0,0"
+                          BorderBrush="{StaticResource BorderBrushDark}"
+                          Background="{StaticResource InputBackgroundBrush}"
+                          ItemsSource="{Binding MemoriesView}"
+                          SelectedItem="{Binding SelectedMemory, Mode=TwoWay}">
+                    <ListView.GroupStyle>
+                        <GroupStyle>
+                            <GroupStyle.HeaderTemplate>
+                                <DataTemplate>
+                                    <TextBlock Margin="0,8,0,4"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               Text="{Binding Name}" />
+                                </DataTemplate>
+                            </GroupStyle.HeaderTemplate>
+                        </GroupStyle>
+                    </ListView.GroupStyle>
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Width="130"
+                                            DisplayMemberBinding="{Binding Timestamp, StringFormat=yyyy-MM-dd HH:mm}"
+                                            Header="Когда" />
+                            <GridViewColumn Width="84"
+                                            DisplayMemberBinding="{Binding Type}"
+                                            Header="Тип" />
+                            <GridViewColumn Width="36"
+                                            DisplayMemberBinding="{Binding Importance}"
+                                            Header="!" />
+                            <GridViewColumn Width="48"
+                                            DisplayMemberBinding="{Binding Tags.Count}"
+                                            Header="#" />
+                            <GridViewColumn Width="200"
+                                            DisplayMemberBinding="{Binding PreviewLine}"
+                                            Header="Фрагмент" />
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </DockPanel>
+        </Border>
+
+        <Border Grid.Column="2" Style="{StaticResource PanelBorderStyle}">
+            <DockPanel LastChildFill="True">
+                <TextBlock DockPanel.Dock="Top"
+                           FontWeight="SemiBold"
+                           Foreground="{StaticResource MutedTextBrush}"
+                           TextWrapping="Wrap"
+                           Text="{Binding ResolvedVaultPath}" />
+                <TextBlock DockPanel.Dock="Top"
+                           Margin="0,4,0,8"
+                           TextWrapping="Wrap"
+                           Text="{Binding StatusLine}" />
+                <TextBlock DockPanel.Dock="Top"
+                           Style="{StaticResource HeaderTextStyle}"
+                           FontSize="16"
+                           Text="Просмотр Markdown" />
+                <FlowDocumentScrollViewer Margin="0,8,0,0"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          VerticalScrollBarVisibility="Auto"
+                                          Document="{Binding PreviewFlow}" />
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

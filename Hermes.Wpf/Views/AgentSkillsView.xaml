@@ -1,0 +1,74 @@
+<UserControl x:Class="Hermes.Wpf.Views.AgentSkillsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="400"
+             d:DesignWidth="640">
+    <DockPanel LastChildFill="True">
+        <Border DockPanel.Dock="Bottom"
+                Margin="0,12,0,0"
+                Padding="12"
+                Style="{StaticResource PanelBorderStyle}">
+            <StackPanel>
+                <TextBlock FontWeight="SemiBold"
+                           Text="Проверка: курсор мыши"
+                           TextWrapping="Wrap" />
+                <TextBlock Margin="0,6,0,0"
+                           FontSize="13"
+                           Foreground="{StaticResource MutedTextBrush}"
+                           TextWrapping="Wrap">
+                    Сдвиг на 48 px вправо и возврат через ~320 ms. Сначала включите навык в Settings → «Управление курсором из Hermes.Wpf».
+                </TextBlock>
+                <Button MinWidth="232"
+                        Margin="0,12,0,0"
+                        Padding="10,6"
+                        HorizontalAlignment="Left"
+                        Command="{Binding SmokeTestMouseSkillCommand}"
+                        Content="Сместить курсор (smoke test)" />
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer Padding="0,4,0,0"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding AgentSkills}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="2" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border MinHeight="120"
+                                Margin="0,0,10,10"
+                                HorizontalAlignment="Stretch"
+                                Padding="12,10"
+                                Background="{StaticResource PanelBackgroundBrush}"
+                                BorderBrush="{StaticResource BorderBrushDark}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                            <StackPanel>
+                                <TextBlock FontSize="11"
+                                           Foreground="{StaticResource MutedTextBrush}"
+                                           Text="{Binding Category}" />
+                                <TextBlock Margin="0,6,0,0"
+                                           FontSize="15"
+                                           FontWeight="SemiBold"
+                                           Text="{Binding Title}"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Margin="0,8,0,0"
+                                           FontSize="13"
+                                           Foreground="{StaticResource MutedTextBrush}"
+                                           LineHeight="18"
+                                           Text="{Binding Summary}"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

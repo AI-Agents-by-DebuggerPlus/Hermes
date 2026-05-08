@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <Version>0.1.0</Version>
@@ -12,5 +12,26 @@
   <ItemGroup>
     <PackageReference Include="Supabase" Version="1.1.1" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Hermes.DesktopInteraction\Hermes.DesktopInteraction.csproj" />
+    <ProjectReference Include="..\Hermes.MouseBridge\Hermes.MouseBridge.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
+  </ItemGroup>
+
+  <Target Name="CopyMouseBridgeToWpfOut" AfterTargets="Build">
+    <PropertyGroup>
+      <_MbDir>$(MSBuildThisFileDirectory)..\Hermes.MouseBridge\bin\$(Configuration)\net8.0-windows</_MbDir>
+    </PropertyGroup>
+    <Copy SourceFiles="$(_MbDir)\Hermes.MouseBridge.exe"
+          DestinationFolder="$(OutDir)"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(_MbDir)\Hermes.MouseBridge.exe')" />
+    <Copy SourceFiles="$(_MbDir)\Hermes.MouseBridge.dll"
+          DestinationFolder="$(OutDir)"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(_MbDir)\Hermes.MouseBridge.dll')" />
+  </Target>
 
 </Project>

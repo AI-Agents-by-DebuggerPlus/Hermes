@@ -1,0 +1,530 @@
+﻿📁 
+  📁 Apps
+    📁 Apps\Designer
+  📁 Desktop
+    📄 Desktop\#DebuggerPlus - Chrome.lnk
+    📄 Desktop\CSViewer.lnk
+    📄 Desktop\Cursor.lnk
+    📄 Desktop\desktop.ini
+    📄 Desktop\DICT - Shortcut.lnk
+    📄 Desktop\Digash.lnk
+    📄 Desktop\Discord.lnk
+    📄 Desktop\Docker Desktop.lnk
+    📄 Desktop\Google Docs.lnk
+    📄 Desktop\Google Drive.lnk
+    📄 Desktop\Google Sheets.lnk
+    📄 Desktop\Google Slides.lnk
+    📄 Desktop\LocalAgentOptimized.lnk
+    📄 Desktop\MADCATZ R.A.T. 6+.lnk
+    📄 Desktop\MetaScalp.lnk
+    📄 Desktop\MouseClickLogger.exe
+    📄 Desktop\Obsidian.lnk
+    📄 Desktop\Ollama.lnk
+    📄 Desktop\ProjectStructureAnalyzer.lnk
+    📄 Desktop\Stamina - Shortcut.lnk
+    📄 Desktop\StockSharp.lnk
+    📄 Desktop\Telegram.lnk
+    📄 Desktop\Total Commander 64 bit - Copy.lnk
+    📄 Desktop\Total Commander 64 bit — копия.lnk
+    📄 Desktop\Total Commander 64 bit.lnk
+    📄 Desktop\Viber.lnk
+    📄 Desktop\Virtual Driving School Demo.url
+    📄 Desktop\Visual Studio Code.lnk
+    📄 Desktop\XSHOOT.lnk
+    📄 Desktop\Zoom Workplace.lnk
+  📁 Documents
+    📁 Documents\Apowersoft
+      📁 Documents\Apowersoft\Windows ApowerMirror
+    📁 Documents\Bandicut
+      📄 Documents\Bandicut\52026-03-08 22-50-19-419-1.png
+      📄 Documents\Bandicut\bandicam 2025-11-15 17-40-19-341 (2).mp4
+      📄 Documents\Bandicut\bandicam 2025-11-15 17-40-19-341 - 1of2.mp4
+      📄 Documents\Bandicut\bandicam 2025-11-15 17-40-19-341 - 2of2.mp4
+      📄 Documents\Bandicut\bandicam 2025-11-15 17-40-19-341.mp4
+    📁 Documents\Fax
+      📁 Documents\Fax\Drafts
+      📁 Documents\Fax\Inbox
+        📄 Documents\Fax\Inbox\WelcomeFax.tif
+      📁 Documents\Fax\Personal CoverPages
+    📁 Documents\Lightshot
+      📁 Documents\Lightshot\temp
+        📁 Documents\Lightshot\temp\MetaTrader
+          📄 Documents\Lightshot\temp\MetaTrader\Screenshot_1.png
+        📄 Documents\Lightshot\temp\Screenshot_1.png
+        📄 Documents\Lightshot\temp\Screenshot_2.png
+        📄 Documents\Lightshot\temp\Screenshot_3.png
+        📄 Documents\Lightshot\temp\Screenshot_4.png
+        📄 Documents\Lightshot\temp\Screenshot_5.png
+      📁 Documents\Lightshot\Unity
+        📄 Documents\Lightshot\Unity\Screenshot_1.png
+    📁 Documents\RBC
+      📄 Documents\RBC\OctoberStatement.pdf
+    📁 Documents\Scanned Documents
+      📁 Documents\Scanned Documents\Documents
+      📄 Documents\Scanned Documents\Приветствие программы сканирования.jpg
+    📁 Documents\StarCraft
+      📁 Documents\StarCraft\Characters
+        📄 Documents\StarCraft\Characters\Jaguar.spc
+      📁 Documents\StarCraft\Errors
+      📁 Documents\StarCraft\Maps
+        📁 Documents\StarCraft\Maps\Download
+        📁 Documents\StarCraft\Maps\Replays
+        📁 Documents\StarCraft\Maps\Save
+      📁 Documents\StarCraft\Save
+      📄 Documents\StarCraft\CSettings.json
+    📁 Documents\StarCraft II
+      📁 Documents\StarCraft II\Accounts
+        📁 Documents\StarCraft II\Accounts\426460924
+          📁 Documents\StarCraft II\Accounts\426460924\1-S2-1-13602251
+            📁 Documents\StarCraft II\Accounts\426460924\1-S2-1-13602251\Banks
+              📄 Documents\StarCraft II\Accounts\426460924\1-S2-1-13602251\Banks\CampaignPS.SC2Bank
+              📄 Documents\StarCraft II\Accounts\426460924\1-S2-1-13602251\Banks\DebugCinematic.SC2Bank
+              📄 Documents\StarCraft II\Accounts\426460924\1-S2-1-13602251\Banks\TCampaign.SC2Bank
+              📄 Documents\StarCraft II\Accounts\426460924\1-S2-1-13602251\Banks\TRaynor01.SC2Bank
+            📁 Documents\StarCraft II\Accounts\426460924\1-S2-1-13602251\Replays
+              📁 Documents\StarCraft II\Accounts\426460924\1-S2-1-13602251\Replays\Campaign
+              📁 Documents\StarCraft II\Accounts\426460924\1-S2-1-13602251\Replays\Challenge
+              📁 Documents\StarCraft II\Accounts\426460924\1-S2-1-13602251\Replays\Multiplayer
+            📁 Documents\StarCraft II\Accounts\426460924\1-S2-1-13602251\Saves
+              📁 Documents\StarCraft II\Accounts\426460924\1-S2-1-13602251\Saves\Campaign
+              📁 Documents\StarCraft II\Accounts\426460924\1-S2-1-13602251\Saves\Challenge
+              📁 Documents\StarCraft II\Accounts\426460924\1-S2-1-13602251\Saves\Multiplayer
+              📄 Documents\StarCraft II\Accounts\426460924\1-S2-1-13602251\Saves\LibertyCampaignSave.SC2Save
+      📁 Documents\StarCraft II\GameLogs
+        📄 Documents\StarCraft II\GameLogs\2025-02-15 20.20.47 SystemInfo.txt
+        📄 Documents\StarCraft II\GameLogs\2025-02-15 20.20.59 Graphics.txt
+      📁 Documents\StarCraft II\ImageUploads
+      📁 Documents\StarCraft II\Interfaces
+      📄 Documents\StarCraft II\ExecuteInfo.txt
+      📄 Documents\StarCraft II\Terminator_2339@1.lnk
+      📄 Documents\StarCraft II\Variables.txt
+    📁 Documents\StockSharp
+      📁 Documents\StockSharp\Designer
+        📁 Documents\StockSharp\Designer\Backtest
+          📄 Documents\StockSharp\Designer\Backtest\04c5eb0f_d62c_4d51_a2cb_a4f95e974aac.json
+          📄 Documents\StockSharp\Designer\Backtest\3b37190f_9a22_4e03_8777_cd962623ab92.json
+          📄 Documents\StockSharp\Designer\Backtest\483ebf9b_9c5a_4a8e_b2d4_731210c4514e.json
+          📄 Documents\StockSharp\Designer\Backtest\49eda608_82ac_4274_97a9_f56c18531bd7.json
+          📄 Documents\StockSharp\Designer\Backtest\6ab6422a_e107_4153_9f7d_9a9d13dcde20.json
+          📄 Documents\StockSharp\Designer\Backtest\958f6587_ff8c_4a42_ad64_7d3511a67b55.json
+          📄 Documents\StockSharp\Designer\Backtest\a37f43ba_f008_4b8a_a7c3_c7f2c68be886.json
+          📄 Documents\StockSharp\Designer\Backtest\c020e9c6_e3d3_4ef0_9b2e_c4bca4d4cd62.json
+          📄 Documents\StockSharp\Designer\Backtest\d786d181_1b8a_4156_a56b_25600ad3e72e.json
+        📁 Documents\StockSharp\Designer\compiler_cache
+          📄 Documents\StockSharp\Designer\compiler_cache\cs03922CB068D9DC40315297464C8C518734CC65A83803B91201F24FBEB9C195C6B33BD0A029EBD6119BD3DE01C9712A3D59FA7A795853B4B46ADBDB7E2AFB6AE8.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\cs146E4C7A7672BC184A7C5D9C7ACCF3609141D300F9C06008CD8636901747C8E92FB2BE95564CF4743A4F584BE7919525896AB3A341C914C10F5098013595B79D.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\cs1654403DE1BB7FFC728727A3120EC58F1F179550EF1839D570278D760C35AF2DAAD0A5FB2616D0D980D20962E64A10C0E5C8DE1A493F7E79218C5236BB5D336B.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\cs1F9A065BBD959FA1110B75DE37A90B91EE55A0DC6C3CE189515BF1AAB8FD555407E2E2C45577BE88CB63A538F3183738F98E8786C707A2C7431E547159D000A6.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\cs26373B57314B13CFC752BA01E895A0024F28E8DAD78BE2A7F8028D78C7AF4F811EC1A664C2FAB09F97F0798C76FF38279C9E01CD761CE5F4716AD704FD9895BE.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\cs28B1214E8A164C0C606E0084748E21E968BC326DCB140C3AC049752D2AA07D0176584AFB31A69C80ADDD89D66D140A35A73A4937F63C77461B416F39569732C8.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\cs3CBFE19115113A5290B0247A6BD434878CBEA23A1EB7DEE500E3FEC2662DF0E94DF66CAF3F1ADF0C5FA98EE50FE4F36092E1B809BE19AE64FA0ECCF5B43D4EC3.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\cs4A30D53876AADF310B4A443967461D44F5B2CA185FE8BAEE344C9153765DB144AAAC06D9ECE0B2D68E43C6E68863F1A9E2A9AB6A6892718E764019F6BFBDAC54.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\cs4C7C2B1C676EE3BDAC16656FCF26EB59A85924FF18AE145506FEE8A42212279C813EEAE844B997D0CE45483F8CB717BF5B46D6EA79E9F5960ACFDFE10D622B2D.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\cs53E91EC9BD2DC465AF460C455FD919AC33D8244EE3ACDB9E311849D87D33B5A0F978C8F2E595B9DD7D70B5B620C4F8FB5B3B9A9B53037CFEC71A29585DB9F7C9.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\cs55635B8521FA1C65621B3D4DABD4EBD754E78C00D82C14B3B2D81939FC9F82B23AE23CD81195AFA8A1BA544AAFC282136A3ED6E4B30F40B13DDC46586B4B2043.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\cs5840315BB03E85C5173DC1B28451B03A5740FB3DBE5581AFCA84EDF7E6B62650748784A76BC6960C0BF652D4029F9D8BD24441A1F1D36C7E2BB4E478F650A262.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\cs610F17DE9D89E3EF5A241AC004CB5B35DC391049DDE2981BBA4C248A942DB36143FAB508D065C94D2A526A9A63AEF0B9C7F0261B6B0D04F2F1CFAB796BFAA670.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\cs6463A65D8412837970DA31F82CBB8E371751BE122FB16DDCEE0C08C52736AFE9399DABE77C27A95AD6420EE5090B2D431F922D29AE1E1FA6F780FAC88F0F3A2C.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\cs6514A59F7C403DEB1DCE794B257ADE0506997131F5059980E20760083B14CAE3D7F93FC9CCD24655D0D3D4AC2171CD3A480276E1C14DE9899BEC0564C8EB7661.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\cs690E92EF5175293A7C39F3B512DFDFF6382607F7F58B9DE9EBD1BC0B5317B71D21E286A2BEEA874C553B394D1433AA765EA15B5AC29B92D1B551E22F881FE038.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\cs6D713EC4CF051A8D0BDE8C321882A1B5D67636C9FCDC4680C667A58C86B500944AAA93654F78FB01DC83C3D1C3AA20BF297E92EC24A0EEC36F8E1F7C6ABC6160.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\cs70309914DFA033118ABD278A832BB5B566ECCB2D14A7844A482B2674EE972E65E211579B11DD976B1BAD9D43A809A896DD39B33D43D25868A1A97BE96203C6E2.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\cs73D9C0DD5A1CE305347D1954192082F9FA03835FD55D70821ED8E0E9532252F3ED6547847D4E7DA9809E69DB957EE88A27A2A05E10933F4A4A9CD14C87605480.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\cs74C79D8D3047E5A722554ED74DB7FA7A018D2A50A2F647F9FB2DFC6964F11580695676CDE5D2937742F4D6CD40113BB3B37FB63BDFCD33822F845D0CF3EE200A.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\cs89C6FF9F5182AE4168B8D9E6EE984390A7E717E9708690A97934D62625640DE837E903F5CA2471B4456860F35E23F9843FD6F3C3FEF0BBBCB3CFCB52E973FDCE.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\cs8D7D6EBD765A4B96D609391F172E3AC77C69B552E5D8E9DA4CF25E4015784A7134DC32F0A7ADCE8DEBA68BAB32753E1C9135C987934FA2B2C6D9E3404BFD2BE3.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\cs8DAE4576FF18A49A96399B32492AC4529EEFE57BA853BF51DC7162A9DCB734E69C18359A6BB8A19339D305390221CC687B3B17983739DA0818A9C4F93683C5F8.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\csA5E8D581D4E8474D215E58E1F366E54F940A1197BEDC6B3324FE30CB86C64621CE7E5EA094AA7F3FBA0CA08A7499DEE3ED108E65BF1C702F0C8A6373A92C67C7.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\csB4239ED3370A31561465B1453748C275B2600D3310C495B9AA3140648D9B4A57C9C5CC40332B449FE1E088D8ABFB55E967A94D6F99E86CDF8431FA5195478F2A.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\csB5EE07FE74A86CA1E13590845E73CF6492FBDB658E4BDF38A056DC2781F9F08A9784FE92D064CBEF492A4BEDAE30DD29B60474A083FCE001DBC98DFD6713CA5C.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\csB6A118EE9441B3B4F9965F9D83E79773F652F226C04D564E6089C4EF7B1AD0C1F460FC356B9332FC37C775B0862F17AFF39927476428F014A460C4CEEF2A6F37.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\csBF5711AC200DCA9FA998FB409D5A64AE09765244AE1B40696EFEF6664DF6FE252E4C9CC7738346C6413C78835D7895B60001CBADB7AB53F22E29E822D1BF8C85.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\csCA901C4CACBD4D7D04C93BFB4644D8B5E0FB2E90AB95E904FF4A17B3A24C40C54972A0E02FEA9621E594A64CD6EC4AA8444DA9ABD4F692CE1C57C55494967EDA.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\csD3539F965487974156AC2785D64C0FCABAA821240643C8F7E8665709F1B59B6639D6DEA9E27C43F7A82EAD8B65A83AB7369305F56FC5CEAFBC50965CB06C5842.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\csDB41199FB17567BCE3FD107974F4208E5AE5B740599513B07DCB412692AF070A9714F4AA05ADF3EDBB7E4B95257013873D230CE2174C4E6212A06DE6B84BCD8C.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\csF19F912E0578753C8F59903F19C90811A96D98CAEACC0FA56CF9BA9E075AD522C8BBFF6FF5E151255A26BEBC58007CAC4BBA3AE1E86C9106A955ED34048FAA21.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\csFAF6758C8F35F2F006998547CBE2E66C701739BA01EF6E26386AEE3EB7D1275C823CA4499495914EA3C49941D6A88B2A027791EBA5926012FA9E6AA70708FD0D.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\csFC4AE7253AA7185E88D04CCEE823A19D64746D2C712D9F5E7A19A299216F157572D21B7B14508F1C52F1C539221872066B4BADE30AA743198C79F615C06FC31F.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\csFE6F46D5D50FBEC16C4DEBF53B0AA120D575FCC976807B2048C7AE10DFF420D6DF9E9A54B4B5791F290AE1E47A5BDF203A75ABEC8891DC93DDACD08A3ED52D05.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\csFF01A4911AF71834FB88BF611DEA2FFF5DEE22F1FDA6D9E16CD21FC00C66280CB3D38774A1498025D4B981D149F8C64E88D7B58B54DF889BA88949687F931967.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\fs6C7E6E15A4AD02DD4E363CF7CA38586269501884B44DB186BDB2A91CEE21840BCD507B97F3DFA90AD193A145F31A9B19485A07DA62102538E4982A3C9330C816.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\fs81D676F7856C0189E10A7F7A206B513B24B178E9880B9CDAE118C0564B24CDCF3D3AD1587D9A8E1A4379FB600C3463AD9A543E566D794CB0F99AF2DB075684B4.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\fsA97D892A2A9E3DA83EFF602D2DF3A81952B28A0A7DCE975A66322D340AC9E6B9A88918B42A50AE226DF5E19070101AAEB4B665A38609D5E90599D47662E13A18.bin
+          📄 Documents\StockSharp\Designer\compiler_cache\fsE8F7D9F89187C3E6F46082FADCF249BDBB40E6FD4B01800CD5AC7534E078E6D2CED5A2155304DA033065CDA137150D7347DF6489CCA13A84E8BB4DB6BFE1EBE3.bin
+        📁 Documents\StockSharp\Designer\Custom
+          📄 Documents\StockSharp\Designer\Custom\23d3a03b_4265_40bf_8b10_77d753c6cd32.json
+          📄 Documents\StockSharp\Designer\Custom\36554487_770f_42b2_b687_05ec4f52e77c.json
+          📄 Documents\StockSharp\Designer\Custom\3a98f2bf_831e_43a5_816a_332b48cb1723.json
+          📄 Documents\StockSharp\Designer\Custom\3fa738ea_a60f_4191_8968_7afe5758e95f.json
+          📄 Documents\StockSharp\Designer\Custom\568933b6_fcfa_4f93_88db_295b0d724082.json
+          📄 Documents\StockSharp\Designer\Custom\6985f555_252e_465f_a857_b7b49dd55292.json
+          📄 Documents\StockSharp\Designer\Custom\7454f072_f837_40b6_b8b6_689a50029802.json
+          📄 Documents\StockSharp\Designer\Custom\89ac62c6_1f4e_45b9_8649_178f6e740b7f.json
+          📄 Documents\StockSharp\Designer\Custom\908555a0_393e_41f8_96a2_a973426660c4.json
+          📄 Documents\StockSharp\Designer\Custom\98476ef1_1760_49a9_b284_59adecc6c1bd.json
+          📄 Documents\StockSharp\Designer\Custom\a7907aa3_bad6_4df0_b09c_3164d5d7d093.json
+          📄 Documents\StockSharp\Designer\Custom\a8216e42_c3d7_47e5_b7df_7e9fe0c33af7.json
+          📄 Documents\StockSharp\Designer\Custom\b34995f5_8164_4fbd_b8c4_98e40bce7226.json
+          📄 Documents\StockSharp\Designer\Custom\b9ba741c_05fb_4613_b989_760012e52fd2.json
+          📄 Documents\StockSharp\Designer\Custom\df4d367e_4605_4c67_909a_2c0d451941e3.json
+          📄 Documents\StockSharp\Designer\Custom\f3d8f1f1_6c39_4bc2_911f_3f36c03fe022.json
+          📄 Documents\StockSharp\Designer\Custom\f522a23f_c5e7_48d9_b527_3028512c7cea.json
+        📁 Documents\StockSharp\Designer\Extended info
+        📁 Documents\StockSharp\Designer\Indicator
+          📄 Documents\StockSharp\Designer\Indicator\2d6589ea_be48_4ec8_a9f1_521feac54f9a.json
+          📄 Documents\StockSharp\Designer\Indicator\69987d3b_ed56_45b7_9165_49fe234c8815.json
+          📄 Documents\StockSharp\Designer\Indicator\86d49ac6_1ab5_47cf_aede_cf43dc06ecb6.json
+          📄 Documents\StockSharp\Designer\Indicator\87ffddbf_92cd_4180_892b_c756a17ee5cb.json
+          📄 Documents\StockSharp\Designer\Indicator\ad2929d9_dbb0_441c_b7eb_490eb2bf88ce.json
+          📄 Documents\StockSharp\Designer\Indicator\cb4b3bb7_0799_4a1e_bf5b_c0349fb751aa.json
+        📁 Documents\StockSharp\Designer\Logs
+          📁 Documents\StockSharp\Designer\Logs\2026_03_24
+          📁 Documents\StockSharp\Designer\Logs\2026_03_25
+            📄 Documents\StockSharp\Designer\Logs\2026_03_25\ApiServiceProvider.txt
+          📁 Documents\StockSharp\Designer\Logs\2026_03_26
+            📄 Documents\StockSharp\Designer\Logs\2026_03_26\ApiServiceProvider.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_26\Designer.txt
+          📁 Documents\StockSharp\Designer\Logs\2026_03_27
+            📄 Documents\StockSharp\Designer\Logs\2026_03_27\ApiServiceProvider.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_27\Designer.1.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_27\Designer.2.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_27\Designer.3.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_27\Designer.4.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_27\Designer.5.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_27\Designer.6.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_27\Designer.7.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_27\Designer.8.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_27\Designer.9.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_27\Designer.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_27\LayoutManager.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_27\Sample candles.txt
+          📁 Documents\StockSharp\Designer\Logs\2026_03_28
+            📄 Documents\StockSharp\Designer\Logs\2026_03_28\ApiServiceProvider.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_28\Designer.1.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_28\Designer.2.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_28\Designer.3.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_28\Designer.4.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_28\Designer.5.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_28\Designer.6.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_28\Designer.7.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_28\Designer.8.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_28\Designer.9.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_28\Designer.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_28\LayoutManager.txt
+          📁 Documents\StockSharp\Designer\Logs\2026_03_29
+            📄 Documents\StockSharp\Designer\Logs\2026_03_29\ApiServiceProvider.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_29\Designer.txt
+            📄 Documents\StockSharp\Designer\Logs\2026_03_29\LayoutManager.txt
+          📁 Documents\StockSharp\Designer\Logs\2026_03_30
+            📄 Documents\StockSharp\Designer\Logs\2026_03_30\ApiServiceProvider.txt
+          📁 Documents\StockSharp\Designer\Logs\2026_04_01
+            📄 Documents\StockSharp\Designer\Logs\2026_04_01\ApiServiceProvider.txt
+        📁 Documents\StockSharp\Designer\NativeId
+        📁 Documents\StockSharp\Designer\Panels
+          📄 Documents\StockSharp\Designer\Panels\Layout.json
+          📄 Documents\StockSharp\Designer\Panels\_1280fde2f91d4c90a6b9f615b4f87649.json
+          📄 Documents\StockSharp\Designer\Panels\_19e851df3dbc49ef8f1489a252b4974d.json
+          📄 Documents\StockSharp\Designer\Panels\_483ebf9b9c5a4a8eb2d4731210c4514e.json
+          📄 Documents\StockSharp\Designer\Panels\_4a1c21acd84d4421bfad83d40ae1a053.json
+          📄 Documents\StockSharp\Designer\Panels\_89ac62c61f4e45b98649178f6e740b7f.json
+          📄 Documents\StockSharp\Designer\Panels\_9ec28cfe3b3546aeacb948231d5ff552.json
+          📄 Documents\StockSharp\Designer\Panels\_b5b0302ab3a74470915b22df0b8cf9a6.json
+          📄 Documents\StockSharp\Designer\Panels\_c020e9c6e3d34ef09b2ec4bca4d4cd62.json
+          📄 Documents\StockSharp\Designer\Panels\_c4e36f5334be4fae842a39cd930ec66d.json
+          📄 Documents\StockSharp\Designer\Panels\_c9509d080cbb463985261b4af852d6b3.json
+          📄 Documents\StockSharp\Designer\Panels\_d786d1811b8a4156a56b25600ad3e72e.json
+        📁 Documents\StockSharp\Designer\Storage
+        📁 Documents\StockSharp\Designer\Symbol mapping
+        📄 Documents\StockSharp\Designer\exchange.csv
+        📄 Documents\StockSharp\Designer\exchangeboard.csv
+        📄 Documents\StockSharp\Designer\logManager.json
+        📄 Documents\StockSharp\Designer\platform_config.json
+        📄 Documents\StockSharp\Designer\portfolio.csv
+        📄 Documents\StockSharp\Designer\position.csv
+        📄 Documents\StockSharp\Designer\security.csv
+        📄 Documents\StockSharp\Designer\settings.json
+        📄 Documents\StockSharp\Designer\subscription.csv
+      📁 Documents\StockSharp\Installer
+        📁 Documents\StockSharp\Installer\Logs
+          📁 Documents\StockSharp\Installer\Logs\2026_03_24
+          📁 Documents\StockSharp\Installer\Logs\2026_03_25
+          📁 Documents\StockSharp\Installer\Logs\2026_03_26
+          📁 Documents\StockSharp\Installer\Logs\2026_03_27
+          📁 Documents\StockSharp\Installer\Logs\2026_03_28
+          📁 Documents\StockSharp\Installer\Logs\2026_03_29
+          📁 Documents\StockSharp\Installer\Logs\2026_03_30
+          📁 Documents\StockSharp\Installer\Logs\2026_03_31
+          📁 Documents\StockSharp\Installer\Logs\2026_04_01
+          📁 Documents\StockSharp\Installer\Logs\2026_04_02
+          📁 Documents\StockSharp\Installer\Logs\2026_04_03
+          📁 Documents\StockSharp\Installer\Logs\2026_04_04
+        📄 Documents\StockSharp\Installer\installer_apps.json
+        📄 Documents\StockSharp\Installer\installer_apps_installed.json
+        📄 Documents\StockSharp\Installer\logManager.json
+        📄 Documents\StockSharp\Installer\platform_config.json
+        📄 Documents\StockSharp\Installer\settings.json
+      📁 Documents\StockSharp\Python
+        📄 Documents\StockSharp\Python\candle_extensions.py
+        📄 Documents\StockSharp\Python\chart_extensions.py
+        📄 Documents\StockSharp\Python\datatype_extensions.py
+        📄 Documents\StockSharp\Python\designer_extensions.py
+        📄 Documents\StockSharp\Python\indicator_extensions.py
+        📄 Documents\StockSharp\Python\numpy_extensions.py
+        📄 Documents\StockSharp\Python\orderbook_extensions.py
+        📄 Documents\StockSharp\Python\storage_extensions.py
+      📄 Documents\StockSharp\credentials.json
+      📄 Documents\StockSharp\stocksharp_license_109158.xml
+    📁 Documents\TigerTrade
+      📁 Documents\TigerTrade\Indicators
+    📁 Documents\ViberDownloads
+      📁 Documents\ViberDownloads\PTT
+      📁 Documents\ViberDownloads\PublicAccountMedia
+        📄 Documents\ViberDownloads\PublicAccountMedia\0-04-05-8982bc7ff0dbb9414becda1808b14fa36d4a89d27ec849326250caeeaa4d3782_1ce0eb4c67c02ed9.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\0-04-05-9aae5a1fcf745c8c91d73797b594b32ce74c03e1ca935d247eeaec8bff634e35_c59aa7ee30ecc2c2.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\0-04-05-c212d29e5d568343defecc4fea1e067b473dde0dc20a2df1545f5078b21a9778_152ed17756a3d30b.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\0-04-05-caea8727ae933ba0c7634704de32f5c8f990ef1adb9ed68f3b62b1a1f9f5bb62_860832af76b659fa.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\0-04-05-ef2c63e7f572d43889fb46a7709ff02b27c9cf704700e42e4417813b51f0626c_bae6cfc9471122eb.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\21836b1049cc53351aa3ee91f536399b3179.png
+        📄 Documents\ViberDownloads\PublicAccountMedia\21836b1049cc53351aa3ee91f536399b3179_1.png
+        📄 Documents\ViberDownloads\PublicAccountMedia\21836b1049cc53351aa3ee91f536399b3179_2.png
+        📄 Documents\ViberDownloads\PublicAccountMedia\21836b1049cc53351aa3ee91f536399b3179_3.png
+        📄 Documents\ViberDownloads\PublicAccountMedia\285f3cf2f8f5b9bf410b08a4f0c4539d3177.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\285f3cf2f8f5b9bf410b08a4f0c4539d3177_1.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\285f3cf2f8f5b9bf410b08a4f0c4539d3177_2.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\285f3cf2f8f5b9bf410b08a4f0c4539d3177_3.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\285f3cf2f8f5b9bf410b08a4f0c4539d3177_4.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\52d5f5721f608789f799da22fa4978663218.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\52d5f5721f608789f799da22fa4978663218_1.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\52d5f5721f608789f799da22fa4978663218_2.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\52d5f5721f608789f799da22fa4978663218_3.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\5ada12ca699ef3b001509dc7bd0c87073275.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\5ada12ca699ef3b001509dc7bd0c87073275_1.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\5ada12ca699ef3b001509dc7bd0c87073275_2.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\7f448491dede2f297ce63794bac3a5af3360.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\7f448491dede2f297ce63794bac3a5af3360_1.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\7f448491dede2f297ce63794bac3a5af3360_2.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\aabd66d1ec5bd6008c87b74b6542c8383253.png
+        📄 Documents\ViberDownloads\PublicAccountMedia\c03cb3c6ac55bf77a3792d863b80a00c3225.webp
+        📄 Documents\ViberDownloads\PublicAccountMedia\c03cb3c6ac55bf77a3792d863b80a00c3225_1.webp
+        📄 Documents\ViberDownloads\PublicAccountMedia\c03cb3c6ac55bf77a3792d863b80a00c3225_2.webp
+        📄 Documents\ViberDownloads\PublicAccountMedia\c03cb3c6ac55bf77a3792d863b80a00c3225_3.webp
+        📄 Documents\ViberDownloads\PublicAccountMedia\d1bd0185c044bccf22713d094ea2e4fa3113.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\d1bd0185c044bccf22713d094ea2e4fa3113_1.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\d1bd0185c044bccf22713d094ea2e4fa3113_2.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\d1bd0185c044bccf22713d094ea2e4fa3113_3.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\d1bd0185c044bccf22713d094ea2e4fa3113_4.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\d6944e38dea70ae763eb8af3477c36483188.png
+        📄 Documents\ViberDownloads\PublicAccountMedia\d6944e38dea70ae763eb8af3477c36483188_1.png
+        📄 Documents\ViberDownloads\PublicAccountMedia\d6944e38dea70ae763eb8af3477c36483188_2.png
+        📄 Documents\ViberDownloads\PublicAccountMedia\d6944e38dea70ae763eb8af3477c36483188_3.png
+        📄 Documents\ViberDownloads\PublicAccountMedia\ddf9a1e40834d8150241dbad6de819053068.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\ddf9a1e40834d8150241dbad6de819053068_1.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\ddf9a1e40834d8150241dbad6de819053068_2.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\ddf9a1e40834d8150241dbad6de819053068_3.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\ddf9a1e40834d8150241dbad6de819053068_4.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\e6f04a4129ed41faee4c4d0cc9131f7d3227.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\f3ba77fec341c2e16137264daccc3e713362.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\f3ba77fec341c2e16137264daccc3e713362_1.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\fcfbbf7e6198fc744a81d8a630d3a7c03384.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb0-04-05-2f3305b46f984774378bbe33c23053a7422f1cd04767db29e0dbf0f1e68e1dc5_ee0ca4bf4906a367.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb0-04-05-33a4e83f6ab42e907478b5787021fdca06234fb2c3072bd41a15a3161ae35cf8_59615ac660da4f09.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb0-04-05-5e68e4f95b6b50ce69253772051d2ebe16790d379a1115e5e92adbd897ad47d7_bbf04b09cb1e43de.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb0-04-05-8931ffa61c3c804109697c82fb0ee7f94565090246be3f29cc53ff9d402c452c_e54825eba11aab89.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb0-04-05-8982bc7ff0dbb9414becda1808b14fa36d4a89d27ec849326250caeeaa4d3782_eb5cfe9d79ea2b19.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb0-04-05-89e8b48592e8a19b61822b91c15c79983f8e164b44c2d5025a107d9b02f87a98_e652b8be750ef4c4.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb0-04-05-9aae5a1fcf745c8c91d73797b594b32ce74c03e1ca935d247eeaec8bff634e35_51620da1a2f9970c.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb0-04-05-b60b64959cdf0d5270d98faa418c5eac0f45f123b72ecd17790161c7ab98b24c_ed2c91b91578e0f8.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb0-04-05-c212d29e5d568343defecc4fea1e067b473dde0dc20a2df1545f5078b21a9778_705e11c7e57276b3.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb0-04-05-caea8727ae933ba0c7634704de32f5c8f990ef1adb9ed68f3b62b1a1f9f5bb62_8585748fa26277a6.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb0-04-05-d8f207eec790c7167d36bee64d3c333fb2061f510e13e9d57f7718065e8e0ef8_9dff5251a07ac7d1.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb0-04-05-db00d68b012a4e3d0d2925553f7e5c4c375729579a59b79582fc236461e4b64f_a4f8aa35dffa2704.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb0-04-05-e781adda34a6f34ff78a050c54061f708c45485f48e4d2c5520739cf3fe759e5_f64b18d4d47ae1f3.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb0-04-05-ef2c63e7f572d43889fb46a7709ff02b27c9cf704700e42e4417813b51f0626c_90550c31e22f8a79.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb0-04-05-efa967ee6d700f67f27d2062a79dc24407b33c78603323f6264defc4f43d3dd7_4de0c6e378660511.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb21836b1049cc53351aa3ee91f536399b3179_2_92b148deb288dfb2.png
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb21836b1049cc53351aa3ee91f536399b3179_3_3dcae90e386109e2.png
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb285f3cf2f8f5b9bf410b08a4f0c4539d3177_3_3368a8ab1a279b8.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb285f3cf2f8f5b9bf410b08a4f0c4539d3177_4_3b804cd3f8858827.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb52d5f5721f608789f799da22fa4978663218_2_ffc9838eb55da7cc.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb52d5f5721f608789f799da22fa4978663218_3_3f62c6700f19e980.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb5ada12ca699ef3b001509dc7bd0c87073275_1_2f03d6c3d115c1b6.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb5ada12ca699ef3b001509dc7bd0c87073275_2_68229dd0b1210318.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb7f448491dede2f297ce63794bac3a5af3360_1_2f2a339c7a6fb4d9.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumb7f448491dede2f297ce63794bac3a5af3360_2_8bd6a39202564ab3.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumbc03cb3c6ac55bf77a3792d863b80a00c3225_2_673707517aebc0f0.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumbc03cb3c6ac55bf77a3792d863b80a00c3225_3_eed1d577eb2df7fd.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumbd1bd0185c044bccf22713d094ea2e4fa3113_3_934d0819e9daa49b.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumbd1bd0185c044bccf22713d094ea2e4fa3113_4_9ec803e20d49e397.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumbd6944e38dea70ae763eb8af3477c36483188_2_b93b0c7e0c0c3891.png
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumbd6944e38dea70ae763eb8af3477c36483188_3_b059895bc085d813.png
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumbddf9a1e40834d8150241dbad6de819053068_3_aa1a46ee2b141aa2.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumbddf9a1e40834d8150241dbad6de819053068_4_96fd2ff2a8431cb0.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumbf3ba77fec341c2e16137264daccc3e713362_1_ed1da013a9a3f8d1.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumbf3ba77fec341c2e16137264daccc3e713362_47f12d960a4d0e82.jpg
+        📄 Documents\ViberDownloads\PublicAccountMedia\thumbfcfbbf7e6198fc744a81d8a630d3a7c03384_501a8310364ce2c7.jpg
+    📁 Documents\Visual Studio 18
+      📁 Documents\Visual Studio 18\Code Snippets
+        📁 Documents\Visual Studio 18\Code Snippets\Visual Basic
+          📁 Documents\Visual Studio 18\Code Snippets\Visual Basic\My Code Snippets
+        📁 Documents\Visual Studio 18\Code Snippets\Visual C#
+          📁 Documents\Visual Studio 18\Code Snippets\Visual C#\My Code Snippets
+        📁 Documents\Visual Studio 18\Code Snippets\XAML
+          📁 Documents\Visual Studio 18\Code Snippets\XAML\My XAML Snippets
+        📁 Documents\Visual Studio 18\Code Snippets\XML
+          📁 Documents\Visual Studio 18\Code Snippets\XML\My Xml Snippets
+      📁 Documents\Visual Studio 18\Templates
+        📁 Documents\Visual Studio 18\Templates\ItemTemplates
+          📁 Documents\Visual Studio 18\Templates\ItemTemplates\C#
+          📁 Documents\Visual Studio 18\Templates\ItemTemplates\Extensibility
+          📁 Documents\Visual Studio 18\Templates\ItemTemplates\Visual Basic
+        📁 Documents\Visual Studio 18\Templates\ProjectTemplates
+          📁 Documents\Visual Studio 18\Templates\ProjectTemplates\C#
+          📁 Documents\Visual Studio 18\Templates\ProjectTemplates\Extensibility
+          📁 Documents\Visual Studio 18\Templates\ProjectTemplates\Visual Basic
+      📁 Documents\Visual Studio 18\Visualizers
+        📄 Documents\Visual Studio 18\Visualizers\attribcache140.bin
+    📁 Documents\Visual Studio 2019
+      📁 Documents\Visual Studio 2019\Code Snippets
+        📁 Documents\Visual Studio 2019\Code Snippets\JavaScript
+          📁 Documents\Visual Studio 2019\Code Snippets\JavaScript\My Code Snippets
+        📁 Documents\Visual Studio 2019\Code Snippets\TypeScript
+          📁 Documents\Visual Studio 2019\Code Snippets\TypeScript\My Code Snippets
+        📁 Documents\Visual Studio 2019\Code Snippets\Visual Basic
+          📁 Documents\Visual Studio 2019\Code Snippets\Visual Basic\My Code Snippets
+        📁 Documents\Visual Studio 2019\Code Snippets\Visual C#
+          📁 Documents\Visual Studio 2019\Code Snippets\Visual C#\My Code Snippets
+        📁 Documents\Visual Studio 2019\Code Snippets\Visual Web Developer
+          📁 Documents\Visual Studio 2019\Code Snippets\Visual Web Developer\My CSS Snippets
+          📁 Documents\Visual Studio 2019\Code Snippets\Visual Web Developer\My HTML Snippets
+        📁 Documents\Visual Studio 2019\Code Snippets\XAML
+          📁 Documents\Visual Studio 2019\Code Snippets\XAML\My XAML Snippets
+        📁 Documents\Visual Studio 2019\Code Snippets\XML
+          📁 Documents\Visual Studio 2019\Code Snippets\XML\My Xml Snippets
+      📁 Documents\Visual Studio 2019\Templates
+        📁 Documents\Visual Studio 2019\Templates\ItemTemplates
+          📁 Documents\Visual Studio 2019\Templates\ItemTemplates\Extensibility
+          📁 Documents\Visual Studio 2019\Templates\ItemTemplates\JavaScript
+          📁 Documents\Visual Studio 2019\Templates\ItemTemplates\TypeScript
+          📁 Documents\Visual Studio 2019\Templates\ItemTemplates\Visual Basic
+          📁 Documents\Visual Studio 2019\Templates\ItemTemplates\Visual C#
+          📁 Documents\Visual Studio 2019\Templates\ItemTemplates\Visual Web Developer
+          📁 Documents\Visual Studio 2019\Templates\ItemTemplates\Расширение среды
+        📁 Documents\Visual Studio 2019\Templates\ProjectTemplates
+          📁 Documents\Visual Studio 2019\Templates\ProjectTemplates\Extensibility
+          📁 Documents\Visual Studio 2019\Templates\ProjectTemplates\JavaScript
+          📁 Documents\Visual Studio 2019\Templates\ProjectTemplates\TypeScript
+          📁 Documents\Visual Studio 2019\Templates\ProjectTemplates\Visual Basic
+          📁 Documents\Visual Studio 2019\Templates\ProjectTemplates\Visual C#
+          📁 Documents\Visual Studio 2019\Templates\ProjectTemplates\Visual Web Developer
+          📁 Documents\Visual Studio 2019\Templates\ProjectTemplates\Расширение среды
+      📁 Documents\Visual Studio 2019\Visualizers
+        📄 Documents\Visual Studio 2019\Visualizers\attribcache140.bin
+    📁 Documents\Visual Studio 2022
+      📁 Documents\Visual Studio 2022\Code Snippets
+        📁 Documents\Visual Studio 2022\Code Snippets\JavaScript
+          📁 Documents\Visual Studio 2022\Code Snippets\JavaScript\My Code Snippets
+        📁 Documents\Visual Studio 2022\Code Snippets\TypeScript
+          📁 Documents\Visual Studio 2022\Code Snippets\TypeScript\My Code Snippets
+        📁 Documents\Visual Studio 2022\Code Snippets\Visual Basic
+          📁 Documents\Visual Studio 2022\Code Snippets\Visual Basic\My Code Snippets
+        📁 Documents\Visual Studio 2022\Code Snippets\Visual C#
+          📁 Documents\Visual Studio 2022\Code Snippets\Visual C#\My Code Snippets
+        📁 Documents\Visual Studio 2022\Code Snippets\Visual Web Developer
+          📁 Documents\Visual Studio 2022\Code Snippets\Visual Web Developer\My CSS Snippets
+          📁 Documents\Visual Studio 2022\Code Snippets\Visual Web Developer\My HTML Snippets
+        📁 Documents\Visual Studio 2022\Code Snippets\XAML
+          📁 Documents\Visual Studio 2022\Code Snippets\XAML\My XAML Snippets
+        📁 Documents\Visual Studio 2022\Code Snippets\XML
+          📁 Documents\Visual Studio 2022\Code Snippets\XML\My Xml Snippets
+      📁 Documents\Visual Studio 2022\Templates
+        📁 Documents\Visual Studio 2022\Templates\ItemTemplates
+          📁 Documents\Visual Studio 2022\Templates\ItemTemplates\C#
+          📁 Documents\Visual Studio 2022\Templates\ItemTemplates\Extensibility
+          📁 Documents\Visual Studio 2022\Templates\ItemTemplates\JavaScript
+          📁 Documents\Visual Studio 2022\Templates\ItemTemplates\TypeScript
+          📁 Documents\Visual Studio 2022\Templates\ItemTemplates\Visual Basic
+          📁 Documents\Visual Studio 2022\Templates\ItemTemplates\Visual Web Developer
+          📁 Documents\Visual Studio 2022\Templates\ItemTemplates\Расширение среды
+        📁 Documents\Visual Studio 2022\Templates\ProjectTemplates
+          📁 Documents\Visual Studio 2022\Templates\ProjectTemplates\C#
+          📁 Documents\Visual Studio 2022\Templates\ProjectTemplates\Extensibility
+          📁 Documents\Visual Studio 2022\Templates\ProjectTemplates\JavaScript
+          📁 Documents\Visual Studio 2022\Templates\ProjectTemplates\TypeScript
+          📁 Documents\Visual Studio 2022\Templates\ProjectTemplates\Visual Basic
+          📁 Documents\Visual Studio 2022\Templates\ProjectTemplates\Visual Web Developer
+          📁 Documents\Visual Studio 2022\Templates\ProjectTemplates\Расширение среды
+      📁 Documents\Visual Studio 2022\Visualizers
+        📄 Documents\Visual Studio 2022\Visualizers\attribcache140.bin
+    📁 Documents\WindowsPowerShell
+      📁 Documents\WindowsPowerShell\Scripts
+        📁 Documents\WindowsPowerShell\Scripts\InstalledScriptInfos
+    📁 Documents\Аудиозаписи
+      📄 Documents\Аудиозаписи\Запись (2).m4a
+      📄 Documents\Аудиозаписи\Запись (3).m4a
+      📄 Documents\Аудиозаписи\Запись (4).m4a
+      📄 Documents\Аудиозаписи\Запись (5).m4a
+      📄 Documents\Аудиозаписи\Запись (6).m4a
+      📄 Documents\Аудиозаписи\Запись (7).m4a
+      📄 Documents\Аудиозаписи\Запись (8).m4a
+      📄 Documents\Аудиозаписи\Запись.m4a
+    📄 Documents\Default.tlws
+    📄 Documents\desktop.ini
+    📄 Documents\Документ.docx
+    📄 Documents\Пароли.rtf
+  📁 HermesBrain
+    📁 HermesBrain\HermesBrain
+      📁 HermesBrain\HermesBrain\.obsidian
+        📄 HermesBrain\HermesBrain\.obsidian\app.json
+        📄 HermesBrain\HermesBrain\.obsidian\appearance.json
+        📄 HermesBrain\HermesBrain\.obsidian\core-plugins.json
+        📄 HermesBrain\HermesBrain\.obsidian\graph.json
+        📄 HermesBrain\HermesBrain\.obsidian\workspace.json
+      📄 HermesBrain\HermesBrain\Welcome.md
+  📁 Pictures
+    📁 Pictures\Camera Roll
+      📄 Pictures\Camera Roll\desktop.ini
+    📁 Pictures\Saved Pictures
+    📁 Pictures\Screenshots
+      📄 Pictures\Screenshots\2024-08-10 (10).png
+      📄 Pictures\Screenshots\2024-08-10 (11).png
+      📄 Pictures\Screenshots\2024-08-10 (12).png
+      📄 Pictures\Screenshots\2024-08-10 (13).png
+      📄 Pictures\Screenshots\2024-08-10 (7).png
+      📄 Pictures\Screenshots\2024-08-10 (8).png
+      📄 Pictures\Screenshots\2024-08-10 (9).png
+      📄 Pictures\Screenshots\2024-08-15 (1).png
+      📄 Pictures\Screenshots\2024-08-15 (2).png
+      📄 Pictures\Screenshots\2024-08-15 (3).png
+      📄 Pictures\Screenshots\2024-08-15 (4).png
+      📄 Pictures\Screenshots\2024-08-15 (5).png
+      📄 Pictures\Screenshots\2024-08-15 (6).png
+      📄 Pictures\Screenshots\2024-08-15 (7).png
+      📄 Pictures\Screenshots\2024-08-15 (8).png
+      📄 Pictures\Screenshots\2024-08-15 (9).png
+      📄 Pictures\Screenshots\2024-08-15.png
+      📄 Pictures\Screenshots\2024-10-12.png
+      📄 Pictures\Screenshots\2025-05-04 (1).png
+      📄 Pictures\Screenshots\2025-05-04 (2).png
+      📄 Pictures\Screenshots\2025-05-04 (3).png
+      📄 Pictures\Screenshots\2025-05-04 (4).png
+      📄 Pictures\Screenshots\2025-05-04 (5).png
+      📄 Pictures\Screenshots\2025-05-04.png
+      📄 Pictures\Screenshots\desktop.ini
+      📄 Pictures\Screenshots\screenshot_fullscreen_20251102_182511.png
+    📄 Pictures\133671236015366544.jpg
+    📄 Pictures\134059678542558280.jpg
+    📄 Pictures\134064902329099063.jpg
+    📄 Pictures\134073134499554247.jpg
+    📄 Pictures\134081261650996622.jpg
+    📄 Pictures\desktop.ini
+    📄 Pictures\PXL_20240811_234010365.jpg
+  📁 Вложения
+  📄 .849C9593-D756-4E56-8D6E-42412F2A707B
+  📄 desktop.ini
+  📄 Personal Vault.lnk
+  📄 Temporary Residence.docx
+  📄 TradingPasswords.rtf
+  📄 Документ 2.docx
+  📄 Документ 3.docx
+  📄 Документ.docx
+  📄 Мои проекты.docx

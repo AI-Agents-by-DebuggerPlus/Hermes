@@ -35,6 +35,11 @@ public sealed class HermesSettings
     public double ChatFontSize { get; set; } = 14;
 
     /// <summary>
+    /// When true, local chat sends and inbound Supabase user rows do not invoke Hermes; messages still appear in UI and outgoing desktop messages still publish to Supabase when relay is on.
+    /// </summary>
+    public bool HermesAgentPaused { get; set; }
+
+    /// <summary>
     /// When set and directory exists, Hermes subprocess <c>cd</c> uses this folder (full tree under it is reachable).
     /// When empty, each command uses the selected project folder as working directory (previous behavior).
     /// </summary>
@@ -62,4 +67,22 @@ public sealed class HermesSettings
 
     /// <summary><c>sender_name</c> for rows inserted when the user sends from this desktop (must differ from <see cref="SupabaseHermesSenderName"/> and from mobile clients).</summary>
     public string SupabaseLocalSenderName { get; set; } = "Desktop";
+
+    /// <summary>Windows path to Obsidian vault / Markdown memory root (recursive <c>*.md</c>).</summary>
+    public string ExternalBrainMemoryPath { get; set; } = string.Empty;
+
+    /// <summary>Merge relevant memories into outbound <c>hermes chat</c> prompt (not shown in UI bubble).</summary>
+    public bool ExternalBrainInjectIntoPrompt { get; set; } = true;
+
+    /// <summary>Maximum memories appended to the outbound prompt context block (clamped 1–20).</summary>
+    public int ExternalBrainMaxContextItems { get; set; } = 12;
+
+    /// <summary>
+    /// When true, Hermes.Wpf may run synthetic cursor moves/tests (desktop skill).
+    /// The standalone <c>Hermes.MouseBridge</c> CLI does not read this flag.
+    /// </summary>
+    public bool DesktopMouseSkillEnabled { get; set; }
+
+    /// <summary>When true, outbound chat payloads include English tutor persona (Hermes.Wpf).</summary>
+    public bool EnglishTutorModeEnabled { get; set; }
 }

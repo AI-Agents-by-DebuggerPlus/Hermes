@@ -34,7 +34,6 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="10" />
-                    <RowDefinition Height="370" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
@@ -55,16 +54,46 @@
                             Margin="0,0,8,0"
                             Content="Chat"
                             Click="OpenChatButton_OnClick" />
+                    <CheckBox Margin="4,0,12,8"
+                              VerticalAlignment="Center"
+                              Content="Пауза агента"
+                              IsChecked="{Binding HermesAgentPaused, Mode=TwoWay}"
+                              ToolTip="Не вызывать Hermes для локального чата и входящих из Supabase; сообщения в UI и отправка ваших строк в Supabase при активном relay сохраняются. Быстрые действия (Status, Gateway) по-прежнему идут в CLI." />
                     <Button Width="118"
-                            Margin="0,0,8,0"
+                            Margin="0,0,8,8"
                             Content="Supabase test"
                             Click="OpenSupabaseTestChat_OnClick" />
+                    <Button Width="115"
+                            Margin="0,0,8,8"
+                            Content="External Brain"
+                            Click="OpenExternalBrain_OnClick" />
+                    <Button Width="138"
+                            Margin="0,0,8,8"
+                            Content="💾 Save experience"
+                            ToolTip="Сохранить черновик опыта в Obsidian vault (Memory)"
+                            Click="OpenSaveExperience_OnClick" />
+                    <Button Width="170"
+                            Margin="0,0,8,8"
+                            Content="📤 Export English progress"
+                            ToolTip="Экспорт прогресса репетитора английского в Obsidian (Memory/Knowledge/EnglishTutor и Sessions)"
+                            Command="{Binding ExportEnglishTutorProgressCommand}" />
                     <Button Width="90"
+                            Margin="0,0,8,8"
                             Content="Logs"
                             Click="OpenLogsButton_OnClick" />
                 </WrapPanel>
 
-                <views:TerminalView Grid.Row="2" />
+                <TabControl Grid.Row="2" Padding="0,4,0,0">
+                    <TabControl.Resources>
+                        <Style BasedOn="{StaticResource HermesAccentTabItemStyle}" TargetType="TabItem" />
+                    </TabControl.Resources>
+                    <TabItem Header="Терминал">
+                        <views:TerminalView Margin="0,8,0,0" />
+                    </TabItem>
+                    <TabItem Header="Навыки">
+                        <views:AgentSkillsView Margin="0,8,0,0" />
+                    </TabItem>
+                </TabControl>
             </Grid>
         </Grid>
     </Grid>

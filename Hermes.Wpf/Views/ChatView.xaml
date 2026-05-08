@@ -11,6 +11,9 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="8" />
                 <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="8" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="8" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="8" />
@@ -54,7 +57,83 @@
                 </ListBox.ItemTemplate>
             </ListBox>
 
-            <TextBox Grid.Row="4"
+            <Border Grid.Row="3"
+                    Margin="0,8,0,0"
+                    Padding="12,8"
+                    Background="#1a3a6b"
+                    CornerRadius="8">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsFlashcardStatusBarVisible}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel Orientation="Horizontal">
+                    <Ellipse Width="8"
+                             Height="8"
+                             Margin="0,0,10,0"
+                             VerticalAlignment="Center"
+                             Fill="#c9a84c">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Setter Property="Opacity" Value="1" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding FlashcardDotPulse}" Value="True">
+                                        <Setter Property="Opacity" Value="0.45" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+                    <TextBlock MaxWidth="360"
+                               Margin="0,0,12,0"
+                               VerticalAlignment="Center"
+                               FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
+                               Foreground="#b0c8ff"
+                               Text="{Binding FlashcardStatusText}"
+                               TextWrapping="Wrap" />
+                    <Button Margin="8,0,0,0"
+                            Padding="6,4"
+                            VerticalAlignment="Center"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Command="{Binding StopFlashcardsCommand}"
+                            Content="✕"
+                            Cursor="Hand"
+                            FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
+                            Foreground="#b0c8ff"
+                            ToolTip="Остановить цикл карточек" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="5"
+                    Padding="8,6"
+                    Background="#161B22"
+                    BorderBrush="#30343D"
+                    BorderThickness="1"
+                    CornerRadius="4">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsAgentChatStatusBarVisible}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
+                           FontStyle="Italic"
+                           Foreground="{StaticResource MutedTextBrush}"
+                           Text="{Binding AgentChatStatusLine}"
+                           TextWrapping="Wrap" />
+            </Border>
+
+            <TextBox Grid.Row="7"
                      x:Name="MessageInputTextBox"
                      Height="70"
                      FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
@@ -62,7 +141,13 @@
                      TextWrapping="Wrap"
                      PreviewKeyDown="MessageInputTextBox_OnPreviewKeyDown"
                      Text="{Binding Chat.UserInput, UpdateSourceTrigger=PropertyChanged}" />
-            <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right">
+            <StackPanel Grid.Row="9" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Margin="0,0,8,0"
+                        Padding="10,6"
+                        FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
+                        Content="💾 Save experience"
+                        Command="{Binding SaveExperienceCommand}"
+                        ToolTip="Сохранить последнюю связку вопрос/ответ в память vault" />
                 <Button Width="120"
                         Margin="0,0,8,0"
                         FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"

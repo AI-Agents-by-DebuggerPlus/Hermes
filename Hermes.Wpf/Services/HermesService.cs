@@ -23,9 +23,15 @@ public sealed class HermesService
         HermesSettings settings,
         int timeoutSeconds = 180)
     {
-        var dq = EscapeForDoubleQuotedBash(message);
+        // WSL/bash treat \r as part of tokens; normalize to LF so tools never see `$'...\r'`.
+        message = (message ?? string.Empty).ReplaceLineEndings("\n");
+        // Hermes may pass fragments through nested shells; ASCII backtick triggers command substitution in bash.
+        message = message.Replace('`', '\uFF40'); // U+FF40 FULLWIDTH GRAVE ACCENT — same glyph role, not special to bash
+        // Use single-quoted bash argument to avoid accidental command substitution when the prompt contains Markdown fences (```),
+        // $(), backticks, etc. Double-quoted strings would still be vulnerable to subtle escape edge-cases.
+        var sq = EscapeForSingleQuotedBash(message);
         var script = ComposeScript(settings, wslWorkDir,
-            $"{ActivationLine(settings)} && {settings.HermesCommand} -z \"{dq}\" chat");
+            $"{ActivationLine(settings)} && {settings.HermesCommand} -z '{sq}' chat");
 
         MaybeLogDiagnosticScript(settings, script, "chat");
         return await ExecuteWslArgvAsync(BuildWslArgv(settings, script), timeoutSeconds).ConfigureAwait(false);
@@ -38,6 +44,7 @@ public sealed class HermesService
         HermesSettings settings,
         int timeoutSeconds = 120)
     {
+        command = (command ?? string.Empty).ReplaceLineEndings("\n").Replace('`', '\uFF40');
         var script =
             ComposeScript(settings, wslWorkDir, $"{ActivationLine(settings)} && {settings.HermesCommand} {command}");
 
@@ -146,6 +153,12 @@ public sealed class HermesService
             .Replace("`", "\\`")
             .Replace("\"", "\\\"", StringComparison.Ordinal)
             .Replace("$", "\\$");
+
+    /// <summary>
+    /// Escapes arbitrary content for a single-quoted bash string literal.
+    /// </summary>
+    private static string EscapeForSingleQuotedBash(string s) =>
+        (s ?? string.Empty).Replace("'", "'\\''", StringComparison.Ordinal);
 
     private static IReadOnlyList<string> BuildWslArgv(HermesSettings settings, string bashLcScriptOneArgument)
     {

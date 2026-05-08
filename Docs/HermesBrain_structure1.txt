@@ -1,0 +1,30 @@
+﻿Целевая структура папок (согласно FoldersStructure2.md).
+
+Абсолютный путь к vault:
+    C:\Users\busin\OneDrive\HermesBrain\
+
+Путь к памяти (Memory):
+    C:\Users\busin\OneDrive\HermesBrain\Memory\
+
+📁
+  📁 HermesBrain
+    📁 HermesBrain\.obsidian
+      📄 HermesBrain\.obsidian\app.json
+      📄 HermesBrain\.obsidian\appearance.json
+      📄 HermesBrain\.obsidian\core-plugins.json
+      📄 HermesBrain\.obsidian\graph.json
+      📄 HermesBrain\.obsidian\workspace.json
+    📁 HermesBrain\Memory
+      📁 HermesBrain\Memory\Daily
+      📁 HermesBrain\Memory\Projects
+      📁 HermesBrain\Memory\Knowledge
+      📁 HermesBrain\Memory\Procedures
+        📄 HermesBrain\Memory\Procedures\initial_setup.md
+      📁 HermesBrain\Memory\Identity
+    📁 HermesBrain\Templates
+      📄 HermesBrain\Templates\procedural.md
+      📄 HermesBrain\Templates\knowledge.md
+      📄 HermesBrain\Templates\project.md
+    📁 HermesBrain\Manual
+    📁 HermesBrain\Archive
+    📄 HermesBrain\Welcome.md

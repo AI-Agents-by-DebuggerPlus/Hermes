@@ -1,3 +1,5 @@
 <Solution>
+  <Project Path="Hermes.DesktopInteraction/Hermes.DesktopInteraction.csproj" />
+  <Project Path="Hermes.MouseBridge/Hermes.MouseBridge.csproj" />
   <Project Path="Hermes.Wpf/Hermes.Wpf.csproj" />
 </Solution>
