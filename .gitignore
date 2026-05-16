@@ -361,3 +361,10 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Reni water automation (local secrets + venv)
+scripts/reni_water/.venv/
+scripts/reni_water/reni_water.env
+Docs/Credentials/
+# Local water utility state (outside repo is fine too)
+d:/Documents/Utilities/water/pending_ack.json

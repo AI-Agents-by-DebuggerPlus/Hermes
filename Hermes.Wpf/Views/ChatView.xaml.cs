@@ -1,4 +1,5 @@
 using System.Collections.Specialized;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using Hermes.Wpf.ViewModels;
@@ -48,6 +49,20 @@ public partial class ChatView : UserControl
             var last = MessagesListBox.Items[^1];
             MessagesListBox.ScrollIntoView(last);
         }, System.Windows.Threading.DispatcherPriority.Background);
+    }
+
+    private void ChatImage_OnMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Image image || image.Tag is not string path || string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        if (DataContext is MainViewModel vm)
+        {
+            vm.OpenImageViewer(path);
+            e.Handled = true;
+        }
     }
 
     private void MessageInputTextBox_OnPreviewKeyDown(object sender, KeyEventArgs e)

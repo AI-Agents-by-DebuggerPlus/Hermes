@@ -49,13 +49,24 @@ public sealed class MainViewModel : BaseViewModel
     private readonly LogService _logService;
     private readonly ChatLogService _chatLogService;
     private readonly ExternalBrainService _externalBrain;
+    private readonly WslAgentMemorySyncService _wslAgentMemorySync;
+    private readonly WslAgentMemoryService _wslAgentMemoryService;
     private readonly MemoryExtractorService _memoryExtractor = new();
     private MemoryDraft? _lastExperienceDraft;
     private readonly EnglishTutorVocabularyStore _englishTutorVocabulary = new();
     private readonly EnglishTutorObsidianExporter _englishTutorExporter;
     private Action? _saveExperienceOpener;
     private readonly MouseSkillService _mouseSkill;
+    private readonly ReniWaterScriptService _reniWater;
+    private readonly ReniWaterScheduleSkill _reniWaterSchedule;
     private readonly DispatcherTimer _watchdogTimer;
+    private readonly DispatcherTimer _reniWaterPollTimer;
+    private readonly DispatcherTimer _reniWaterScheduleTimer;
+    private bool _reniWaterBusy;
+    private bool _isReniWaterStatusBarVisible;
+    private string _reniWaterStatusText = string.Empty;
+    private string? _reniWaterPendingScreenshotPath;
+    private bool _canViewReniWaterScreenshot;
     private bool _isBusy;
     private string _terminalOutput = "Terminal ready.";
     private ConnectionState _currentConnectionState = ConnectionState.Disconnected;
@@ -116,8 +127,22 @@ public sealed class MainViewModel : BaseViewModel
         _settingsService = settingsService;
         Settings = settings;
         _externalBrain = externalBrain;
+        _wslAgentMemorySync = new WslAgentMemorySyncService(_logService);
+        _wslAgentMemoryService = new WslAgentMemoryService();
+        WslMemory = new WslMemoryViewModel(
+            _logService,
+            Settings,
+            _externalBrain,
+            _wslAgentMemoryService,
+            _wslAgentMemorySync);
         _englishTutorExporter = new EnglishTutorObsidianExporter(_logService);
         _mouseSkill = new MouseSkillService(Settings, logService);
+        _reniWater = new ReniWaterScriptService(logService, () => Settings);
+        _reniWater.OutputReceived += line => AppendTerminal($"[reni-water] {line}");
+        _reniWaterSchedule = new ReniWaterScheduleSkill(
+            logService,
+            () => Settings,
+            () => RunReniWaterSubmitUiAsync());
         _chatFontSize = ClampChatFontForUi(Settings.ChatFontSize);
         Settings.ChatFontSize = _chatFontSize;
         Chat = new ChatViewModel();
@@ -184,6 +209,22 @@ public sealed class MainViewModel : BaseViewModel
         _flashcardSkill.DelayTick += FlashcardSkill_OnDelayTick;
         StopFlashcardsCommand = new RelayCommand(_ => StopFlashcardsInternal(), _ => _flashcardSkill.Status != FlashcardStatus.Idle);
 
+        SubmitReniWaterCommand = new RelayCommand(
+            async _ => await RunReniWaterSubmitUiAsync(),
+            _ => !_isBusy && !_reniWaterBusy);
+        AckReniWaterCommand = new RelayCommand(
+            async _ => await RunReniWaterAckUiAsync(),
+            _ => !_isBusy && !_reniWaterBusy);
+        LoginReniWaterCommand = new RelayCommand(
+            _ => RunReniWaterLoginUi(),
+            _ => !_reniWaterBusy);
+        ViewReniWaterScreenshotCommand = new RelayCommand(
+            _ => ShowReniWaterScreenshotInChat(),
+            _ => _canViewReniWaterScreenshot);
+        CheckReniWaterSessionCommand = new RelayCommand(
+            async _ => await RunReniWaterCheckSessionUiAsync(),
+            _ => !_isBusy && !_reniWaterBusy);
+
         _hermesService.OutputReceived += OnHermesProcessOutputLine;
 
         Chat.PropertyChanged += (_, e) =>
@@ -199,6 +240,23 @@ public sealed class MainViewModel : BaseViewModel
         _watchdogTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(25) };
         _watchdogTimer.Tick += async (_, _) => await WatchdogTickAsync();
         _watchdogTimer.Start();
+
+        var pollMin = Settings.ReniWaterPendingPollMinutes;
+        if (pollMin < 1)
+        {
+            pollMin = 15;
+        }
+
+        _reniWaterPollTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(pollMin) };
+        _reniWaterPollTimer.Tick += (_, _) => RefreshReniWaterPendingUi();
+        _reniWaterPollTimer.Start();
+        RefreshReniWaterPendingUi();
+
+        _reniWaterScheduleTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        _reniWaterScheduleTimer.Tick += async (_, _) => await _reniWaterSchedule.TickAsync();
+        _reniWaterScheduleTimer.Start();
+
+        _ = RunReniWaterStartupCatchUpAsync();
 
         LogStartupBanner();
         _logService.LogInfo($"Session initialized. Active log: {_logService.CurrentLogFilePath}");
@@ -262,6 +320,18 @@ public sealed class MainViewModel : BaseViewModel
         RaisePropertyChanged(nameof(IsEnglishTutorStatusVisible));
         RaiseSupabaseConnectionUi();
         CommandManager.InvalidateRequerySuggested();
+    }
+
+    public void SyncWslAgentMemoryToVault(string reason)
+    {
+        try
+        {
+            _wslAgentMemorySync.TrySync(Settings, _externalBrain);
+        }
+        catch (Exception ex)
+        {
+            _logService.LogWarn($"[wsl-memory-sync] {reason}: {ex.Message}");
+        }
     }
 
     /// <summary>Persisted режим репетитора EN; переключается ключевыми фразами из чата, сохраняется при смене.</summary>
@@ -522,6 +592,7 @@ public sealed class MainViewModel : BaseViewModel
 
     public ChatViewModel Chat { get; }
     public ProjectViewModel Projects { get; }
+    public WslMemoryViewModel WslMemory { get; }
     public HermesSettings Settings { get; }
     public ObservableCollection<string> SessionHistoryTitles { get; } = [];
 
@@ -546,8 +617,40 @@ public sealed class MainViewModel : BaseViewModel
 
     public ICommand StopFlashcardsCommand { get; }
 
+    public ICommand SubmitReniWaterCommand { get; }
+    public ICommand AckReniWaterCommand { get; }
+    public ICommand LoginReniWaterCommand { get; }
+
+    public ICommand ViewReniWaterScreenshotCommand { get; }
+
+    public ICommand CheckReniWaterSessionCommand { get; }
+
+    public bool CanViewReniWaterScreenshot
+    {
+        get => _canViewReniWaterScreenshot;
+        private set => SetProperty(ref _canViewReniWaterScreenshot, value);
+    }
+
+    public bool IsReniWaterStatusBarVisible
+    {
+        get => _isReniWaterStatusBarVisible;
+        private set => SetProperty(ref _isReniWaterStatusBarVisible, value);
+    }
+
+    public string ReniWaterStatusText
+    {
+        get => _reniWaterStatusText;
+        private set => SetProperty(ref _reniWaterStatusText, value);
+    }
+
     /// <summary>Detach timers before Supabase shutdown (main window closing).</summary>
-    public void ShutdownFlashcardSkillBeforeRelay() => _flashcardSkill.Dispose();
+    public void ShutdownFlashcardSkillBeforeRelay()
+    {
+        _flashcardSkill.Dispose();
+        _reniWaterPollTimer.Stop();
+        _reniWaterScheduleTimer.Stop();
+        _reniWaterSchedule.Dispose();
+    }
 
     public bool IsFlashcardStatusBarVisible
     {
@@ -996,6 +1099,11 @@ public sealed class MainViewModel : BaseViewModel
                 _logService.LogInfo("[agent] Пауза: входящее из Supabase уже в чате, Hermes не вызывается.");
             }
 
+            if (await TryHandleReniWaterLocalAsync(agentUserPayload, project.Name).ConfigureAwait(true))
+            {
+                return;
+            }
+
             return;
         }
 
@@ -1015,6 +1123,11 @@ public sealed class MainViewModel : BaseViewModel
         try
         {
             if (TryHandleLocalFlashcardsViewMode(agentUserPayload, project.Name))
+            {
+                return;
+            }
+
+            if (await TryHandleReniWaterLocalAsync(agentUserPayload, project.Name).ConfigureAwait(true))
             {
                 return;
             }
@@ -1139,6 +1252,8 @@ public sealed class MainViewModel : BaseViewModel
             Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = displayResponse });
             _lastExperienceDraft = _memoryExtractor.ExtractExperience(payload, displayResponse);
             _chatLogService.AppendMessage(project.Name, "Hermes", displayResponse);
+            SyncWslAgentMemoryToVault("after-chat");
+            _ = WslMemory.RefreshAsync();
             await PublishAssistantTurnToSupabaseIfPossibleAsync(displayResponse);
             await TrySaveHistoryAfterTurnAsync(project.Name);
         }
@@ -1182,6 +1297,348 @@ public sealed class MainViewModel : BaseViewModel
         _ = PublishAssistantTurnToSupabaseIfPossibleAsync(line);
         _logService.LogInfo("[flashcards] local view-mode start (defaults applied).");
         return true;
+    }
+
+    private async Task<bool> TryHandleReniWaterLocalAsync(string userPayload, string projectName)
+    {
+        var text = (userPayload ?? string.Empty).Trim();
+        if (text.Length == 0)
+        {
+            return false;
+        }
+
+        if (TryHandleReniWaterScheduleAsync(text, projectName))
+        {
+            return true;
+        }
+
+        var pending = _reniWater.ReadPendingAck();
+
+        if (ReniWaterSubmitTriggers.MatchesSubmit(text))
+        {
+            await RunReniWaterSubmitUiAsync(projectName).ConfigureAwait(true);
+            return true;
+        }
+
+        if (ReniWaterAckTriggers.MatchesAck(text, pending is not null))
+        {
+            await RunReniWaterAckUiAsync(projectName).ConfigureAwait(true);
+            return true;
+        }
+
+        if (ReniWaterSubmitTriggers.MatchesLogin(text))
+        {
+            RunReniWaterLoginUi(projectName);
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool TryHandleReniWaterScheduleAsync(string text, string projectName)
+    {
+        if (!ReniWaterScheduleParser.TryParse(text, out var request))
+        {
+            return false;
+        }
+
+        _reniWaterSchedule.Apply(request);
+        _ = PersistSettingsQuietAsync();
+
+        var reply = request.Action switch
+        {
+            ReniWaterScheduleAction.Cancel => "Расписание передачи показаний отменено.",
+            ReniWaterScheduleAction.Status => _reniWaterSchedule.DescribeSchedule(),
+            ReniWaterScheduleAction.Once when request.RunAtLocal is { } t =>
+                $"Передача показаний запланирована на {t:dd.MM.yyyy HH:mm} (локальное время, Hermes.Wpf должен быть запущен).",
+            ReniWaterScheduleAction.Monthly =>
+                $"Ежемесячная передача включена: один раз с {request.WindowStartDay}-го по {request.WindowEndDay}-е число "
+                + $"(ориентир {request.Hour:D2}:{request.Minute:D2}; при запуске Hermes.Wpf — догон, если пропустили).",
+            _ => _reniWaterSchedule.DescribeSchedule(),
+        };
+
+        Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = reply });
+        _chatLogService.AppendMessage(projectName, "Hermes", reply);
+        _ = PublishAssistantTurnToSupabaseIfPossibleAsync(reply);
+        AppendTerminal($"[reni-water] {reply}");
+        return true;
+    }
+
+    private async Task RunReniWaterSubmitUiAsync(string? projectName = null)
+    {
+        projectName ??= Projects.SelectedProject?.Name;
+        _reniWaterBusy = true;
+        CommandManager.InvalidateRequerySuggested();
+        AppendTerminal("[reni-water] Запуск передачи показаний…");
+
+        try
+        {
+            var result = await _reniWater.RunSubmitAsync().ConfigureAwait(true);
+            LogReniWaterRunToTerminal(result);
+            var chatLine = UserChatMessageForSubmit(result);
+
+            if (!string.IsNullOrEmpty(projectName))
+            {
+                await AppendReniWaterChatAsync(projectName, chatLine, result.ScreenshotPath).ConfigureAwait(true);
+            }
+
+            if (result.SubmitAccepted)
+            {
+                _reniWaterSchedule.MarkMonthCompleted();
+            }
+
+            if (!string.IsNullOrEmpty(result.ScreenshotPath))
+            {
+                OpenImageViewer(result.ScreenshotPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            var err = $"[reni-water] Ошибка: {ex.Message}";
+            AppendTerminal(err, isError: true);
+            if (!string.IsNullOrEmpty(projectName))
+            {
+                Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = err });
+            }
+        }
+        finally
+        {
+            _reniWaterBusy = false;
+            RefreshReniWaterPendingUi();
+            CommandManager.InvalidateRequerySuggested();
+        }
+    }
+
+    private async Task RunReniWaterStartupCatchUpAsync()
+    {
+        await Task.Delay(800).ConfigureAwait(true);
+        if (_reniWaterBusy)
+        {
+            return;
+        }
+
+        try
+        {
+            await _reniWaterSchedule.RunStartupCatchUpAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _logService.LogError($"[reni-water] startup catch-up: {ex.Message}");
+        }
+    }
+
+    private async Task RunReniWaterAckUiAsync(string? projectName = null)
+    {
+        projectName ??= Projects.SelectedProject?.Name;
+        _reniWaterBusy = true;
+        CommandManager.InvalidateRequerySuggested();
+
+        try
+        {
+            var result = await _reniWater.RunAckAsync().ConfigureAwait(true);
+            LogReniWaterRunToTerminal(result);
+            var chatLine = result.Success || result.CombinedText.Contains("ACK_OK", StringComparison.Ordinal)
+                ? ReniWaterUserMessages.AckSuccess
+                : "Не удалось подтвердить уведомление.";
+
+            if (!string.IsNullOrEmpty(projectName))
+            {
+                Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = chatLine });
+                _chatLogService.AppendMessage(projectName, "Hermes", chatLine);
+                await PublishAssistantTurnToSupabaseIfPossibleAsync(chatLine);
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendTerminal($"[reni-water] ack failed: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            _reniWaterBusy = false;
+            RefreshReniWaterPendingUi();
+            CommandManager.InvalidateRequerySuggested();
+        }
+    }
+
+    private void RunReniWaterLoginUi(string? projectName = null)
+    {
+        projectName ??= Projects.SelectedProject?.Name;
+        try
+        {
+            _reniWater.OpenLoginConsole();
+            const string line =
+                "Открыто окно PowerShell для входа. Войдите в Chromium Playwright (не в Chrome), отметьте «Запам'ятати мене», "
+                + "дойдите до страницы показаний, Enter — в логе должно быть SESSION_OK. "
+                + "Дальше передача без входа каждый месяц. Либо RENI_LOGIN_* в reni_water.env (см. reni_water.env.example).";
+            AppendTerminal("[reni-water] " + line);
+            if (!string.IsNullOrEmpty(projectName))
+            {
+                Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = line });
+                _chatLogService.AppendMessage(projectName, "Hermes", line);
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendTerminal($"[reni-water] login: {ex.Message}", isError: true);
+        }
+    }
+
+    private static string UserChatMessageForSubmit(ReniWaterRunResult result)
+    {
+        if (result.AuthRequired)
+        {
+            return ReniWaterUserMessages.AuthRequired;
+        }
+
+        if (result.SubmitAccepted)
+        {
+            return ReniWaterUserMessages.SubmitSuccess;
+        }
+
+        if (result.CombinedText.Contains("SUBMIT_NOT_ACCEPTED", StringComparison.OrdinalIgnoreCase))
+        {
+            return ReniWaterUserMessages.SubmitNotAccepted;
+        }
+
+        if (result.Success)
+        {
+            return ReniWaterUserMessages.SubmitSuccess;
+        }
+
+        return $"Ошибка передачи показаний (код {result.ExitCode}).";
+    }
+
+    private void LogReniWaterRunToTerminal(ReniWaterRunResult result)
+    {
+        var detail = string.IsNullOrWhiteSpace(result.CombinedText)
+            ? string.Empty
+            : result.CombinedText.ReplaceLineEndings(" ").Trim();
+        var isError = !result.Success && !result.AuthRequired;
+        AppendTerminal(
+            string.IsNullOrEmpty(detail)
+                ? $"[reni-water] exit={result.ExitCode}"
+                : $"[reni-water] exit={result.ExitCode} {detail}",
+            isError: isError);
+    }
+
+    private void RefreshReniWaterPendingUi()
+    {
+        var pending = _reniWater.ReadPendingAck();
+        if (pending is null)
+        {
+            IsReniWaterStatusBarVisible = false;
+            ReniWaterStatusText = string.Empty;
+            _reniWaterPendingScreenshotPath = null;
+            CanViewReniWaterScreenshot = false;
+            CommandManager.InvalidateRequerySuggested();
+            return;
+        }
+
+        IsReniWaterStatusBarVisible = true;
+        var auth = pending.AuthRequired ? " Требуется вход на сайт." : string.Empty;
+        ReniWaterStatusText =
+            $"{ReniWaterUserMessages.SubmitSuccess} {ReniWaterUserMessages.SubmitPendingAckReminder}{auth} "
+            + "Нажмите «Подтвердить» или напишите «принял».";
+
+        _reniWaterPendingScreenshotPath = ResolveExistingScreenshotPath(pending.ScreenshotPath);
+        CanViewReniWaterScreenshot = !string.IsNullOrEmpty(_reniWaterPendingScreenshotPath);
+        CommandManager.InvalidateRequerySuggested();
+    }
+
+    private async Task RunReniWaterCheckSessionUiAsync(string? projectName = null)
+    {
+        projectName ??= Projects.SelectedProject?.Name;
+        _reniWaterBusy = true;
+        CommandManager.InvalidateRequerySuggested();
+        AppendTerminal("[reni-water] Проверка сохранённой сессии…");
+
+        try
+        {
+            var result = await _reniWater.RunCheckSessionAsync().ConfigureAwait(true);
+            var ok = result.Success && result.CombinedText.Contains("SESSION_OK", StringComparison.Ordinal);
+            var summary = ok
+                ? "Сессия активна — показания можно передавать автоматически (без ручного входа)."
+                : "Сессия не готова. Выполните «Вход на сайт» или добавьте RENI_LOGIN_* в reni_water.env.";
+            if (!string.IsNullOrWhiteSpace(result.CombinedText))
+            {
+                summary += " " + result.CombinedText.ReplaceLineEndings(" ").Trim();
+                if (summary.Length > 500)
+                {
+                    summary = summary[..500] + "…";
+                }
+            }
+
+            AppendTerminal($"[reni-water] {summary}", isError: !ok);
+            if (!string.IsNullOrEmpty(projectName))
+            {
+                Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = summary });
+                _chatLogService.AppendMessage(projectName, "Hermes", summary);
+                await PublishAssistantTurnToSupabaseIfPossibleAsync(summary).ConfigureAwait(true);
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendTerminal($"[reni-water] check-session: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            _reniWaterBusy = false;
+            CommandManager.InvalidateRequerySuggested();
+        }
+    }
+
+    public void OpenImageViewer(string? imagePath)
+    {
+        var path = ResolveExistingScreenshotPath(imagePath);
+        if (string.IsNullOrEmpty(path))
+        {
+            AppendTerminal("[image] Файл скриншота не найден.", isError: true);
+            return;
+        }
+
+        var owner = Application.Current?.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive)
+                    ?? Application.Current?.MainWindow;
+        if (!ImageViewerService.TryShow(path, owner))
+        {
+            AppendTerminal("[image] Не удалось открыть скриншот.", isError: true);
+        }
+    }
+
+    private void ShowReniWaterScreenshotInChat()
+    {
+        var path = _reniWaterPendingScreenshotPath;
+        if (string.IsNullOrEmpty(path))
+        {
+            path = _reniWater.ReadPendingAck()?.ScreenshotPath;
+        }
+
+        OpenImageViewer(path);
+    }
+
+    private async Task AppendReniWaterChatAsync(string projectName, string text, string? screenshotPath)
+    {
+        screenshotPath = ResolveExistingScreenshotPath(screenshotPath);
+        Chat.Messages.Add(new ChatMessage
+        {
+            Role = "Hermes",
+            Text = text,
+            ImagePath = screenshotPath,
+        });
+
+        var logLine = screenshotPath is null ? text : $"{text} [image:{screenshotPath}]";
+        _chatLogService.AppendMessage(projectName, "Hermes", logLine);
+        await PublishAssistantTurnToSupabaseIfPossibleAsync(logLine).ConfigureAwait(true);
+    }
+
+    private static string? ResolveExistingScreenshotPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        var full = Path.GetFullPath(path.Trim());
+        return File.Exists(full) ? full : null;
     }
 
     private void EnsureTutorDisabledForFlashcards(string reasonTag)
@@ -1369,7 +1826,7 @@ public sealed class MainViewModel : BaseViewModel
             return;
         }
 
-        _supabaseRelay = new SupabaseChatRelayService(_logService);
+        _supabaseRelay = new SupabaseChatRelayService(_logService, Settings);
         try
         {
             await _supabaseRelay.ConnectAsync(Settings.SupabaseUrl.Trim(), Settings.SupabaseAnonKey.Trim());

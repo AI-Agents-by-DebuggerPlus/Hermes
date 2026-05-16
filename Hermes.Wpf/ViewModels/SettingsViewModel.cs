@@ -24,6 +24,7 @@ public sealed class SettingsViewModel : BaseViewModel
     private bool _hermesAgentPaused;
     private string _supabaseUrl = string.Empty;
     private string _supabaseAnonKey = string.Empty;
+    private bool _supabaseUseLocalCreatedAt;
     private int _supabasePollIntervalSeconds;
     private bool _supabaseUseAnonymousAuth;
     private bool _supabaseImportFullHistoryOnConnect;
@@ -31,6 +32,7 @@ public sealed class SettingsViewModel : BaseViewModel
     private string _supabaseLocalSenderName = "Desktop";
     private string _externalBrainMemoryPath = string.Empty;
     private bool _externalBrainInjectIntoPrompt = true;
+    private bool _syncWslAgentMemoryToExternalBrain = true;
     private int _externalBrainMaxContextItems = 10;
     private string _externalBrainMaxContextEdit = "10";
     private bool _desktopMouseSkillEnabled;
@@ -55,6 +57,7 @@ public sealed class SettingsViewModel : BaseViewModel
         _hermesAgentPaused = settings.HermesAgentPaused;
         _supabaseUrl = settings.SupabaseUrl ?? string.Empty;
         _supabaseAnonKey = settings.SupabaseAnonKey ?? string.Empty;
+        _supabaseUseLocalCreatedAt = settings.SupabaseUseLocalCreatedAt;
         _supabasePollIntervalSeconds = ClampPollInterval(settings.SupabasePollIntervalSeconds);
         _supabaseUseAnonymousAuth = settings.SupabaseUseAnonymousAuth;
         _supabaseImportFullHistoryOnConnect = settings.SupabaseImportFullHistoryOnConnect;
@@ -66,6 +69,7 @@ public sealed class SettingsViewModel : BaseViewModel
             : settings.SupabaseLocalSenderName.Trim();
         _externalBrainMemoryPath = settings.ExternalBrainMemoryPath ?? string.Empty;
         _externalBrainInjectIntoPrompt = settings.ExternalBrainInjectIntoPrompt;
+        _syncWslAgentMemoryToExternalBrain = settings.SyncWslAgentMemoryToExternalBrain;
         _externalBrainMaxContextItems = Math.Clamp(settings.ExternalBrainMaxContextItems, 1, 20);
         _externalBrainMaxContextEdit = _externalBrainMaxContextItems.ToString(CultureInfo.InvariantCulture);
     }
@@ -279,6 +283,16 @@ public sealed class SettingsViewModel : BaseViewModel
         }
     }
 
+    public bool SupabaseUseLocalCreatedAt
+    {
+        get => _supabaseUseLocalCreatedAt;
+        set
+        {
+            _settings.SupabaseUseLocalCreatedAt = value;
+            SetProperty(ref _supabaseUseLocalCreatedAt, value);
+        }
+    }
+
     public int SupabasePollIntervalSeconds
     {
         get => _supabasePollIntervalSeconds;
@@ -350,6 +364,16 @@ public sealed class SettingsViewModel : BaseViewModel
         {
             _settings.ExternalBrainInjectIntoPrompt = value;
             SetProperty(ref _externalBrainInjectIntoPrompt, value);
+        }
+    }
+
+    public bool SyncWslAgentMemoryToExternalBrain
+    {
+        get => _syncWslAgentMemoryToExternalBrain;
+        set
+        {
+            _settings.SyncWslAgentMemoryToExternalBrain = value;
+            SetProperty(ref _syncWslAgentMemoryToExternalBrain, value);
         }
     }
 

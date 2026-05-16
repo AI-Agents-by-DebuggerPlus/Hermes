@@ -9,6 +9,9 @@
                 <ResourceDictionary Source="Resources/Styles.xaml" />
             </ResourceDictionary.MergedDictionaries>
             <converters:ConnectionStateToColorConverter x:Key="ConnectionStateToColorConverter" />
+            <converters:FilePathToImageSourceConverter x:Key="FilePathToImageSourceConverter" />
+            <converters:NullOrEmptyToVisibilityConverter x:Key="NullOrEmptyToVisibilityConverter" />
+            <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

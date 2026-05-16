@@ -18,6 +18,8 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="8" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="8" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <TextBlock Grid.Row="0"
@@ -51,6 +53,16 @@
                                            TextWrapping="Wrap"
                                            TextAlignment="Left"
                                            Text="{Binding Text}" />
+                                <Image Margin="0,8,0,0"
+                                       MaxWidth="560"
+                                       HorizontalAlignment="Left"
+                                       Cursor="Hand"
+                                       Stretch="Uniform"
+                                       MouseLeftButtonUp="ChatImage_OnMouseLeftButtonUp"
+                                       Tag="{Binding ImagePath}"
+                                       ToolTip="Нажмите, чтобы открыть в отдельном окне с масштабом"
+                                       Source="{Binding ImagePath, Converter={StaticResource FilePathToImageSourceConverter}}"
+                                       Visibility="{Binding ImagePath, Converter={StaticResource NullOrEmptyToVisibilityConverter}}" />
                             </StackPanel>
                         </Border>
                     </DataTemplate>
@@ -111,6 +123,54 @@
             </Border>
 
             <Border Grid.Row="5"
+                    Margin="0,0,0,0"
+                    Padding="12,8"
+                    Background="#1a4a3a"
+                    CornerRadius="8">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsReniWaterStatusBarVisible}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock MaxWidth="420"
+                               Margin="0,0,12,0"
+                               VerticalAlignment="Center"
+                               FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
+                               Foreground="#b8e8d0"
+                               Text="{Binding ReniWaterStatusText}"
+                               TextWrapping="Wrap" />
+                    <Button Margin="0,0,8,0"
+                            Padding="6,4"
+                            VerticalAlignment="Center"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Command="{Binding ViewReniWaterScreenshotCommand}"
+                            Content="Скриншот"
+                            Cursor="Hand"
+                            FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
+                            Foreground="#b8e8d0"
+                            ToolTip="Открыть скриншот в отдельном окне"
+                            Visibility="{Binding CanViewReniWaterScreenshot, Converter={StaticResource BoolToVisibilityConverter}}" />
+                    <Button Padding="6,4"
+                            VerticalAlignment="Center"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Command="{Binding AckReniWaterCommand}"
+                            Content="Подтвердить"
+                            Cursor="Hand"
+                            FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
+                            Foreground="#b8e8d0"
+                            ToolTip="Остановить напоминания (run_submit -Ack)" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="7"
                     Padding="8,6"
                     Background="#161B22"
                     BorderBrush="#30343D"
@@ -133,7 +193,7 @@
                            TextWrapping="Wrap" />
             </Border>
 
-            <TextBox Grid.Row="7"
+            <TextBox Grid.Row="9"
                      x:Name="MessageInputTextBox"
                      Height="70"
                      FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
@@ -141,7 +201,7 @@
                      TextWrapping="Wrap"
                      PreviewKeyDown="MessageInputTextBox_OnPreviewKeyDown"
                      Text="{Binding Chat.UserInput, UpdateSourceTrigger=PropertyChanged}" />
-            <StackPanel Grid.Row="9" Orientation="Horizontal" HorizontalAlignment="Right">
+            <StackPanel Grid.Row="11" Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Margin="0,0,8,0"
                         Padding="10,6"
                         FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"

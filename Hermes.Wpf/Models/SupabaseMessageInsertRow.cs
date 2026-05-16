@@ -21,6 +21,6 @@ public sealed class SupabaseMessageInsertRow : BaseModel
 
     // Table schema in this project uses NOT NULL without DEFAULT; client must provide created_at.
     [Column("created_at")]
-    public DateTime CreatedAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
 }
 

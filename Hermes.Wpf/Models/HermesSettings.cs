@@ -54,6 +54,12 @@ public sealed class HermesSettings
     public string SupabaseUrl { get; set; } = string.Empty;
     public string SupabaseAnonKey { get; set; } = string.Empty;
 
+    /// <summary>
+    /// If true, send <c>created_at</c> as local system time (with offset) rather than UTC.
+    /// Use when the server/table expects client-side timestamps similar to DesktopVoiceChat.
+    /// </summary>
+    public bool SupabaseUseLocalCreatedAt { get; set; }
+
     /// <summary>Polling interval while relay is enabled (seconds).</summary>
     public int SupabasePollIntervalSeconds { get; set; } = 3;
 
@@ -77,6 +83,9 @@ public sealed class HermesSettings
     /// <summary>Maximum memories appended to the outbound prompt context block (clamped 1–20).</summary>
     public int ExternalBrainMaxContextItems { get; set; } = 12;
 
+    /// <summary>Export <c>~/.hermes/memories/*.md</c> from WSL into the External Brain vault.</summary>
+    public bool SyncWslAgentMemoryToExternalBrain { get; set; } = true;
+
     /// <summary>
     /// When true, Hermes.Wpf may run synthetic cursor moves/tests (desktop skill).
     /// The standalone <c>Hermes.MouseBridge</c> CLI does not read this flag.
@@ -85,4 +94,35 @@ public sealed class HermesSettings
 
     /// <summary>When true, outbound chat payloads include English tutor persona (Hermes.Wpf).</summary>
     public bool EnglishTutorModeEnabled { get; set; }
+
+    /// <summary>Folder with <c>run_submit.ps1</c> (Reni vodokanal). Empty = auto-detect from workspace / repo.</summary>
+    public string ReniWaterScriptDirectory { get; set; } = @"D:\Programming\AI_Agents\Hermes\scripts\reni_water";
+
+    /// <summary>Written by Python after submit; hourly notify until ack.</summary>
+    public string ReniWaterPendingAckPath { get; set; } = @"d:\Documents\Utilities\water\pending_ack.json";
+
+    /// <summary>How often Hermes.Wpf refreshes the pending-ack status bar (minutes).</summary>
+    public int ReniWaterPendingPollMinutes { get; set; } = 15;
+
+    /// <summary><c>once</c> or <c>monthly</c>; empty = no in-app schedule.</summary>
+    public string ReniWaterScheduleKind { get; set; } = string.Empty;
+
+    /// <summary>ISO local time for one-shot schedule.</summary>
+    public string? ReniWaterNextRunLocal { get; set; }
+
+    /// <summary>Monthly window start (default 1).</summary>
+    public int ReniWaterMonthlyWindowStartDay { get; set; } = 1;
+
+    /// <summary>Monthly window end (default 5).</summary>
+    public int ReniWaterMonthlyWindowEndDay { get; set; } = 5;
+
+    public int ReniWaterScheduleHour { get; set; } = 9;
+
+    public int ReniWaterScheduleMinute { get; set; }
+
+    /// <summary>Legacy; migrated to <see cref="ReniWaterMonthlyWindowStartDay"/> on load.</summary>
+    public int ReniWaterMonthlyDay { get; set; } = 1;
+
+    /// <summary><c>yyyy-MM</c> — last month when monthly job ran.</summary>
+    public string? ReniWaterLastMonthlyRunKey { get; set; }
 }

@@ -7,6 +7,45 @@
              d:DesignHeight="400"
              d:DesignWidth="640">
     <DockPanel LastChildFill="True">
+        <Border DockPanel.Dock="Top"
+                Margin="0,0,0,12"
+                Padding="12"
+                Style="{StaticResource PanelBorderStyle}">
+            <StackPanel>
+                <TextBlock FontWeight="SemiBold"
+                           Text="Показания воды — Рені (Водоканал)"
+                           TextWrapping="Wrap" />
+                <TextBlock Margin="0,6,0,0"
+                           FontSize="13"
+                           Foreground="{StaticResource MutedTextBrush}"
+                           TextWrapping="Wrap">
+                    Ежемесячно с 1-го по 5-е (команда «Передавать показания каждый месяц»). Догон при запуске, если пропустили. В чате: «Передай показания», «принял».
+                </TextBlock>
+                <WrapPanel Margin="0,12,0,0">
+                    <Button MinWidth="200"
+                            Margin="0,0,8,8"
+                            Padding="10,6"
+                            Command="{Binding LoginReniWaterCommand}"
+                            Content="Вход на сайт (1 раз)" />
+                    <Button MinWidth="200"
+                            Margin="0,0,8,8"
+                            Padding="10,6"
+                            Command="{Binding CheckReniWaterSessionCommand}"
+                            Content="Проверить сессию" />
+                    <Button MinWidth="200"
+                            Margin="0,0,8,8"
+                            Padding="10,6"
+                            Command="{Binding SubmitReniWaterCommand}"
+                            Content="Передать показания" />
+                    <Button MinWidth="160"
+                            Margin="0,0,8,8"
+                            Padding="10,6"
+                            Command="{Binding AckReniWaterCommand}"
+                            Content="Подтвердить (Ack)" />
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+
         <Border DockPanel.Dock="Bottom"
                 Margin="0,12,0,0"
                 Padding="12"

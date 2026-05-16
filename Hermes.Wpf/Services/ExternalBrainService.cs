@@ -31,6 +31,7 @@ public sealed class ExternalBrainService : IDisposable
         _settings = settings;
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         EnsureDebounceTimer();
+        EnglishLearningVaultPaths.EnsureLayout(ResolveEffectiveMemoryPath());
         RestartWatcherUnsafe();
         _ = ReloadFromDiskAsync("service-ctor");
     }
@@ -339,6 +340,8 @@ public sealed class ExternalBrainService : IDisposable
 
                     return;
                 }
+
+                EnglishLearningVaultPaths.EnsureLayout(path);
 
                 var list = new List<MemoryItem>();
                 foreach (var file in Directory.EnumerateFiles(path, "*.md", SearchOption.AllDirectories))

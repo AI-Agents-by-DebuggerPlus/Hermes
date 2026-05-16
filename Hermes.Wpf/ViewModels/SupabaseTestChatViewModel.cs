@@ -129,7 +129,7 @@ public sealed class SupabaseTestChatViewModel : BaseViewModel
         try
         {
             _relay?.Disconnect();
-            _relay = new SupabaseChatRelayService(_log);
+            _relay = new SupabaseChatRelayService(_log, _settings);
             await _relay.ConnectAsync(SupabaseUrlEdit.Trim(), SupabaseAnonKeyEdit.Trim());
             if (UseAnonymousAuth)
             {

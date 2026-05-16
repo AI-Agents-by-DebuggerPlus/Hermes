@@ -83,12 +83,18 @@
                             Click="OpenLogsButton_OnClick" />
                 </WrapPanel>
 
-                <TabControl Grid.Row="2" Padding="0,4,0,0">
+                <TabControl Grid.Row="2"
+                            Padding="0,4,0,0"
+                            Style="{StaticResource HermesMainTabControlStyle}">
                     <TabControl.Resources>
                         <Style BasedOn="{StaticResource HermesAccentTabItemStyle}" TargetType="TabItem" />
                     </TabControl.Resources>
                     <TabItem Header="Терминал">
                         <views:TerminalView Margin="0,8,0,0" />
+                    </TabItem>
+                    <TabItem Header="Память WSL">
+                        <views:WslMemoryView Margin="0,8,0,0"
+                                             DataContext="{Binding WslMemory}" />
                     </TabItem>
                     <TabItem Header="Навыки">
                         <views:AgentSkillsView Margin="0,8,0,0" />

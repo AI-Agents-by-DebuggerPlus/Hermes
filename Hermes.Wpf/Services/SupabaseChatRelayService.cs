@@ -8,11 +8,13 @@ namespace Hermes.Wpf.Services;
 public sealed class SupabaseChatRelayService
 {
     private readonly LogService _log;
+    private readonly HermesSettings _settings;
     private Client? _client;
 
-    public SupabaseChatRelayService(LogService log)
+    public SupabaseChatRelayService(LogService log, HermesSettings settings)
     {
         _log = log;
+        _settings = settings;
     }
 
     public bool IsConnected => _client is not null;
@@ -112,7 +114,7 @@ public sealed class SupabaseChatRelayService
                     SenderId = currentUserId,
                     SenderName = senderDisplayName,
                     Content = content,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = _settings.SupabaseUseLocalCreatedAt ? DateTimeOffset.Now : DateTimeOffset.UtcNow
                 },
                 cancellationToken: cancellationToken);
 

@@ -86,6 +86,7 @@ public partial class MainWindow : Window
 
         DataContext = vm;
         vm.AttachSaveExperienceOpener(OpenSaveExperienceUi);
+        vm.SyncWslAgentMemoryToVault("startup");
         OpenChatWindow();
         await vm.RefreshConnectionAsync();
 
@@ -293,12 +294,14 @@ public partial class MainWindow : Window
             _settingsWindow.Closed += async (_, _) =>
             {
                 await _settingsService.SaveAsync(_settings);
-                _externalBrainService?.RestartWatcherAndReload("settings");
                 if (DataContext is MainViewModel vm)
                 {
+                    vm.SyncWslAgentMemoryToVault("settings");
                     vm.ReloadAppearanceFromSettings();
                     await vm.RestartSupabaseRelayAsync();
                 }
+
+                _externalBrainService?.RestartWatcherAndReload("settings");
             };
             _settingsWindow.Show();
             return;
