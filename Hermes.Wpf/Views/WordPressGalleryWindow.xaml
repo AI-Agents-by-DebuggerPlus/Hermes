@@ -1,0 +1,127 @@
+<Window x:Class="Hermes.Wpf.Views.WordPressGalleryWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="WordPress — hermes-image-receiver"
+        Height="520"
+        Width="640"
+        MinHeight="440"
+        MinWidth="520"
+        Background="{StaticResource AppBackgroundBrush}"
+        Foreground="{StaticResource PrimaryTextBrush}">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="10" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="10" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="10" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="10" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   TextWrapping="Wrap"
+                   Opacity="0.85"
+                   Text="Отправка на POST /wp-json/hermes/v1/message. Галерея на сайте обновляется через SSE. Токен не нужен. После скриншота агент публикует автоматически, если включена опция ниже." />
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="8" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="8" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="8" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="URL сайта" />
+            <TextBox Grid.Row="0"
+                     Grid.Column="1"
+                     VerticalContentAlignment="Center"
+                     Text="{Binding SiteUrl, UpdateSourceTrigger=PropertyChanged}" />
+
+            <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Text="Отправитель" />
+            <TextBox Grid.Row="2"
+                     Grid.Column="1"
+                     VerticalContentAlignment="Center"
+                     Text="{Binding SenderChannel, UpdateSourceTrigger=PropertyChanged}" />
+
+            <TextBlock Grid.Row="4"
+                       Grid.Column="1"
+                       Opacity="0.72"
+                       TextWrapping="Wrap"
+                       Text="{Binding EffectiveSender, StringFormat=Фактический sender: {0}}" />
+
+            <CheckBox Grid.Row="6"
+                      Grid.Column="1"
+                      Content="После скриншота агента автоматически публиковать PNG"
+                      IsChecked="{Binding PublishEnabled}" />
+        </Grid>
+
+        <TextBlock Grid.Row="4"
+                   Opacity="0.85"
+                   FontWeight="SemiBold"
+                   Text="Тестовая отправка (без агента)" />
+
+        <Border Grid.Row="6"
+                Padding="10"
+                BorderBrush="{StaticResource BorderBrushDark}"
+                BorderThickness="1"
+                CornerRadius="4">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="8" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="10" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <DockPanel Grid.Row="0" LastChildFill="True">
+                    <Button Width="100"
+                            Margin="0,0,8,0"
+                            VerticalAlignment="Center"
+                            Content="Выбрать…"
+                            Command="{Binding BrowseFileCommand}" />
+                    <TextBox VerticalAlignment="Center"
+                             VerticalContentAlignment="Center"
+                             IsReadOnly="True"
+                             Text="{Binding SelectedFilePath, Mode=OneWay}" />
+                </DockPanel>
+
+                <TextBlock Grid.Row="2"
+                           Opacity="0.72"
+                           TextWrapping="Wrap"
+                           Text="PNG, JPEG, GIF, WebP, BMP" />
+
+                <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Width="130"
+                            Margin="0,0,8,0"
+                            Content="Проверить связь"
+                            Command="{Binding TestConnectionCommand}" />
+                    <Button Width="120"
+                            Content="Отправить"
+                            Command="{Binding SendImageCommand}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <DockPanel Grid.Row="8" LastChildFill="True">
+            <Button DockPanel.Dock="Right"
+                    Width="90"
+                    Margin="8,0,0,0"
+                    Content="Закрыть"
+                    Click="CloseButton_OnClick" />
+            <TextBlock VerticalAlignment="Center"
+                       TextWrapping="Wrap"
+                       Text="{Binding Status}" />
+        </DockPanel>
+    </Grid>
+</Window>

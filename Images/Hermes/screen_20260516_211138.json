@@ -1,0 +1,441 @@
+{
+  "capturedAt": "2026-05-16T21:11:44.273723-07:00",
+  "monitor": {
+    "index": 0,
+    "deviceName": "\\\\.\\DISPLAY1",
+    "x": 0,
+    "y": 0,
+    "width": 1920,
+    "height": 1080,
+    "isPrimary": true
+  },
+  "foregroundWindowTitle": "Hermes Chat",
+  "windowCount": 7,
+  "imagePath": "C:\\Users\\busin\\AppData\\Local\\HermesWpf\\screenshots\\screen_20260516_211138.png",
+  "annotatedImagePath": "C:\\Users\\busin\\AppData\\Local\\HermesWpf\\screenshots\\screen_20260516_211138_regions.png",
+  "regions": [
+    {
+      "id": "w0_window",
+      "role": "ApplicationWindow",
+      "label": "Screenshot_11.png - Hermes - Cursor [Administrator]",
+      "x": -9,
+      "y": -9,
+      "width": 1938,
+      "height": 1098
+    },
+    {
+      "id": "w0_btn_close",
+      "role": "CloseButton",
+      "label": "Close",
+      "x": 1862,
+      "y": 0,
+      "width": 58,
+      "height": 43
+    },
+    {
+      "id": "w0_btn_minimize",
+      "role": "MinimizeButton",
+      "label": "Minimize",
+      "x": 1748,
+      "y": 0,
+      "width": 57,
+      "height": 43
+    },
+    {
+      "id": "w0_btn_maximize",
+      "role": "MaximizeButton",
+      "label": "Restore",
+      "x": 1805,
+      "y": 0,
+      "width": 58,
+      "height": 43
+    },
+    {
+      "id": "w0_editor",
+      "role": "Editor",
+      "label": "\u041E\u0431\u043B\u0430\u0441\u0442\u044C \u0440\u0435\u0434\u0430\u043A\u0442\u043E\u0440\u0430",
+      "x": 0,
+      "y": 0,
+      "width": 1920,
+      "height": 1079
+    },
+    {
+      "id": "w0_titlebar_heuristic",
+      "role": "TitleBar",
+      "label": "\u041F\u0430\u043D\u0435\u043B\u044C \u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043A\u0430",
+      "x": -9,
+      "y": -9,
+      "width": 1938,
+      "height": 64
+    },
+    {
+      "id": "w0_btn_close_h",
+      "role": "CloseButton",
+      "label": "\u0417\u0430\u043A\u0440\u044B\u0442\u044C",
+      "x": 1881,
+      "y": 3,
+      "width": 40,
+      "height": 40
+    },
+    {
+      "id": "w0_btn_maximize_h",
+      "role": "MaximizeButton",
+      "label": "\u0420\u0430\u0437\u0432\u0435\u0440\u043D\u0443\u0442\u044C",
+      "x": 1835,
+      "y": 3,
+      "width": 40,
+      "height": 40
+    },
+    {
+      "id": "w0_btn_minimize_h",
+      "role": "MinimizeButton",
+      "label": "\u0421\u0432\u0435\u0440\u043D\u0443\u0442\u044C",
+      "x": 1789,
+      "y": 3,
+      "width": 40,
+      "height": 40
+    },
+    {
+      "id": "w1_window",
+      "role": "ApplicationWindow",
+      "label": "Microsoft Text Input Application",
+      "x": 0,
+      "y": 0,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "id": "w1_titlebar_heuristic",
+      "role": "TitleBar",
+      "label": "\u041F\u0430\u043D\u0435\u043B\u044C \u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043A\u0430",
+      "x": 0,
+      "y": 0,
+      "width": 1920,
+      "height": 64
+    },
+    {
+      "id": "w1_btn_close_h",
+      "role": "CloseButton",
+      "label": "\u0417\u0430\u043A\u0440\u044B\u0442\u044C",
+      "x": 1872,
+      "y": 12,
+      "width": 40,
+      "height": 40
+    },
+    {
+      "id": "w1_btn_maximize_h",
+      "role": "MaximizeButton",
+      "label": "\u0420\u0430\u0437\u0432\u0435\u0440\u043D\u0443\u0442\u044C",
+      "x": 1826,
+      "y": 12,
+      "width": 40,
+      "height": 40
+    },
+    {
+      "id": "w1_btn_minimize_h",
+      "role": "MinimizeButton",
+      "label": "\u0421\u0432\u0435\u0440\u043D\u0443\u0442\u044C",
+      "x": 1780,
+      "y": 12,
+      "width": 40,
+      "height": 40
+    },
+    {
+      "id": "w2_window",
+      "role": "ApplicationWindow",
+      "label": "Program Manager",
+      "x": 0,
+      "y": 0,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "id": "w2_titlebar_heuristic",
+      "role": "TitleBar",
+      "label": "\u041F\u0430\u043D\u0435\u043B\u044C \u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043A\u0430",
+      "x": 0,
+      "y": 0,
+      "width": 1920,
+      "height": 64
+    },
+    {
+      "id": "w2_btn_close_h",
+      "role": "CloseButton",
+      "label": "\u0417\u0430\u043A\u0440\u044B\u0442\u044C",
+      "x": 1872,
+      "y": 12,
+      "width": 40,
+      "height": 40
+    },
+    {
+      "id": "w2_btn_maximize_h",
+      "role": "MaximizeButton",
+      "label": "\u0420\u0430\u0437\u0432\u0435\u0440\u043D\u0443\u0442\u044C",
+      "x": 1826,
+      "y": 12,
+      "width": 40,
+      "height": 40
+    },
+    {
+      "id": "w2_btn_minimize_h",
+      "role": "MinimizeButton",
+      "label": "\u0421\u0432\u0435\u0440\u043D\u0443\u0442\u044C",
+      "x": 1780,
+      "y": 12,
+      "width": 40,
+      "height": 40
+    },
+    {
+      "id": "w3_window",
+      "role": "ApplicationWindow",
+      "label": "\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430 \u0433\u043E\u043B\u043E\u0441\u043E\u0432\u044B\u0445 \u043A\u043E\u043C\u0430\u043D\u0434 \u0434\u043B\u044F Gemini - Google Gemini - Google Chrome",
+      "x": 0,
+      "y": 13,
+      "width": 1891,
+      "height": 1046
+    },
+    {
+      "id": "w3_btn_close",
+      "role": "CloseButton",
+      "label": "Close",
+      "x": 1825,
+      "y": 14,
+      "width": 58,
+      "height": 50
+    },
+    {
+      "id": "w3_btn_minimize",
+      "role": "MinimizeButton",
+      "label": "Minimize",
+      "x": 1711,
+      "y": 14,
+      "width": 57,
+      "height": 50
+    },
+    {
+      "id": "w3_btn_maximize",
+      "role": "MaximizeButton",
+      "label": "Maximize",
+      "x": 1768,
+      "y": 14,
+      "width": 58,
+      "height": 50
+    },
+    {
+      "id": "w3_editor",
+      "role": "Editor",
+      "label": "\u041E\u0431\u043B\u0430\u0441\u0442\u044C \u0440\u0435\u0434\u0430\u043A\u0442\u043E\u0440\u0430",
+      "x": 9,
+      "y": 13,
+      "width": 1875,
+      "height": 1038
+    },
+    {
+      "id": "w3_titlebar_heuristic",
+      "role": "TitleBar",
+      "label": "\u041F\u0430\u043D\u0435\u043B\u044C \u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043A\u0430",
+      "x": 0,
+      "y": 13,
+      "width": 1891,
+      "height": 64
+    },
+    {
+      "id": "w3_btn_close_h",
+      "role": "CloseButton",
+      "label": "\u0417\u0430\u043A\u0440\u044B\u0442\u044C",
+      "x": 1843,
+      "y": 25,
+      "width": 40,
+      "height": 40
+    },
+    {
+      "id": "w3_btn_maximize_h",
+      "role": "MaximizeButton",
+      "label": "\u0420\u0430\u0437\u0432\u0435\u0440\u043D\u0443\u0442\u044C",
+      "x": 1797,
+      "y": 25,
+      "width": 40,
+      "height": 40
+    },
+    {
+      "id": "w3_btn_minimize_h",
+      "role": "MinimizeButton",
+      "label": "\u0421\u0432\u0435\u0440\u043D\u0443\u0442\u044C",
+      "x": 1751,
+      "y": 25,
+      "width": 40,
+      "height": 40
+    },
+    {
+      "id": "w4_window",
+      "role": "ApplicationWindow",
+      "label": "Hermes Command Center",
+      "x": -645,
+      "y": 380,
+      "width": 1250,
+      "height": 875
+    },
+    {
+      "id": "w4_titlebar",
+      "role": "TitleBar",
+      "label": "\u041F\u0430\u043D\u0435\u043B\u044C \u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043A\u0430",
+      "x": 14,
+      "y": 72,
+      "width": 581,
+      "height": 29
+    },
+    {
+      "id": "w4_menu",
+      "role": "MenuBar",
+      "label": "\u041C\u0435\u043D\u044E",
+      "x": 14,
+      "y": 72,
+      "width": 28,
+      "height": 28
+    },
+    {
+      "id": "w4_btn_close",
+      "role": "CloseButton",
+      "label": "Close",
+      "x": 536,
+      "y": 64,
+      "width": 60,
+      "height": 37
+    },
+    {
+      "id": "w4_btn_minimize",
+      "role": "MinimizeButton",
+      "label": "Minimize",
+      "x": 417,
+      "y": 64,
+      "width": 60,
+      "height": 37
+    },
+    {
+      "id": "w4_btn_maximize",
+      "role": "MaximizeButton",
+      "label": "Maximize",
+      "x": 477,
+      "y": 64,
+      "width": 59,
+      "height": 37
+    },
+    {
+      "id": "w5_window",
+      "role": "ApplicationWindow",
+      "label": "Bridge to English 1 - Serhii Dielieu",
+      "x": 685,
+      "y": 36,
+      "width": 1200,
+      "height": 900
+    },
+    {
+      "id": "w5_titlebar_heuristic",
+      "role": "TitleBar",
+      "label": "\u041F\u0430\u043D\u0435\u043B\u044C \u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043A\u0430",
+      "x": 685,
+      "y": 36,
+      "width": 1200,
+      "height": 64
+    },
+    {
+      "id": "w5_btn_close_h",
+      "role": "CloseButton",
+      "label": "\u0417\u0430\u043A\u0440\u044B\u0442\u044C",
+      "x": 1837,
+      "y": 48,
+      "width": 40,
+      "height": 40
+    },
+    {
+      "id": "w5_btn_maximize_h",
+      "role": "MaximizeButton",
+      "label": "\u0420\u0430\u0437\u0432\u0435\u0440\u043D\u0443\u0442\u044C",
+      "x": 1791,
+      "y": 48,
+      "width": 40,
+      "height": 40
+    },
+    {
+      "id": "w5_btn_minimize_h",
+      "role": "MinimizeButton",
+      "label": "\u0421\u0432\u0435\u0440\u043D\u0443\u0442\u044C",
+      "x": 1745,
+      "y": 48,
+      "width": 40,
+      "height": 40
+    },
+    {
+      "id": "w6_window",
+      "role": "ApplicationWindow",
+      "label": "Hermes Chat",
+      "x": 5,
+      "y": 63,
+      "width": 599,
+      "height": 800
+    },
+    {
+      "id": "w6_titlebar",
+      "role": "TitleBar",
+      "label": "\u041F\u0430\u043D\u0435\u043B\u044C \u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043A\u0430",
+      "x": 14,
+      "y": 72,
+      "width": 581,
+      "height": 29
+    },
+    {
+      "id": "w6_menu",
+      "role": "MenuBar",
+      "label": "\u041C\u0435\u043D\u044E",
+      "x": 14,
+      "y": 72,
+      "width": 28,
+      "height": 28
+    },
+    {
+      "id": "w6_btn_close",
+      "role": "CloseButton",
+      "label": "Close",
+      "x": 536,
+      "y": 64,
+      "width": 60,
+      "height": 37
+    },
+    {
+      "id": "w6_btn_minimize",
+      "role": "MinimizeButton",
+      "label": "Minimize",
+      "x": 417,
+      "y": 64,
+      "width": 60,
+      "height": 37
+    },
+    {
+      "id": "w6_btn_maximize",
+      "role": "MaximizeButton",
+      "label": "Maximize",
+      "x": 477,
+      "y": 64,
+      "width": 59,
+      "height": 37
+    },
+    {
+      "id": "w6_editor",
+      "role": "Editor",
+      "label": "\u041E\u0431\u043B\u0430\u0441\u0442\u044C \u0440\u0435\u0434\u0430\u043A\u0442\u043E\u0440\u0430",
+      "x": 43,
+      "y": 684,
+      "width": 523,
+      "height": 87
+    },
+    {
+      "id": "taskbar",
+      "role": "TaskBar",
+      "label": "\u041F\u0430\u043D\u0435\u043B\u044C \u0437\u0430\u0434\u0430\u0447",
+      "x": 0,
+      "y": 1078,
+      "width": 1920,
+      "height": 2
+    }
+  ]
+}

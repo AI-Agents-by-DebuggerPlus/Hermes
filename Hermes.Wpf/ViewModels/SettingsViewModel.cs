@@ -36,6 +36,11 @@ public sealed class SettingsViewModel : BaseViewModel
     private int _externalBrainMaxContextItems = 10;
     private string _externalBrainMaxContextEdit = "10";
     private bool _desktopMouseSkillEnabled;
+    private bool _desktopVisionAnalyzeEnabled = true;
+    private bool _desktopVisionUseAnnotatedImage = true;
+    private string _desktopScreenshotDirectory = string.Empty;
+    private string _desktopScreenshotMonitorIndexEdit = "-1";
+    private string _lastScreenshotBrowsePath = string.Empty;
 
     public SettingsViewModel(HermesSettings settings)
     {
@@ -72,6 +77,11 @@ public sealed class SettingsViewModel : BaseViewModel
         _syncWslAgentMemoryToExternalBrain = settings.SyncWslAgentMemoryToExternalBrain;
         _externalBrainMaxContextItems = Math.Clamp(settings.ExternalBrainMaxContextItems, 1, 20);
         _externalBrainMaxContextEdit = _externalBrainMaxContextItems.ToString(CultureInfo.InvariantCulture);
+        _desktopScreenshotDirectory = settings.DesktopScreenshotDirectory ?? string.Empty;
+        _desktopScreenshotMonitorIndexEdit = settings.DesktopScreenshotMonitorIndex.ToString(CultureInfo.InvariantCulture);
+        _desktopMouseSkillEnabled = settings.DesktopMouseSkillEnabled;
+        _desktopVisionAnalyzeEnabled = settings.DesktopVisionAnalyzeEnabled;
+        _desktopVisionUseAnnotatedImage = settings.DesktopVisionUseAnnotatedImage;
     }
 
     private static int ClampPollInterval(int seconds)
@@ -385,6 +395,78 @@ public sealed class SettingsViewModel : BaseViewModel
             _settings.DesktopMouseSkillEnabled = value;
             SetProperty(ref _desktopMouseSkillEnabled, value);
         }
+    }
+
+    public bool DesktopVisionAnalyzeEnabled
+    {
+        get => _desktopVisionAnalyzeEnabled;
+        set
+        {
+            _settings.DesktopVisionAnalyzeEnabled = value;
+            SetProperty(ref _desktopVisionAnalyzeEnabled, value);
+        }
+    }
+
+    public bool DesktopVisionUseAnnotatedImage
+    {
+        get => _desktopVisionUseAnnotatedImage;
+        set
+        {
+            _settings.DesktopVisionUseAnnotatedImage = value;
+            SetProperty(ref _desktopVisionUseAnnotatedImage, value);
+        }
+    }
+
+    public string DesktopScreenshotDirectory
+    {
+        get => _desktopScreenshotDirectory;
+        set
+        {
+            var v = value ?? string.Empty;
+            _settings.DesktopScreenshotDirectory = v;
+            SetProperty(ref _desktopScreenshotDirectory, v);
+        }
+    }
+
+    public string LastScreenshotBrowsePath
+    {
+        get => _lastScreenshotBrowsePath;
+        set => SetProperty(ref _lastScreenshotBrowsePath, value ?? string.Empty);
+    }
+
+    public string DesktopScreenshotMonitorIndexEdit
+    {
+        get => _desktopScreenshotMonitorIndexEdit;
+        set
+        {
+            _desktopScreenshotMonitorIndexEdit = value ?? string.Empty;
+            RaisePropertyChanged(nameof(DesktopScreenshotMonitorIndexEdit));
+            CommitScreenshotMonitorIndexIfParsed();
+        }
+    }
+
+    public void NormalizeScreenshotMonitorIndexField()
+    {
+        if (!int.TryParse(_desktopScreenshotMonitorIndexEdit.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
+        {
+            _desktopScreenshotMonitorIndexEdit = _settings.DesktopScreenshotMonitorIndex.ToString(CultureInfo.InvariantCulture);
+            RaisePropertyChanged(nameof(DesktopScreenshotMonitorIndexEdit));
+            return;
+        }
+
+        CommitScreenshotMonitorIndexIfParsed();
+    }
+
+    private void CommitScreenshotMonitorIndexIfParsed()
+    {
+        if (!int.TryParse(_desktopScreenshotMonitorIndexEdit.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var n))
+        {
+            return;
+        }
+
+        _settings.DesktopScreenshotMonitorIndex = n;
+        _desktopScreenshotMonitorIndexEdit = n.ToString(CultureInfo.InvariantCulture);
+        RaisePropertyChanged(nameof(DesktopScreenshotMonitorIndexEdit));
     }
 
     public string ExternalBrainMaxContextItemsEdit

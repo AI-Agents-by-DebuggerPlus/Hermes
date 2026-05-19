@@ -9,6 +9,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using Hermes.DesktopCapture.Models;
 using Hermes.Wpf.Commands;
 using Hermes.Wpf.Models;
 using Hermes.Wpf.Services;
@@ -57,6 +58,12 @@ public sealed class MainViewModel : BaseViewModel
     private readonly EnglishTutorObsidianExporter _englishTutorExporter;
     private Action? _saveExperienceOpener;
     private readonly MouseSkillService _mouseSkill;
+    private readonly DesktopScreenCaptureService _desktopScreenCapture;
+    private readonly DesktopVisionSkill _desktopVisionSkill;
+    private readonly DesktopScreenContextStore _desktopScreenContext = new();
+    private readonly HermesGalleryPublisher _hermesGalleryPublisher;
+
+    public HermesGalleryPublisher GalleryPublisher => _hermesGalleryPublisher;
     private readonly ReniWaterScriptService _reniWater;
     private readonly ReniWaterScheduleSkill _reniWaterSchedule;
     private readonly DispatcherTimer _watchdogTimer;
@@ -137,6 +144,9 @@ public sealed class MainViewModel : BaseViewModel
             _wslAgentMemorySync);
         _englishTutorExporter = new EnglishTutorObsidianExporter(_logService);
         _mouseSkill = new MouseSkillService(Settings, logService);
+        _desktopScreenCapture = new DesktopScreenCaptureService(logService, () => Settings);
+        _desktopVisionSkill = new DesktopVisionSkill(_hermesService, logService, _projectService, () => Settings);
+        _hermesGalleryPublisher = new HermesGalleryPublisher(logService, () => Settings);
         _reniWater = new ReniWaterScriptService(logService, () => Settings);
         _reniWater.OutputReceived += line => AppendTerminal($"[reni-water] {line}");
         _reniWaterSchedule = new ReniWaterScheduleSkill(
@@ -201,6 +211,9 @@ public sealed class MainViewModel : BaseViewModel
             async _ => await ToggleSupabaseRelayConnectionAsync(),
             _ => !_supabaseRelayToggleBusy);
         SmokeTestMouseSkillCommand = new RelayCommand(_ => _mouseSkill.RunSmokeShift());
+        CaptureDesktopScreenshotCommand = new RelayCommand(
+            async _ => await RunDesktopScreenCaptureWithBusyAsync().ConfigureAwait(true),
+            _ => !_isBusy);
         SaveExperienceCommand = new RelayCommand(_ => _saveExperienceOpener?.Invoke());
         ExportEnglishTutorProgressCommand = new RelayCommand(_ => ExportEnglishTutorProgress(), _ => true);
 
@@ -495,6 +508,13 @@ public sealed class MainViewModel : BaseViewModel
             blocks.Add(FlashcardRelayInstructions.OutboundBlockRu);
         }
 
+        var desktopBlock = _desktopScreenContext.BuildOutboundInjectionBlock();
+        if (!string.IsNullOrWhiteSpace(desktopBlock) && ShouldInjectDesktopContext(userVisibleMessage))
+        {
+            blocks.Add(ChatBehaviorDefaults.DesktopScreenContextInjectionRu);
+            blocks.Add(desktopBlock);
+        }
+
         if (blocks.Count == 0)
         {
             return userVisibleMessage;
@@ -508,6 +528,23 @@ public sealed class MainViewModel : BaseViewModel
         }
 
         return combined;
+    }
+
+    private string BuildOutboundDesktopVisionPrompt(string visionUserRequest)
+    {
+        var blocks = new List<string>
+        {
+            ChatBehaviorDefaults.InstructionPriorityRu,
+            ChatBehaviorDefaults.TaskPrecisionRu,
+            ChatBehaviorDefaults.DesktopVisionOutboundRu,
+        };
+
+        if (!Settings.EnglishTutorModeEnabled)
+        {
+            blocks.Add(ChatBehaviorDefaults.HermesWpfClientCapabilitiesRu);
+        }
+
+        return $"{visionUserRequest}\n\n---\n[System / Hermes WPF]\n{string.Join("\n\n", blocks)}";
     }
 
     private readonly struct EnglishTutorTurnHints(bool exitedThisTurn, bool enteredThisTurn)
@@ -526,6 +563,30 @@ public sealed class MainViewModel : BaseViewModel
         {
             _logService.LogWarn($"[settings] save after English tutor toggle: {ex.Message}");
         }
+    }
+
+    private static bool ShouldInjectDesktopContext(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        if (DesktopWindowFocusTriggers.Matches(text) || DesktopScreenCaptureTriggers.Matches(text))
+        {
+            return true;
+        }
+
+        var t = text.ToLowerInvariant();
+        return t.Contains("окн", StringComparison.Ordinal)
+               || t.Contains("экран", StringComparison.Ordinal)
+               || t.Contains("скрин", StringComparison.Ordinal)
+               || t.Contains("screen", StringComparison.Ordinal)
+               || t.Contains("клик", StringComparison.Ordinal)
+               || t.Contains("кноп", StringComparison.Ordinal)
+               || t.Contains("мыш", StringComparison.Ordinal)
+               || t.Contains("window", StringComparison.Ordinal)
+               || t.Contains("click", StringComparison.Ordinal);
     }
 
     private static bool IsVisionRelatedUserMessage(string text)
@@ -591,6 +652,10 @@ public sealed class MainViewModel : BaseViewModel
     }
 
     public ChatViewModel Chat { get; }
+
+    public event Action? ChatScrollToBottomRequested;
+
+    public void RequestChatScrollToBottom() => ChatScrollToBottomRequested?.Invoke();
     public ProjectViewModel Projects { get; }
     public WslMemoryViewModel WslMemory { get; }
     public HermesSettings Settings { get; }
@@ -609,6 +674,8 @@ public sealed class MainViewModel : BaseViewModel
     public ICommand ToggleSupabaseRelayCommand { get; }
 
     public ICommand SmokeTestMouseSkillCommand { get; }
+
+    public ICommand CaptureDesktopScreenshotCommand { get; }
 
     /// <summary>Opens the memory editor — assign handler via <c>AttachSaveExperienceOpener</c> from the main window.</summary>
     public ICommand SaveExperienceCommand { get; }
@@ -922,8 +989,10 @@ public sealed class MainViewModel : BaseViewModel
         foreach (var message in history.Messages)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Chat.Messages.Add(message);
+            Chat.Messages.Add(ChatMessageImageParser.Normalize(message));
         }
+
+        RequestChatScrollToBottom();
     }
 
     private bool CanExecuteProjectCommand() => !_isBusy && Projects.SelectedProject is not null;
@@ -1104,6 +1173,21 @@ public sealed class MainViewModel : BaseViewModel
                 return;
             }
 
+            if (await TryHandleDesktopScreenCaptureLocalAsync(agentUserPayload, project.Name).ConfigureAwait(true))
+            {
+                return;
+            }
+
+            if (await TryHandleDesktopDescribeFromCacheAsync(agentUserPayload, project.Name).ConfigureAwait(true))
+            {
+                return;
+            }
+
+            if (await TryHandleDesktopWindowFocusAsync(agentUserPayload, project.Name).ConfigureAwait(true))
+            {
+                return;
+            }
+
             return;
         }
 
@@ -1128,6 +1212,21 @@ public sealed class MainViewModel : BaseViewModel
             }
 
             if (await TryHandleReniWaterLocalAsync(agentUserPayload, project.Name).ConfigureAwait(true))
+            {
+                return;
+            }
+
+            if (await TryHandleDesktopScreenCaptureLocalAsync(agentUserPayload, project.Name).ConfigureAwait(true))
+            {
+                return;
+            }
+
+            if (await TryHandleDesktopDescribeFromCacheAsync(agentUserPayload, project.Name).ConfigureAwait(true))
+            {
+                return;
+            }
+
+            if (await TryHandleDesktopWindowFocusAsync(agentUserPayload, project.Name).ConfigureAwait(true))
             {
                 return;
             }
@@ -1298,6 +1397,251 @@ public sealed class MainViewModel : BaseViewModel
         _logService.LogInfo("[flashcards] local view-mode start (defaults applied).");
         return true;
     }
+
+    private async Task<bool> TryHandleDesktopScreenCaptureLocalAsync(string userPayload, string projectName)
+    {
+        if (!DesktopScreenCaptureTriggers.Matches(userPayload))
+        {
+            return false;
+        }
+
+        await RunDesktopScreenCaptureUiAsync(
+                projectName,
+                userPayload,
+                showVisionStatus: true,
+                focusWindowTarget: null)
+            .ConfigureAwait(true);
+        return true;
+    }
+
+    private async Task<bool> TryHandleDesktopWindowFocusAsync(string userPayload, string projectName)
+    {
+        if (!DesktopWindowFocusTriggers.TryParseTarget(userPayload, out var target))
+        {
+            return false;
+        }
+
+        await RunDesktopScreenCaptureUiAsync(
+                projectName,
+                userPayload,
+                showVisionStatus: true,
+                focusWindowTarget: target)
+            .ConfigureAwait(true);
+        return true;
+    }
+
+    private async Task<bool> TryHandleDesktopDescribeFromCacheAsync(string userPayload, string projectName)
+    {
+        if (!DesktopVisionIntentDetector.WantsDetailedReport(userPayload)
+            || DesktopScreenCaptureTriggers.Matches(userPayload))
+        {
+            return false;
+        }
+
+        var snap = _desktopScreenContext.GetFresh();
+        if (snap is null || !_desktopVisionSkill.IsEnabled || Settings.HermesAgentPaused)
+        {
+            return false;
+        }
+
+        _isBusy = true;
+        CommandManager.InvalidateRequerySuggested();
+        AgentChatStatusLine = "Hermes готовит описание экрана…";
+        IsAgentChatStatusBarVisible = true;
+
+        try
+        {
+            var projectPath = Projects.SelectedProject?.WindowsPath ?? Settings.WorkspaceRootWindowsPath;
+            var wslPath = ResolveHermesWslWorkingDirectory(projectPath);
+            var annotatedWsl = _projectService.ConvertToWslPath(snap.AnnotatedImagePath);
+            var metaWsl = _projectService.ConvertToWslPath(snap.MetadataPath);
+            var visionRequest = DesktopVisionPromptBuilder.BuildDescribeFromCacheRequest(snap, annotatedWsl, metaWsl);
+            var outbound = BuildOutboundDesktopVisionPrompt(visionRequest);
+            var analysis = await _desktopVisionSkill
+                .RunVisionPromptAsync(wslPath, outbound)
+                .ConfigureAwait(true);
+
+            var chatText = analysis.Success
+                ? analysis.UserVisible ?? analysis.RawText ?? "Описание недоступно."
+                : $"Не удалось описать экран: {analysis.Error}";
+
+            if (analysis.Success && !string.IsNullOrWhiteSpace(analysis.InternalContext))
+            {
+                _desktopScreenContext.RefreshInternalContext(
+                    analysis.InternalContext,
+                    DesktopVisionIntent.DescribeScreen,
+                    snap.FocusWindowTitle);
+            }
+
+            Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = chatText, ImagePath = snap.AnnotatedImagePath });
+            _chatLogService.AppendMessage(
+                projectName,
+                "Hermes",
+                $"{chatText} [image:{snap.AnnotatedImagePath}]");
+            await PublishAssistantTurnToSupabaseIfPossibleAsync(chatText).ConfigureAwait(true);
+            await SaveHistoryAsync(projectName).ConfigureAwait(true);
+        }
+        finally
+        {
+            ClearHermesUiActivityTrackers();
+            _isBusy = false;
+            CommandManager.InvalidateRequerySuggested();
+        }
+
+        return true;
+    }
+
+    private async Task RunDesktopScreenCaptureWithBusyAsync()
+    {
+        if (Projects.SelectedProject is null)
+        {
+            AppendTerminal("[screen-capture] Выберите проект в левой панели (Add Project).", isError: true);
+            return;
+        }
+
+        _isBusy = true;
+        CommandManager.InvalidateRequerySuggested();
+        try
+        {
+            await RunDesktopScreenCaptureUiAsync(
+                    Projects.SelectedProject.Name,
+                    userRequest: null,
+                    showVisionStatus: true)
+                .ConfigureAwait(true);
+        }
+        finally
+        {
+            ClearHermesUiActivityTrackers();
+            _isBusy = false;
+            CommandManager.InvalidateRequerySuggested();
+        }
+    }
+
+    private async Task RunDesktopScreenCaptureUiAsync(
+        string? projectName = null,
+        string? userRequest = null,
+        bool showVisionStatus = false,
+        string? focusWindowTarget = null)
+    {
+        try
+        {
+            if (showVisionStatus)
+            {
+                AgentChatStatusLine = "Снимок экрана…";
+                IsAgentChatStatusBarVisible = true;
+            }
+
+            var capture = await Task.Run(() => _desktopScreenCapture.CapturePrimaryMonitor()).ConfigureAwait(true);
+            var regionCount = capture.Regions.Count;
+            var runVision = !string.IsNullOrWhiteSpace(projectName)
+                            && _desktopVisionSkill.IsEnabled
+                            && !Settings.HermesAgentPaused;
+
+            var focusTarget = focusWindowTarget;
+            if (string.IsNullOrWhiteSpace(focusTarget)
+                && DesktopWindowFocusTriggers.TryParseTarget(userRequest, out var parsedFocus))
+            {
+                focusTarget = parsedFocus;
+            }
+
+            var intent = DesktopVisionIntentDetector.Resolve(userRequest, focusTarget);
+            var chatText = ScreenCaptureSummaryBuilder.BuildChatSummary(capture, runVision);
+
+            AppendTerminal($"[screen-capture] {capture.AnnotatedImagePath}");
+            if (!string.IsNullOrWhiteSpace(capture.DuplicateDirectory))
+            {
+                AppendTerminal($"[screen-capture] копия → {capture.DuplicateDirectory}");
+            }
+
+            _logService.LogInfo(
+                $"[screen-capture] regions={regionCount}, intent={intent}, meta={capture.MetadataPath}, vision={runVision}");
+
+            await _hermesGalleryPublisher.TryPublishPlainScreenshotAsync(capture).ConfigureAwait(true);
+
+            if (runVision)
+            {
+                if (showVisionStatus)
+                {
+                    AgentChatStatusLine = intent == DesktopVisionIntent.FocusWindow
+                        ? "Hermes размечает окно…"
+                        : "Hermes анализирует скриншот (vision_analyze)…";
+                    IsAgentChatStatusBarVisible = true;
+                }
+
+                var projectPath = Projects.SelectedProject?.WindowsPath
+                                  ?? Settings.WorkspaceRootWindowsPath;
+                var wslPath = ResolveHermesWslWorkingDirectory(projectPath);
+                var annotatedWsl = _projectService.ConvertToWslPath(capture.AnnotatedImagePath);
+                var plainWsl = _projectService.ConvertToWslPath(capture.ImagePath);
+                var metaWsl = _projectService.ConvertToWslPath(capture.MetadataPath);
+                var visionRequest = DesktopVisionPromptBuilder.BuildUserRequest(
+                    capture,
+                    annotatedWsl,
+                    plainWsl,
+                    metaWsl,
+                    intent,
+                    userRequest,
+                    focusTarget);
+                var outbound = BuildOutboundDesktopVisionPrompt(visionRequest);
+                var analysis = await _desktopVisionSkill
+                    .AnalyzeCaptureAsync(capture, wslPath, outbound)
+                    .ConfigureAwait(true);
+
+                if (analysis.Success)
+                {
+                    var internalCtx = analysis.InternalContext ?? analysis.RawText ?? string.Empty;
+                    if (!string.IsNullOrWhiteSpace(internalCtx))
+                    {
+                        _desktopScreenContext.Save(capture, internalCtx, intent, focusTarget);
+                        _logService.LogInfo($"[desktop-vision] context saved, chars={internalCtx.Length}");
+                    }
+
+                    chatText = ComposeVisionChatText(capture, intent, analysis);
+                }
+                else if (!analysis.Skipped && !string.IsNullOrWhiteSpace(analysis.Error))
+                {
+                    chatText = $"{DesktopCaptureUserMessages.BriefCaptureOnly(capture)} Ошибка анализа: {analysis.Error}";
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(projectName))
+            {
+                await AppendDesktopCaptureChatAsync(projectName, chatText, capture.AnnotatedImagePath)
+                    .ConfigureAwait(true);
+                await SaveHistoryAsync(projectName).ConfigureAwait(true);
+            }
+
+            var owner = Application.Current?.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive)
+                        ?? Application.Current?.MainWindow;
+            if (!ScreenCaptureViewerService.TryShow(capture, showAnnotated: true, owner))
+            {
+                AppendTerminal("[screen-capture] Не удалось открыть окно просмотра.", isError: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendTerminal($"[screen-capture] {ex.Message}", isError: true);
+            _logService.LogError($"[screen-capture] {ex}");
+        }
+    }
+
+    private static string ComposeVisionChatText(
+        ScreenCaptureResult capture,
+        DesktopVisionIntent intent,
+        DesktopVisionAnalysisResult analysis)
+    {
+        if (intent == DesktopVisionIntent.DescribeScreen)
+        {
+            return !string.IsNullOrWhiteSpace(analysis.UserVisible)
+                ? analysis.UserVisible!
+                : analysis.RawText ?? DesktopCaptureUserMessages.BriefCaptureOnly(capture);
+        }
+
+        return DesktopCaptureUserMessages.BriefAfterCapture(capture, analysis.UserVisible);
+    }
+
+    private Task AppendDesktopCaptureChatAsync(string projectName, string text, string imagePath) =>
+        AppendAssistantChatWithImageAsync(projectName, text, imagePath);
 
     private async Task<bool> TryHandleReniWaterLocalAsync(string userPayload, string projectName)
     {
@@ -1615,17 +1959,24 @@ public sealed class MainViewModel : BaseViewModel
         OpenImageViewer(path);
     }
 
-    private async Task AppendReniWaterChatAsync(string projectName, string text, string? screenshotPath)
+    private Task AppendReniWaterChatAsync(string projectName, string text, string? screenshotPath) =>
+        AppendAssistantChatWithImageAsync(projectName, text, screenshotPath);
+
+    private async Task AppendAssistantChatWithImageAsync(string projectName, string text, string? imagePath)
     {
-        screenshotPath = ResolveExistingScreenshotPath(screenshotPath);
-        Chat.Messages.Add(new ChatMessage
+        imagePath = ResolveExistingScreenshotPath(imagePath);
+        await Application.Current.Dispatcher.InvokeAsync(() =>
         {
-            Role = "Hermes",
-            Text = text,
-            ImagePath = screenshotPath,
+            Chat.Messages.Add(
+                new ChatMessage
+                {
+                    Role = "Hermes",
+                    Text = text,
+                    ImagePath = imagePath,
+                });
         });
 
-        var logLine = screenshotPath is null ? text : $"{text} [image:{screenshotPath}]";
+        var logLine = imagePath is null ? text : $"{text} [image:{imagePath}]";
         _chatLogService.AppendMessage(projectName, "Hermes", logLine);
         await PublishAssistantTurnToSupabaseIfPossibleAsync(logLine).ConfigureAwait(true);
     }
@@ -1728,11 +2079,11 @@ public sealed class MainViewModel : BaseViewModel
             string.IsNullOrWhiteSpace(Settings.SupabaseAnonKey))
         {
             _logService.LogWarn(
-                "[supabase] Не удалось восстановить relay перед публикацией: задайте Supabase URL и anon key в настройках.");
+                "[supabase] Не удалось восстановить клиент перед публикацией: задайте Supabase URL и anon key в настройках.");
             return;
         }
 
-        _logService.LogWarn("[supabase] Relay: клиент не активен перед публикацией — выполняю StartSupabaseRelayCoreAsync().");
+        _logService.LogWarn("[supabase] Клиент не активен перед публикацией — выполняю StartSupabaseRelayCoreAsync().");
         await StartSupabaseRelayCoreAsync();
     }
 

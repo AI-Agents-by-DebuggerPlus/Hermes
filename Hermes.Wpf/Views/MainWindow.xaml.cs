@@ -24,6 +24,7 @@ public partial class MainWindow : Window
     private SetupWizardWindow? _setupWizardWindow;
     private SettingsWindow? _settingsWindow;
     private SupabaseTestChatWindow? _supabaseTestChatWindow;
+    private WordPressGalleryWindow? _wordPressGalleryWindow;
     private ExternalBrainService? _externalBrainService;
     private ExternalBrainWindow? _externalBrainWindow;
 
@@ -143,6 +144,37 @@ public partial class MainWindow : Window
         }
 
         _chatWindow.Activate();
+        if (_chatWindow is ChatWindow chatWindow)
+        {
+            chatWindow.ScrollChatToEnd();
+        }
+    }
+
+    private void OpenWordPressGallery_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (_settings is null || DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (_wordPressGalleryWindow is null || !_wordPressGalleryWindow.IsLoaded)
+        {
+            _wordPressGalleryWindow = new WordPressGalleryWindow(
+                _settings,
+                _logService,
+                _settingsService,
+                vm.GalleryPublisher);
+            _wordPressGalleryWindow.Owner = this;
+            _wordPressGalleryWindow.Show();
+            return;
+        }
+
+        if (_wordPressGalleryWindow.WindowState == WindowState.Minimized)
+        {
+            _wordPressGalleryWindow.WindowState = WindowState.Normal;
+        }
+
+        _wordPressGalleryWindow.Activate();
     }
 
     private void OpenSupabaseTestChat_OnClick(object sender, RoutedEventArgs e)

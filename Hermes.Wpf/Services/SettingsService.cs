@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using Hermes.WpGallery;
 using Hermes.Wpf.Models;
 
 namespace Hermes.Wpf.Services;
@@ -50,6 +51,8 @@ public sealed class SettingsService
             settings.ChatFontSize = 14;
         }
 
+        MigrateHermesGallerySettings(settings);
+
         return settings;
     }
 
@@ -78,5 +81,64 @@ public sealed class SettingsService
 
         await using var stream = File.Create(_settingsFilePath);
         await JsonSerializer.SerializeAsync(stream, settings, _jsonOptions);
+    }
+
+    private static void MigrateHermesGallerySettings(HermesSettings s)
+    {
+        s.HermesGallerySiteUrl ??= string.Empty;
+        s.HermesGalleryRestUrl ??= string.Empty;
+        s.HermesGalleryWebSocketUrl ??= string.Empty;
+        s.HermesGalleryToken ??= string.Empty;
+        s.HermesGalleryChannel = string.IsNullOrWhiteSpace(s.HermesGalleryChannel)
+            ? "default"
+            : s.HermesGalleryChannel.Trim();
+        s.HermesGalleryMaxRetries = Math.Clamp(s.HermesGalleryMaxRetries, 1, 10);
+
+        NormalizeHermesGallerySiteUrl(s);
+
+        if (!s.HermesGalleryPublishEnabled && s.WordPressScreenshotPublishEnabled)
+        {
+            s.HermesGalleryPublishEnabled = true;
+        }
+
+        // Site configured but auto-publish off — likely old default (false); enable when URL is set.
+        if (!s.HermesGalleryPublishEnabled
+            && WpGalleryEndpoints.TryNormalizeSiteUrl(s.HermesGallerySiteUrl, out _, out _))
+        {
+            s.HermesGalleryPublishEnabled = true;
+        }
+
+        if (string.IsNullOrWhiteSpace(s.HermesGalleryToken)
+            && !string.IsNullOrWhiteSpace(s.WordPressScreenshotApiKey))
+        {
+            s.HermesGalleryToken = s.WordPressScreenshotApiKey.Trim();
+        }
+
+        if (string.IsNullOrWhiteSpace(s.HermesGallerySiteUrl))
+        {
+            if (!string.IsNullOrWhiteSpace(s.WordPressSiteUrl))
+            {
+                s.HermesGallerySiteUrl = s.WordPressSiteUrl.Trim();
+            }
+            else if (!string.IsNullOrWhiteSpace(s.HermesGalleryRestUrl)
+                     && WpGalleryEndpoints.TryNormalizeSiteUrl(
+                         s.HermesGalleryRestUrl, out var site, out _))
+            {
+                s.HermesGallerySiteUrl = site;
+            }
+        }
+    }
+
+    private static void NormalizeHermesGallerySiteUrl(HermesSettings s)
+    {
+        if (string.IsNullOrWhiteSpace(s.HermesGallerySiteUrl))
+        {
+            return;
+        }
+
+        if (WpGalleryEndpoints.TryNormalizeSiteUrl(s.HermesGallerySiteUrl.Trim(), out var site, out _))
+        {
+            s.HermesGallerySiteUrl = site;
+        }
     }
 }

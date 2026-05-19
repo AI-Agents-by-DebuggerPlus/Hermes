@@ -148,10 +148,6 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="8" />
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="8" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="8" />
-                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="200" />
@@ -223,64 +219,84 @@
                               Content="Sign in anonymously (Dashboard → Anonymous provider)"
                               IsChecked="{Binding SupabaseUseAnonymousAuth}" />
 
-                    <TextBlock Grid.Row="14"
-                               Grid.Column="0"
-                               VerticalAlignment="Center"
-                               Text="Import full history"
-                               TextWrapping="Wrap" />
-                    <StackPanel Grid.Row="14" Grid.Column="1" VerticalAlignment="Center">
-                        <CheckBox Content="On first connect append whole server transcript to chat (no agent rerun)"
-                                  IsChecked="{Binding SupabaseImportFullHistoryOnConnect}" />
-                        <TextBlock Margin="0,6,0,0"
-                                   Opacity="0.72"
-                                   TextWrapping="Wrap"
-                                   Text="If off, only rows that appear after connect are injected; Hermes replies are still mirrored to Supabase." />
-                    </StackPanel>
+                    <StackPanel Grid.Row="14" Grid.ColumnSpan="2" Margin="0,8,0,0">
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="200" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       VerticalAlignment="Top"
+                                       Text="Import full history"
+                                       TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Top">
+                                <CheckBox Content="On first connect append whole server transcript to chat (no agent rerun)"
+                                          IsChecked="{Binding SupabaseImportFullHistoryOnConnect}" />
+                                <TextBlock Margin="0,6,0,0"
+                                           Opacity="0.72"
+                                           TextWrapping="Wrap"
+                                           Text="If off, only rows that appear after connect are injected; Hermes replies are still mirrored to Supabase." />
+                            </StackPanel>
+                        </Grid>
 
-                    <TextBlock Grid.Row="16"
-                               Grid.Column="0"
-                               VerticalAlignment="Center"
-                               Text="Desktop sender_name"
-                               TextWrapping="Wrap" />
-                    <StackPanel Grid.Row="16" Grid.Column="1" VerticalAlignment="Center">
-                        <TextBox Width="160"
-                                 HorizontalAlignment="Left"
-                                 Text="{Binding SupabaseLocalSenderName, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Margin="0,6,0,0"
-                                   Opacity="0.72"
-                                   TextWrapping="Wrap"
-                                   Text="Имя для строк из этого ПК; должно отличаться от Assistant sender_name и от Android." />
-                    </StackPanel>
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="200" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       VerticalAlignment="Top"
+                                       Text="Desktop sender_name"
+                                       TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Top">
+                                <TextBox Width="160"
+                                         HorizontalAlignment="Left"
+                                         Text="{Binding SupabaseLocalSenderName, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Margin="0,6,0,0"
+                                           Opacity="0.72"
+                                           TextWrapping="Wrap"
+                                           Text="Имя для строк из этого ПК; должно отличаться от Assistant sender_name и от Android." />
+                            </StackPanel>
+                        </Grid>
 
-                    <TextBlock Grid.Row="18"
-                               Grid.Column="0"
-                               VerticalAlignment="Center"
-                               Text="Assistant sender_name"
-                               TextWrapping="Wrap" />
-                    <StackPanel Grid.Row="18" Grid.Column="1" VerticalAlignment="Center">
-                        <TextBox Width="160"
-                                 HorizontalAlignment="Left"
-                                 Text="{Binding SupabaseHermesSenderName, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Margin="0,6,0,0"
-                                       Opacity="0.72"
-                                       TextWrapping="Wrap"
-                                       Text="Rows from Hermes use this sender_name so echoes are not duplicated; remote devices should use another name." />
-                    </StackPanel>
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="200" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       VerticalAlignment="Top"
+                                       Text="Assistant sender_name"
+                                       TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Top">
+                                <TextBox Width="160"
+                                         HorizontalAlignment="Left"
+                                         Text="{Binding SupabaseHermesSenderName, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Margin="0,6,0,0"
+                                           Opacity="0.72"
+                                           TextWrapping="Wrap"
+                                           Text="Rows from Hermes use this sender_name so echoes are not duplicated; remote devices should use another name." />
+                            </StackPanel>
+                        </Grid>
 
-                    <TextBlock Grid.Row="20"
-                               Grid.Column="0"
-                               VerticalAlignment="Center"
-                               Text="Hermes-пауза"
-                               TextWrapping="Wrap" />
-                    <StackPanel Grid.Row="20"
-                                Grid.Column="1"
-                                VerticalAlignment="Center">
-                        <CheckBox Content="Приостанавливать Hermes только для чата и входящих Supabase"
-                                  IsChecked="{Binding HermesAgentPaused}" />
-                        <TextBlock Margin="0,6,0,0"
-                                   Opacity="0.72"
-                                   TextWrapping="Wrap"
-                                   Text="Соответствует галочке на главном окне. Ответ модели отключается; опрос таблицы messages и отправка сообщений этого ПК в Supabase (если relay включён) продолжаются." />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="200" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       VerticalAlignment="Top"
+                                       Text="Hermes-пауза"
+                                       TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Top">
+                                <CheckBox Content="Приостанавливать Hermes только для чата и входящих Supabase"
+                                          IsChecked="{Binding HermesAgentPaused}" />
+                                <TextBlock Margin="0,6,0,0"
+                                           Opacity="0.72"
+                                           TextWrapping="Wrap"
+                                           Text="Соответствует галочке на главном окне. Ответ модели отключается; опрос таблицы messages и отправка сообщений этого ПК в Supabase (если relay включён) продолжаются." />
+                            </StackPanel>
+                        </Grid>
                     </StackPanel>
                 </Grid>
             </Border>
@@ -305,6 +321,16 @@
                             <RowDefinition Height="10" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="16" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="10" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="10" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="10" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="10" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="10" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="10" />
                             <RowDefinition Height="Auto" />
@@ -388,16 +414,105 @@
                                    Grid.ColumnSpan="2"
                                    Opacity="0.85"
                                    FontWeight="SemiBold"
-                                   Text="Навык: курсор мыши (Windows)" />
+                                   Text="Скриншот монитора" />
 
                         <TextBlock Grid.Row="12"
                                    Grid.Column="0"
-                                   VerticalAlignment="Center"
+                                   VerticalAlignment="Top"
+                                   Margin="0,4,8,0"
+                                   Text="Копия (дубликат)"
+                                   TextWrapping="Wrap" />
+                        <StackPanel Grid.Row="12" Grid.Column="1" VerticalAlignment="Top">
+                            <DockPanel LastChildFill="True">
+                                <Button Width="92"
+                                        Margin="0,0,8,0"
+                                        VerticalAlignment="Center"
+                                        Content="Обзор…"
+                                        Click="BrowseScreenshotDuplicate_OnClick" />
+                                <TextBox VerticalAlignment="Center"
+                                         VerticalContentAlignment="Center"
+                                         Text="{Binding DesktopScreenshotDirectory, UpdateSourceTrigger=PropertyChanged}" />
+                            </DockPanel>
+                            <TextBlock Margin="0,6,0,0"
+                                       Opacity="0.72"
+                                       TextWrapping="Wrap"
+                                       Text="Пусто — дубликат не создаётся. Основные файлы всегда в %LocalAppData%\HermesWpf\screenshots." />
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="14"
+                                   Grid.Column="0"
+                                   VerticalAlignment="Top"
+                                   Margin="0,4,8,0"
+                                   Text="Монитор (индекс)"
+                                   TextWrapping="Wrap" />
+                        <StackPanel Grid.Row="14" Grid.Column="1" VerticalAlignment="Top">
+                            <TextBox Width="72"
+                                     HorizontalAlignment="Left"
+                                     LostFocus="ScreenshotMonitorIndex_OnLostFocus"
+                                     Text="{Binding DesktopScreenshotMonitorIndexEdit, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Margin="0,6,0,0"
+                                       Opacity="0.72"
+                                       TextWrapping="Wrap"
+                                       Text="-1 = основной монитор, 0 = первый, 1 = второй и т.д." />
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="16"
+                                   Grid.Column="0"
+                                   VerticalAlignment="Top"
+                                   Margin="0,4,8,0"
+                                   Text="Анализ Hermes"
+                                   TextWrapping="Wrap" />
+                        <StackPanel Grid.Row="16"
+                                    Grid.Column="1"
+                                    VerticalAlignment="Top">
+                            <CheckBox Content="После захвата вызывать Hermes CLI (vision_analyze)"
+                                      IsChecked="{Binding DesktopVisionAnalyzeEnabled}" />
+                            <CheckBox Margin="0,8,0,0"
+                                      Content="Для vision_analyze использовать снимок с разметкой (regions.png)"
+                                      IsChecked="{Binding DesktopVisionUseAnnotatedImage}"
+                                      IsEnabled="{Binding DesktopVisionAnalyzeEnabled}" />
+                            <TextBlock Margin="0,6,0,0"
+                                       Opacity="0.72"
+                                       TextWrapping="Wrap"
+                                       Text="Не вызывается при «Пауза агента». Таймаут — Chat timeout в настройках." />
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="18"
+                                   Grid.Column="0"
+                                   VerticalAlignment="Top"
+                                   Margin="0,4,8,0"
+                                   Text="WordPress"
+                                   TextWrapping="Wrap" />
+                        <StackPanel Grid.Row="18"
+                                    Grid.Column="1"
+                                    VerticalAlignment="Top">
+                            <TextBlock Opacity="0.72"
+                                       TextWrapping="Wrap"
+                                       Text="Галерея hermes-image-receiver: URL, sender, тестовая отправка файла — в отдельном окне." />
+                            <Button Margin="0,8,0,0"
+                                    HorizontalAlignment="Left"
+                                    Padding="12,4"
+                                    Content="Открыть WordPress…"
+                                    Click="OpenWordPressGallery_OnClick" />
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="20"
+                                   Grid.Column="0"
+                                   Grid.ColumnSpan="2"
+                                   Opacity="0.85"
+                                   FontWeight="SemiBold"
+                                   Text="Навык: курсор мыши (Windows)" />
+
+                        <TextBlock Grid.Row="22"
+                                   Grid.Column="0"
+                                   VerticalAlignment="Top"
+                                   Margin="0,4,8,0"
                                    Text="Разрешить"
                                    TextWrapping="Wrap" />
-                        <StackPanel Grid.Row="12"
+                        <StackPanel Grid.Row="22"
                                     Grid.Column="1"
-                                    Orientation="Vertical">
+                                    Orientation="Vertical"
+                                    VerticalAlignment="Top">
                             <CheckBox VerticalAlignment="Center"
                                       Content="Управление курсором из Hermes.Wpf (тест «Навыки», прямые вызовы API)"
                                       IsChecked="{Binding DesktopMouseSkillEnabled}" />

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Hermes.WpGallery</RootNamespace>
+    <AssemblyName>Hermes.WpGallery</AssemblyName>
+    <Description>WordPress hermes-image-receiver client (REST + optional WebSocket).</Description>
+  </PropertyGroup>
+
+</Project>

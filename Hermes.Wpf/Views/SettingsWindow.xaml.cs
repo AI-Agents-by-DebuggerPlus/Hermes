@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using Hermes.Wpf.Models;
+using Hermes.Wpf.Services;
 using Hermes.Wpf.ViewModels;
 using Microsoft.Win32;
 
@@ -8,10 +9,43 @@ namespace Hermes.Wpf.Views;
 
 public partial class SettingsWindow : Window
 {
-    public SettingsWindow(HermesSettings settings)
+    private readonly HermesSettings _settings;
+    private readonly LogService? _logService;
+    private readonly SettingsService? _settingsService;
+    private readonly HermesGalleryPublisher? _galleryPublisher;
+
+    public SettingsWindow(
+        HermesSettings settings,
+        LogService? logService = null,
+        SettingsService? settingsService = null,
+        HermesGalleryPublisher? galleryPublisher = null)
     {
+        _settings = settings;
+        _logService = logService;
+        _settingsService = settingsService;
+        _galleryPublisher = galleryPublisher;
         InitializeComponent();
         DataContext = new SettingsViewModel(settings);
+    }
+
+    private void OpenWordPressGallery_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (_logService is null || _settingsService is null || _galleryPublisher is null)
+        {
+            MessageBox.Show(
+                this,
+                "Откройте WordPress с главного окна (кнопка «WordPress»).",
+                "WordPress",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        var win = new WordPressGalleryWindow(_settings, _logService, _settingsService, _galleryPublisher)
+        {
+            Owner = this,
+        };
+        win.Show();
     }
 
     private void BrowseExternalBrainMemory_OnClick(object sender, RoutedEventArgs e)
@@ -92,6 +126,7 @@ public partial class SettingsWindow : Window
         {
             vm.CommitChatFontSize();
             vm.NormalizeExternalBrainMaxEditField();
+            vm.NormalizeScreenshotMonitorIndexField();
         }
     }
 
@@ -109,5 +144,39 @@ public partial class SettingsWindow : Window
         {
             vm.CommitChatFontSize();
         }
+    }
+
+    private void ScreenshotMonitorIndex_OnLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is SettingsViewModel vm)
+        {
+            vm.NormalizeScreenshotMonitorIndexField();
+        }
+    }
+
+    private void BrowseScreenshotDuplicate_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SettingsViewModel vm)
+        {
+            return;
+        }
+
+        var defaultDup = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            "HermesScreenShots");
+        var dlg = new OpenFolderDialog
+        {
+            Title = "Папка для копии скриншотов (дубликат; основной путь не меняется)",
+            InitialDirectory = ResolveBrowseHint(vm.DesktopScreenshotDirectory, vm.LastScreenshotBrowsePath)
+                                 ?? defaultDup,
+        };
+
+        if (dlg.ShowDialog(this) != true || string.IsNullOrWhiteSpace(dlg.FolderName))
+        {
+            return;
+        }
+
+        vm.DesktopScreenshotDirectory = dlg.FolderName.Trim();
+        vm.LastScreenshotBrowsePath = dlg.FolderName.Trim();
     }
 }

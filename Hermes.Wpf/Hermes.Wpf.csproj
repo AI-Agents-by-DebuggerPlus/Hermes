@@ -14,11 +14,24 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Hermes.WpGallery\Hermes.WpGallery.csproj" />
+    <ProjectReference Include="..\Hermes.WpGallery.Tool\Hermes.WpGallery.Tool.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Hermes.DesktopCapture\Hermes.DesktopCapture.csproj" />
     <ProjectReference Include="..\Hermes.DesktopInteraction\Hermes.DesktopInteraction.csproj" />
     <ProjectReference Include="..\Hermes.MouseBridge\Hermes.MouseBridge.csproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
   </ItemGroup>
+
+  <Target Name="CopyWpGalleryToolToWpfOut" AfterTargets="Build">
+    <PropertyGroup>
+      <_GalleryTool>$(MSBuildThisFileDirectory)..\Hermes.WpGallery.Tool\bin\$(Configuration)\net8.0-windows\Hermes.WpGallery.Tool.exe</_GalleryTool>
+    </PropertyGroup>
+    <Copy SourceFiles="$(_GalleryTool)"
+          DestinationFolder="$(OutDir)"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(_GalleryTool)')" />
+  </Target>
 
   <Target Name="CopyMouseBridgeToWpfOut" AfterTargets="Build">
     <PropertyGroup>

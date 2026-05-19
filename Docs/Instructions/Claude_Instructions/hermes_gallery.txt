@@ -1,0 +1,50 @@
+Сейчас создам полноценный WordPress-плагин для приёма изображений по WebSocket от Hermes.Wpf.Плагин готов! Вот что внутри и как его использовать:
+
+---
+
+## Что реализовано
+
+**Архитектура:**
+- `hermes-image-receiver.php` — главный файл плагина
+- `includes/class-hir-activator.php` — создаёт таблицу `wp_hir_images` в БД при активации
+- `includes/class-hir-settings.php` — страница настроек в *Настройки → Hermes Receiver*
+- `includes/class-hir-rest-api.php` — REST API (`/wp-json/hermes/v1/`)
+- `includes/class-hir-shortcode.php` — шорткод `[hermes_gallery]`
+- `assets/js/gallery.js` — WebSocket-клиент с автопереподключением и REST-fallback
+- `assets/css/gallery.css` — тёмная кибер-галерея с лайтбоксом
+
+---
+
+## Установка
+
+1. Распакуйте ZIP в `wp-content/plugins/`
+2. Активируйте в *Плагины → Установленные*
+3. Откройте *Настройки → Hermes Receiver* — скопируйте **токен** и **порт**
+4. Укажите их в Hermes.Wpf
+
+---
+
+## Шорткод на странице
+
+```
+[hermes_gallery channel="camera1" layout="grid" max="20"]
+```
+
+Параметры `layout`: `grid` / `masonry` / `single`.
+
+---
+
+## Формат сообщения от Hermes.Wpf
+
+```json
+{
+  "type":     "image",
+  "token":    "ваш-токен",
+  "channel":  "default",
+  "filename": "frame.png",
+  "mime":     "image/png",
+  "data":     "<base64>"
+}
+```
+
+> **Важно:** WordPress не держит постоянный WebSocket-процесс. Если Hermes.Wpf подключается напрямую к серверу — используйте **REST endpoint** `POST /wp-json/hermes/v1/image` (он полностью поддерживается). Для нативного WebSocket нужен отдельный Node.js/Python прокси-процесс на сервере.

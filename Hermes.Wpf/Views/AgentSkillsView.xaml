@@ -47,6 +47,29 @@
         </Border>
 
         <Border DockPanel.Dock="Bottom"
+                Margin="0,0,0,12"
+                Padding="12"
+                Style="{StaticResource PanelBorderStyle}">
+            <StackPanel>
+                <TextBlock FontWeight="SemiBold"
+                           Text="Скриншот монитора + анализ"
+                           TextWrapping="Wrap" />
+                <TextBlock Margin="0,6,0,0"
+                           FontSize="13"
+                           Foreground="{StaticResource MutedTextBrush}"
+                           TextWrapping="Wrap">
+                    Снимок и внутренний контекст для агента. В чате — кратко; «опиши экран» — подробно; «переключись в Calculator» — элементы окна.
+                </TextBlock>
+                <Button MinWidth="220"
+                        Margin="0,12,0,0"
+                        Padding="10,6"
+                        HorizontalAlignment="Left"
+                        Command="{Binding CaptureDesktopScreenshotCommand}"
+                        Content="Скриншот монитора" />
+            </StackPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom"
                 Margin="0,12,0,0"
                 Padding="12"
                 Style="{StaticResource PanelBorderStyle}">

@@ -71,6 +71,23 @@ public static class AgentSkillsCatalog
         new AgentSkillCard
         {
             Category = "Desktop",
+            Title = "Скриншот монитора + анализ (vision)",
+            Summary =
+                "По запросу («скриншот», «screenshot», кнопка на «Навыки»): снимок монитора, разметка окон (UI Automation), PNG+JSON. "
+                + "При включённом «Анализ скриншота» в Settings — Hermes CLI вызывает vision_analyze по regions.png и отвечает в чат. "
+                + "Файлы: %LocalAppData%\\HermesWpf\\screenshots; опциональный дубликат в DesktopScreenshotDirectory.",
+        },
+        new AgentSkillCard
+        {
+            Category = "Синхронизация",
+            Title = "Скриншот → WordPress",
+            Summary =
+                "После захвата: чистый PNG в hermes-image-receiver (Hermes.WpGallery). "
+                + "Shortcode [hermes_gallery]. Settings → URL сайта, token, channel. Отдельно: Hermes.WpGallery.Tool.exe.",
+        },
+        new AgentSkillCard
+        {
+            Category = "Desktop",
             Title = "Управление курсором мыши",
             Summary =
                 "Win32: перемещение по экрану (виртуальный монитор), левый и правый клик. Включите в Settings навык курсора и используйте проверку на этой вкладке. Для вызовов из Hermes/WSL доступен Hermes.MouseBridge (после сборки копируется в папку Hermes.Wpf). Клавиатура и UI Automation — отдельным этапом (см. Docs/Plans).",

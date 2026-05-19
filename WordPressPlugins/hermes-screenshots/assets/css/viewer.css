@@ -1,0 +1,30 @@
+.hermes-screenshot {
+    max-width: 100%;
+    margin: 1rem 0;
+}
+
+.hermes-screenshot__meta {
+    margin: 0 0 0.5rem;
+    font-size: 0.875rem;
+    opacity: 0.75;
+}
+
+.hermes-screenshot__link {
+    display: block;
+    line-height: 0;
+}
+
+.hermes-screenshot__img {
+    max-width: 100%;
+    height: auto;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 4px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.hermes-screenshot--empty {
+    padding: 1rem;
+    border: 1px dashed rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    font-size: 0.9rem;
+}

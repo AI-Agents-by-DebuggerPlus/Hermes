@@ -1,0 +1,422 @@
+<Window x:Class="Hermes.WpGallery.Tool.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:Hermes.WpGallery.Tool.ViewModels"
+        Title="Hermes · Image Sender"
+        Width="900" Height="640"
+        MinWidth="800" MinHeight="560"
+        WindowStartupLocation="CenterScreen"
+        Style="{StaticResource WindowStyle}"
+        ResizeMode="CanResize">
+
+  <Window.Resources>
+    <Style x:Key="NavBtn" TargetType="RadioButton">
+      <Setter Property="Background"      Value="Transparent"/>
+      <Setter Property="Foreground"      Value="#64748B"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Padding"         Value="14,10"/>
+      <Setter Property="Cursor"          Value="Hand"/>
+      <Setter Property="FontSize"        Value="13"/>
+      <Setter Property="GroupName"       Value="Nav"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="RadioButton">
+            <Border x:Name="bg" Background="Transparent" CornerRadius="8"
+                    Padding="{TemplateBinding Padding}" Margin="0,2">
+              <ContentPresenter/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="bg" Property="Background" Value="#1E293B"/>
+                <Setter Property="Foreground" Value="#00D4FF"/>
+              </Trigger>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="bg" Property="Background" Value="#161A24"/>
+                <Setter Property="Foreground" Value="#E2E8F0"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </Window.Resources>
+
+  <Grid>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="190"/>
+      <ColumnDefinition Width="*"/>
+    </Grid.ColumnDefinitions>
+
+    <!-- ═══════════════ SIDEBAR ═══════════════ -->
+    <Border Grid.Column="0" Background="#0A0C10"
+            BorderBrush="#1E293B" BorderThickness="0,0,1,0">
+      <DockPanel>
+        <!-- Logo -->
+        <StackPanel DockPanel.Dock="Top" Margin="16,20,16,24">
+          <TextBlock Text="⚡  H E R M E S"
+                     Foreground="#00D4FF"
+                     FontFamily="Courier New"
+                     FontSize="18" FontWeight="Bold"/>
+          <TextBlock Text="Image Sender for WordPress"
+                     Foreground="#334155"
+                     FontSize="10"
+                     Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <!-- Nav -->
+        <StackPanel DockPanel.Dock="Top" Margin="10,0">
+          <RadioButton Style="{StaticResource NavBtn}"
+                       IsChecked="True"
+                       x:Name="NavCapture"
+                       Click="NavCapture_Click">
+            📡  Захват экрана
+          </RadioButton>
+          <RadioButton Style="{StaticResource NavBtn}"
+                       x:Name="NavSettings"
+                       Click="NavSettings_Click">
+            ⚙  Настройки
+          </RadioButton>
+          <RadioButton Style="{StaticResource NavBtn}"
+                       x:Name="NavLog"
+                       Click="NavLog_Click">
+            📋  Журнал
+          </RadioButton>
+        </StackPanel>
+
+        <!-- Status badge -->
+        <Border DockPanel.Dock="Bottom" Margin="12,0,12,16"
+                Background="#161A24" CornerRadius="10" Padding="12,10">
+          <StackPanel>
+            <DockPanel>
+              <Ellipse Width="8" Height="8" Margin="0,0,8,0"
+                       Fill="{Binding StatusColor, Converter={StaticResource HexBrush}}"
+                       VerticalAlignment="Center"/>
+              <TextBlock Text="{Binding StatusText}"
+                         Foreground="#E2E8F0" FontSize="12"
+                         TextWrapping="Wrap"/>
+            </DockPanel>
+          </StackPanel>
+        </Border>
+      </DockPanel>
+    </Border>
+
+    <!-- ═══════════════ CONTENT ═══════════════ -->
+    <Grid Grid.Column="1">
+
+      <!-- ── Capture Tab ── -->
+      <ScrollViewer x:Name="TabCapture" VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24,20">
+
+          <!-- Control row -->
+          <DockPanel Margin="0,0,0,20">
+            <TextBlock Text="Захват и отправка" FontSize="20" FontWeight="SemiBold"
+                       Foreground="#E2E8F0" VerticalAlignment="Center"/>
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right"
+                        HorizontalAlignment="Right">
+              <Button Content="🔗  Тест соединения"
+                      Style="{StaticResource SecondaryBtn}"
+                      Command="{Binding TestConnCommand}"
+                      Margin="0,0,8,0"/>
+              <Button Content="📸  Снимок сейчас"
+                      Style="{StaticResource PrimaryBtn}"
+                      Command="{Binding CaptureNowCommand}"
+                      ToolTip="Захват экрана, сохранение в Logs/screenshots и отправка на сайт"
+                      MinWidth="170"/>
+            </StackPanel>
+          </DockPanel>
+
+          <!-- Stats row -->
+          <UniformGrid Columns="4" Margin="0,0,0,20">
+            <Border Style="{StaticResource StatCard}" Margin="0,0,8,0">
+              <StackPanel>
+                <TextBlock Text="ОТПРАВЛЕНО" Style="{StaticResource Caption}"/>
+                <TextBlock Text="{Binding StatSent}" FontSize="26"
+                           FontWeight="Bold" Foreground="#00D4FF"/>
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource StatCard}" Margin="0,0,8,0">
+              <StackPanel>
+                <TextBlock Text="ОШИБОК" Style="{StaticResource Caption}"/>
+                <TextBlock Text="{Binding StatErrors}" FontSize="26"
+                           FontWeight="Bold" Foreground="#EF4444"/>
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource StatCard}" Margin="0,0,8,0">
+              <StackPanel>
+                <TextBlock Text="ТРАФИК" Style="{StaticResource Caption}"/>
+                <TextBlock Text="{Binding StatBytes}" FontSize="26"
+                           FontWeight="Bold" Foreground="#E2E8F0"/>
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource StatCard}">
+              <StackPanel>
+                <TextBlock Text="ЗАДЕРЖКА" Style="{StaticResource Caption}"/>
+                <TextBlock Text="{Binding StatLatency}" FontSize="26"
+                           FontWeight="Bold" Foreground="#E2E8F0"/>
+              </StackPanel>
+            </Border>
+          </UniformGrid>
+
+          <!-- Preview -->
+          <Border Style="{StaticResource Card}" Margin="0,0,0,20"
+                  Visibility="{Binding Settings.ShowPreview, Converter={StaticResource BoolToVis}}">
+            <StackPanel>
+              <TextBlock Text="ПРЕДПРОСМОТР" Style="{StaticResource SectionHeader}"/>
+              <Border Background="#0A0C10" CornerRadius="8"
+                      MinHeight="180" MaxHeight="320">
+                <Grid>
+                  <TextBlock Text="Снимок появится здесь после первого захвата"
+                             Foreground="#334155" HorizontalAlignment="Center"
+                             VerticalAlignment="Center"
+                             Visibility="{Binding PreviewImage, Converter={StaticResource InvNullToVis}}"/>
+                  <Image Source="{Binding PreviewImage}"
+                         Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"
+                         Visibility="{Binding PreviewImage, Converter={StaticResource NullToVis}}"/>
+                </Grid>
+              </Border>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource Card}">
+            <StackPanel>
+              <TextBlock Text="ПОДСКАЗКА" Style="{StaticResource SectionHeader}"/>
+              <TextBlock Foreground="#64748B" FontSize="12" TextWrapping="Wrap"
+                         Text="Снимки создаются только по кнопке «Снимок сейчас». Логи — в папке Logs рядом с проектом. На сайте канал в настройках должен совпадать с шорткодом (например camera1)."/>
+            </StackPanel>
+          </Border>
+
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- ── Settings Tab ── -->
+      <ScrollViewer x:Name="TabSettings" Visibility="Collapsed"
+                    VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24,20">
+
+          <TextBlock Text="Настройки" FontSize="20" FontWeight="SemiBold"
+                     Foreground="#E2E8F0" Margin="0,0,0,20"/>
+
+          <!-- WordPress -->
+          <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+            <StackPanel>
+              <TextBlock Text="WORDPRESS" Style="{StaticResource SectionHeader}"/>
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="16"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                  <TextBlock Text="URL сайта" Style="{StaticResource Caption}"/>
+                  <TextBox Text="{Binding Settings.WordPressUrl, UpdateSourceTrigger=PropertyChanged}"
+                           ToolTip="Адрес WordPress (HTTPS), без /wp-json. Пример: https://debuggerplus.com"/>
+                </StackPanel>
+                <StackPanel Grid.Column="2">
+                  <TextBlock Text="Секретный токен" Style="{StaticResource Caption}"/>
+                  <TextBox Text="{Binding Settings.SecretToken, UpdateSourceTrigger=PropertyChanged}"/>
+                </StackPanel>
+              </Grid>
+              <StackPanel Margin="0,12,0,0">
+                <TextBlock Text="REST API Endpoint" Style="{StaticResource Caption}"/>
+                <TextBox IsReadOnly="True" IsTabStop="False" Cursor="IBeam"
+                         Background="#0A0C10" Foreground="#00D4FF"
+                         Text="{Binding Settings.WordPressUrl, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource RestEndpointConv}}"
+                         ToolTip="Формируется автоматически из URL сайта (как в настройках плагина)"/>
+                <TextBlock Foreground="#475569" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"
+                           Text="Отдельно вводить не нужно — укажите только URL сайта выше."/>
+              </StackPanel>
+              <StackPanel Margin="0,12,0,0">
+                <TextBlock Text="Канал" Style="{StaticResource Caption}"/>
+                <TextBox Text="{Binding Settings.Channel, UpdateSourceTrigger=PropertyChanged}"
+                         Width="200" HorizontalAlignment="Left"
+                         ToolTip="Обязательно как в шорткоде на странице, напр. camera1"/>
+                <TextBlock Foreground="#F59E0B" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"
+                           Text="Если канал пустой — на сайте будет 0 фото (галерея фильтрует по channel)."/>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Capture -->
+          <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+            <StackPanel>
+              <TextBlock Text="ЗАХВАТ" Style="{StaticResource SectionHeader}"/>
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="16"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                  <TextBlock Text="Монитор" Style="{StaticResource Caption}"/>
+                  <ComboBox ItemsSource="{Binding Monitors}"
+                            SelectedIndex="{Binding Settings.MonitorIndex, Converter={StaticResource MonitorIdxConv}}"/>
+                </StackPanel>
+                <StackPanel Grid.Column="2">
+                  <TextBlock Text="Формат изображения" Style="{StaticResource Caption}"/>
+                  <ComboBox SelectedValue="{Binding Settings.ImageFormat}"
+                            SelectedValuePath="Tag">
+                    <ComboBoxItem Content="JPEG (меньше размер)" Tag="jpeg"/>
+                    <ComboBoxItem Content="PNG (без потерь)"     Tag="png"/>
+                  </ComboBox>
+                </StackPanel>
+              </Grid>
+
+              <!-- JPEG Quality -->
+              <StackPanel Margin="0,12,0,0">
+                <TextBlock Style="{StaticResource Caption}">
+                  <TextBlock.Text>
+                    <Binding Path="Settings.JpegQuality" StringFormat="Качество JPEG: {0}%"/>
+                  </TextBlock.Text>
+                </TextBlock>
+                <Slider Minimum="10" Maximum="100"
+                        Value="{Binding Settings.JpegQuality}"
+                        TickFrequency="5" IsSnapToTickEnabled="True"/>
+              </StackPanel>
+
+              <!-- Change detection -->
+              <StackPanel Margin="0,12,0,0">
+                <CheckBox Content="Снимать только при изменении экрана"
+                          IsChecked="{Binding Settings.CaptureOnChange}"/>
+                <DockPanel Margin="22,8,0,0"
+                           IsEnabled="{Binding Settings.CaptureOnChange}">
+                  <TextBlock DockPanel.Dock="Right" Margin="10,0,0,0"
+                             VerticalAlignment="Center" Foreground="#64748B">
+                    <TextBlock.Text>
+                      <Binding Path="Settings.ChangeThreshold" StringFormat="{}{0}%"/>
+                    </TextBlock.Text>
+                  </TextBlock>
+                  <TextBlock VerticalAlignment="Center" Foreground="#64748B"
+                             Margin="0,0,10,0" FontSize="12" Text="Порог изменений:"/>
+                  <Slider Minimum="1" Maximum="50"
+                          Value="{Binding Settings.ChangeThreshold}"
+                          VerticalAlignment="Center"/>
+                </DockPanel>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Capture Region -->
+          <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+            <StackPanel>
+              <TextBlock Text="ОБЛАСТЬ ЗАХВАТА (0 = весь экран)" Style="{StaticResource SectionHeader}"/>
+              <UniformGrid Columns="4">
+                <StackPanel Margin="0,0,8,0">
+                  <TextBlock Text="X" Style="{StaticResource Caption}"/>
+                  <TextBox Text="{Binding Settings.RegionX}"/>
+                </StackPanel>
+                <StackPanel Margin="0,0,8,0">
+                  <TextBlock Text="Y" Style="{StaticResource Caption}"/>
+                  <TextBox Text="{Binding Settings.RegionY}"/>
+                </StackPanel>
+                <StackPanel Margin="0,0,8,0">
+                  <TextBlock Text="Ширина" Style="{StaticResource Caption}"/>
+                  <TextBox Text="{Binding Settings.RegionWidth}"/>
+                </StackPanel>
+                <StackPanel>
+                  <TextBlock Text="Высота" Style="{StaticResource Caption}"/>
+                  <TextBox Text="{Binding Settings.RegionHeight}"/>
+                </StackPanel>
+              </UniformGrid>
+            </StackPanel>
+          </Border>
+
+          <!-- Behaviour -->
+          <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+            <StackPanel>
+              <TextBlock Text="ПОВЕДЕНИЕ" Style="{StaticResource SectionHeader}"/>
+              <StackPanel>
+                <CheckBox Content="Запускать с Windows"
+                          IsChecked="{Binding Settings.StartWithWindows}"
+                          Margin="0,0,0,10"/>
+                <CheckBox Content="Сворачивать в трей"
+                          IsChecked="{Binding Settings.MinimizeToTray}"
+                          Margin="0,0,0,10"/>
+                <CheckBox Content="Показывать предпросмотр"
+                          IsChecked="{Binding Settings.ShowPreview}"/>
+              </StackPanel>
+              <StackPanel Margin="0,12,0,0" Orientation="Horizontal">
+                <TextBlock Text="Макс. попыток:" Style="{StaticResource Caption}"
+                           VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <TextBox Text="{Binding Settings.MaxRetries}"
+                         Width="60" TextAlignment="Center"/>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Save button -->
+          <Button Content="💾  Сохранить настройки"
+                  Style="{StaticResource PrimaryBtn}"
+                  Command="{Binding SaveSettingsCommand}"
+                  HorizontalAlignment="Left"/>
+
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- ── Log Tab ── -->
+      <Grid x:Name="TabLog" Visibility="Collapsed" Margin="24,20">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" Margin="0,0,0,16">
+          <TextBlock Text="Журнал событий" FontSize="20" FontWeight="SemiBold"
+                     Foreground="#E2E8F0" VerticalAlignment="Center"/>
+          <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+            <Button Content="📂  Logs (локально)"
+                    Style="{StaticResource SecondaryBtn}"
+                    Command="{Binding OpenLogsFolderCommand}"
+                    Margin="0,0,8,0"/>
+            <Button Content="🌐  WordPress"
+                    Style="{StaticResource SecondaryBtn}"
+                    Command="{Binding OpenWordPressFolderCommand}"
+                    ToolTip="Логи, скачанные с сайта"
+                    Margin="0,0,8,0"/>
+            <Button Content="↻  С сайта"
+                    Style="{StaticResource SecondaryBtn}"
+                    Command="{Binding SyncSiteLogsCommand}"
+                    ToolTip="Скачать логи с WordPress в папку WordPress"
+                    Margin="0,0,8,0"/>
+            <Button Content="🗑  Очистить"
+                    Style="{StaticResource DangerBtn}"
+                    Command="{Binding ClearLogCommand}"/>
+          </StackPanel>
+        </DockPanel>
+
+        <Border Grid.Row="1" Style="{StaticResource Card}" Padding="0">
+          <ListBox ItemsSource="{Binding Log}"
+                   Background="Transparent"
+                   BorderThickness="0"
+                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                   VirtualizingPanel.IsVirtualizing="True">
+            <ListBox.ItemContainerStyle>
+              <Style TargetType="ListBoxItem">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                <Setter Property="Padding" Value="12,7"/>
+                <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                <Setter Property="BorderBrush" Value="#0F172A"/>
+              </Style>
+            </ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <DockPanel>
+                  <TextBlock Text="{Binding TimeStr}"
+                             Foreground="#334155" FontFamily="Courier New"
+                             FontSize="11" Width="60" VerticalAlignment="Center"/>
+                  <TextBlock Text="{Binding LevelTag}"
+                             Foreground="{Binding Level, Converter={StaticResource LogBrush}}"
+                             Width="18" FontWeight="Bold" VerticalAlignment="Center"/>
+                  <TextBlock Text="{Binding Message}"
+                             Foreground="#94A3B8" FontSize="12"
+                             TextWrapping="Wrap" VerticalAlignment="Center"/>
+                </DockPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Border>
+      </Grid>
+
+    </Grid>
+  </Grid>
+</Window>

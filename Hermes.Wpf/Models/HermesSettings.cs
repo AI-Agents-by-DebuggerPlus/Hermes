@@ -92,6 +92,50 @@ public sealed class HermesSettings
     /// </summary>
     public bool DesktopMouseSkillEnabled { get; set; }
 
+    /// <summary>Monitor index for desktop screenshots (0-based). -1 = primary display.</summary>
+    public int DesktopScreenshotMonitorIndex { get; set; } = -1;
+
+    /// <summary>
+    /// Optional duplicate copy folder. Primary files always go to
+    /// %LocalAppData%\HermesWpf\screenshots. Empty = no duplicate.
+    /// </summary>
+    public string DesktopScreenshotDirectory { get; set; } = string.Empty;
+
+    /// <summary>After monitor capture, invoke Hermes CLI with vision_analyze on the screenshot files.</summary>
+    public bool DesktopVisionAnalyzeEnabled { get; set; } = true;
+
+    /// <summary>When true, vision_analyze uses the annotated regions image; otherwise the plain PNG.</summary>
+    public bool DesktopVisionUseAnnotatedImage { get; set; } = true;
+
+    /// <summary>After capture, send plain PNG to WordPress hermes-image-receiver gallery.</summary>
+    public bool HermesGalleryPublishEnabled { get; set; } = true;
+
+    /// <summary>WordPress site base URL, e.g. https://example.com</summary>
+    public string HermesGallerySiteUrl { get; set; } = string.Empty;
+
+    /// <summary>Legacy: full REST URL; use <see cref="HermesGallerySiteUrl"/> instead.</summary>
+    public string HermesGalleryRestUrl { get; set; } = string.Empty;
+
+    /// <summary>Upload retry count for REST (hermes-image-receiver).</summary>
+    public int HermesGalleryMaxRetries { get; set; } = 3;
+
+    /// <summary>WebSocket URL, e.g. ws://site.com:8765 (optional; needs server proxy).</summary>
+    public string HermesGalleryWebSocketUrl { get; set; } = string.Empty;
+
+    /// <summary>Secret token from WP → Settings → Hermes Receiver.</summary>
+    public string HermesGalleryToken { get; set; } = string.Empty;
+
+    /// <summary>Sender/channel for POST /message and shortcode [hermes_gallery channel="…"]. Empty/default → machine name.</summary>
+    public string HermesGalleryChannel { get; set; } = "";
+
+    /// <summary>When true and WebSocket URL is set, try WebSocket first then REST on failure.</summary>
+    public bool HermesGalleryPreferWebSocket { get; set; }
+
+    // Legacy (migrated on load from settings.json)
+    public bool WordPressScreenshotPublishEnabled { get; set; }
+    public string WordPressSiteUrl { get; set; } = string.Empty;
+    public string WordPressScreenshotApiKey { get; set; } = string.Empty;
+
     /// <summary>When true, outbound chat payloads include English tutor persona (Hermes.Wpf).</summary>
     public bool EnglishTutorModeEnabled { get; set; }
 

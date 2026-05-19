@@ -63,6 +63,10 @@
                             Margin="0,0,8,8"
                             Content="Supabase test"
                             Click="OpenSupabaseTestChat_OnClick" />
+                    <Button Width="100"
+                            Margin="0,0,8,8"
+                            Content="WordPress"
+                            Click="OpenWordPressGallery_OnClick" />
                     <Button Width="115"
                             Margin="0,0,8,8"
                             Content="External Brain"
