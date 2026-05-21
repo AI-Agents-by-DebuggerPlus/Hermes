@@ -1,6 +1,4 @@
- using System.Windows;
-using System.Windows.Interop;
-using System.Runtime.InteropServices;
+using System.Windows;
 using Hermes.Wpf.Models;
 using Hermes.Wpf.Services;
 using Hermes.Wpf.ViewModels;
@@ -9,7 +7,6 @@ namespace Hermes.Wpf.Views;
 
 public partial class MainWindow : Window
 {
-    private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
     private readonly LogService _logService;
     private readonly HermesService _hermesService;
     private readonly ProjectService _projectService;
@@ -28,9 +25,6 @@ public partial class MainWindow : Window
     private ExternalBrainService? _externalBrainService;
     private ExternalBrainWindow? _externalBrainWindow;
 
-    [DllImport("dwmapi.dll")]
-    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
-
     public MainWindow()
     {
         InitializeComponent();
@@ -45,28 +39,8 @@ public partial class MainWindow : Window
         Closing += MainWindow_OnClosing;
     }
 
-    private void ApplyDarkTitleBar()
-    {
-        try
-        {
-            var handle = new WindowInteropHelper(this).Handle;
-            if (handle == IntPtr.Zero)
-            {
-                return;
-            }
-
-            var enabled = 1;
-            _ = DwmSetWindowAttribute(handle, DWMWA_USE_IMMERSIVE_DARK_MODE, ref enabled, sizeof(int));
-        }
-        catch
-        {
-            // Non-fatal: window remains usable even if dark title bar fails.
-        }
-    }
-
     private async void MainWindow_OnLoaded(object sender, RoutedEventArgs e)
     {
-        ApplyDarkTitleBar();
         _settings = await _settingsService.LoadAsync();
 
         _externalBrainService = new ExternalBrainService(

@@ -16,7 +16,7 @@
             </Grid.ColumnDefinitions>
             <Border Style="{StaticResource PanelCardStyle}" Margin="0,0,8,0">
                 <StackPanel>
-                    <TextBlock Text="Current reasoning (mock)" Style="{StaticResource SectionHeaderStyle}" />
+                    <TextBlock Text="Current reasoning (orchestrator)" Style="{StaticResource SectionHeaderStyle}" />
                     <TextBlock Text="{Binding CurrentReasoning}" TextWrapping="Wrap" Foreground="{StaticResource Brush.Text}" />
                     <TextBlock Text="Strategy context" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,0" />
                     <TextBlock Text="{Binding StrategyContext}" TextWrapping="Wrap" Foreground="{StaticResource Brush.TextMuted}" />

@@ -13,5 +13,10 @@
   <ItemGroup>
     <ProjectReference Include="..\Hermes.TradingPlatform.Shared\Hermes.TradingPlatform.Shared.csproj" />
     <ProjectReference Include="..\Hermes.TradingPlatform.Core\Hermes.TradingPlatform.Core.csproj" />
+    <ProjectReference Include="..\Hermes.TradingPlatform.Data\Hermes.TradingPlatform.Data.csproj" />
+    <ProjectReference Include="..\Hermes.TradingPlatform.Exchange\Hermes.TradingPlatform.Exchange.csproj" />
+    <ProjectReference Include="..\Hermes.TradingPlatform.Risk\Hermes.TradingPlatform.Risk.csproj" />
+    <ProjectReference Include="..\Hermes.TradingPlatform.Strategies\Hermes.TradingPlatform.Strategies.csproj" />
+    <ProjectReference Include="..\Hermes.TradingPlatform.Orchestration\Hermes.TradingPlatform.Orchestration.csproj" />
   </ItemGroup>
 </Project>

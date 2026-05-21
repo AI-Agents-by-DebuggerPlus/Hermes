@@ -181,6 +181,9 @@ public sealed class HermesSettings
     /// <summary>When true, outbound chat payloads include English tutor persona (Hermes.Wpf).</summary>
     public bool EnglishTutorModeEnabled { get; set; }
 
+    /// <summary>When true, Hermes acts as trader-executor for Hermes Trading Platform (toggle: трейдинг / trading).</summary>
+    public bool TradingModeEnabled { get; set; }
+
     /// <summary>Folder with <c>run_submit.ps1</c> (Reni vodokanal). Empty = auto-detect from workspace / repo.</summary>
     public string ReniWaterScriptDirectory { get; set; } = @"D:\Programming\AI_Agents\Hermes\scripts\reni_water";
 
@@ -211,4 +214,16 @@ public sealed class HermesSettings
 
     /// <summary><c>yyyy-MM</c> — last month when monthly job ran.</summary>
     public string? ReniWaterLastMonthlyRunKey { get; set; }
+
+    /// <summary>Inject Trading Platform bridge instructions and live snapshot into outbound hermes chat.</summary>
+    public bool TradingPlatformIntegrationEnabled { get; set; } = true;
+
+    /// <summary>Start Hermes.TradingPlatform.exe when bridge heartbeat is stale (if exe path resolves).</summary>
+    public bool TradingPlatformAutoLaunchTerminal { get; set; } = true;
+
+    /// <summary>Optional full path to Hermes.TradingPlatform.Cli.exe; empty = auto-detect next to Hermes.Wpf or dev tree.</summary>
+    public string TradingPlatformCliPath { get; set; } = string.Empty;
+
+    /// <summary>Optional full path to Hermes.TradingPlatform.exe for auto-launch.</summary>
+    public string TradingPlatformExePath { get; set; } = string.Empty;
 }

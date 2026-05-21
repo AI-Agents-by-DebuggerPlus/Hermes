@@ -35,4 +35,5 @@ dotnet build Hermes.TradingPlatform.sln -c Release
 
 ## Следующие фазы
 
-См. `README.md` — Phase 2 domain models + event bus, без изменения layout UI.
+- Phase 2–3 реализованы — см. `Phase2_State_And_Events.md`, `Phase3_Virtual_Exchange.md`
+- Phase 4+ — `README.md`

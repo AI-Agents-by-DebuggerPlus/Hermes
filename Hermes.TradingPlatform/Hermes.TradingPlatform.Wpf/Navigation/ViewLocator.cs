@@ -17,6 +17,7 @@ public static class ViewLocator
         RiskManagerViewModel => new RiskManagerView(),
         MarketWatchViewModel => new MarketWatchView(),
         ReplayViewModel => new ReplayView(),
+        JournalViewModel => new JournalView(),
         LogsViewModel => new LogsView(),
         HermesViewModel => new HermesView(),
         SettingsViewModel => new SettingsView(),

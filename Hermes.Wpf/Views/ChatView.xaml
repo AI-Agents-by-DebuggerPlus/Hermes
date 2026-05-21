@@ -22,10 +22,27 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <TextBlock Grid.Row="0"
-                       Style="{StaticResource HeaderTextStyle}"
-                       FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
-                       Text="Chat" />
+            <StackPanel Grid.Row="0">
+                <TextBlock Style="{StaticResource HeaderTextStyle}"
+                           FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
+                           Text="Chat" />
+                <TextBlock Margin="0,4,0,0"
+                           FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
+                           Foreground="#9CA3AF"
+                           Text="{Binding ChatModeStatusText}"
+                           TextWrapping="Wrap">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsChatModeStatusVisible}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
 
             <ListBox x:Name="MessagesListBox"
                      Grid.Row="2"

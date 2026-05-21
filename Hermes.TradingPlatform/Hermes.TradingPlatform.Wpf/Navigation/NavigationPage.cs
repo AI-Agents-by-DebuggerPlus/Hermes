@@ -9,6 +9,7 @@ public enum NavigationPage
     RiskManager,
     MarketWatch,
     Replay,
+    Journal,
     Logs,
     Hermes,
     Settings,

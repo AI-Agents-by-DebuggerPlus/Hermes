@@ -1,71 +1,232 @@
+using System.Globalization;
 using System.Windows;
+using Hermes.TradingPlatform.Shared.Risk;
 using Hermes.TradingPlatform.Wpf.Commands;
 using Hermes.TradingPlatform.Wpf.Services;
 
 namespace Hermes.TradingPlatform.Wpf.ViewModels.Pages;
 
-public sealed class RiskManagerViewModel : BaseViewModel
+public sealed class RiskManagerViewModel : TradingPageViewModel
 {
-    public RiskManagerViewModel(MockTradingDataService data)
-    {
-        var risk = data.GetRiskStatus();
-        RiskLevel = risk.RiskLevel;
-        DailyDrawdownPercent = risk.DailyDrawdownPercent;
-        ExposurePercent = risk.ExposurePercent;
-        CurrentLeverage = risk.Leverage;
+    private readonly TradingPlatformHost _host;
+    private bool _suppressPersist;
 
+    public RiskManagerViewModel(TradingReadModel readModel, TradingPlatformHost host)
+        : base(readModel)
+    {
+        _host = host;
         EmergencyStopCommand = new RelayCommand(_ =>
-            MessageBox.Show("[Mock] Emergency stop — all strategies halted, reduce-only mode.", "Risk Manager",
-                MessageBoxButton.OK, MessageBoxImage.Warning));
+        {
+            _host.EmergencyStop("Manual emergency stop from UI.");
+            MessageBox.Show(
+                "Emergency stop activated. Strategies halted; risk state updated.",
+                "Risk Manager",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            LoadEditableSettings();
+            RefreshMetrics();
+        });
+
+        LoadEditableSettings();
+        RefreshMetrics();
     }
 
-    public string RiskLevel { get; }
-    public decimal DailyDrawdownPercent { get; }
-    public decimal ExposurePercent { get; }
-    public decimal CurrentLeverage { get; }
+    private string _riskLevel = "Low";
+    private decimal _dailyDrawdownPercent;
+    private decimal _exposurePercent;
+    private decimal _currentLeverage;
+    private bool _emergencyHalt;
 
-    private decimal _maxDailyLossPercent = 5m;
-    private decimal _maxPositionSizeBtc = 0.5m;
-    private decimal _maxLeverage = 5m;
-    private decimal _maxExposurePercent = 50m;
+    public string RiskLevel
+    {
+        get => _riskLevel;
+        private set => SetField(ref _riskLevel, value);
+    }
+
+    public decimal DailyDrawdownPercent
+    {
+        get => _dailyDrawdownPercent;
+        private set => SetField(ref _dailyDrawdownPercent, value);
+    }
+
+    public decimal ExposurePercent
+    {
+        get => _exposurePercent;
+        private set => SetField(ref _exposurePercent, value);
+    }
+
+    public decimal CurrentLeverage
+    {
+        get => _currentLeverage;
+        private set => SetField(ref _currentLeverage, value);
+    }
+
+    public bool EmergencyHalt
+    {
+        get => _emergencyHalt;
+        private set
+        {
+            if (SetField(ref _emergencyHalt, value))
+            {
+                Raise(nameof(EmergencyHaltBanner));
+            }
+        }
+    }
+
+    public string EmergencyHaltBanner =>
+        EmergencyHalt ? "EMERGENCY HALT ACTIVE" : "";
+
+    private string _maxDailyLossPercentText = "5";
+    private string _maxPositionSizeBtcText = "0.5";
+    private string _maxLeverageText = "5";
+    private string _maxExposurePercentText = "50";
     private bool _safeMode = true;
     private bool _autoShutdown = true;
 
-    public decimal MaxDailyLossPercent
+    public string MaxDailyLossPercentText
     {
-        get => _maxDailyLossPercent;
-        set => SetField(ref _maxDailyLossPercent, value);
+        get => _maxDailyLossPercentText;
+        set
+        {
+            if (SetField(ref _maxDailyLossPercentText, value))
+            {
+                PersistEditableSettings();
+            }
+        }
     }
 
-    public decimal MaxPositionSizeBtc
+    public string MaxPositionSizeBtcText
     {
-        get => _maxPositionSizeBtc;
-        set => SetField(ref _maxPositionSizeBtc, value);
+        get => _maxPositionSizeBtcText;
+        set
+        {
+            if (SetField(ref _maxPositionSizeBtcText, value))
+            {
+                PersistEditableSettings();
+            }
+        }
     }
 
-    public decimal MaxLeverage
+    public string MaxLeverageText
     {
-        get => _maxLeverage;
-        set => SetField(ref _maxLeverage, value);
+        get => _maxLeverageText;
+        set
+        {
+            if (SetField(ref _maxLeverageText, value))
+            {
+                PersistEditableSettings();
+            }
+        }
     }
 
-    public decimal MaxExposurePercent
+    public string MaxExposurePercentText
     {
-        get => _maxExposurePercent;
-        set => SetField(ref _maxExposurePercent, value);
+        get => _maxExposurePercentText;
+        set
+        {
+            if (SetField(ref _maxExposurePercentText, value))
+            {
+                PersistEditableSettings();
+            }
+        }
     }
 
     public bool SafeMode
     {
         get => _safeMode;
-        set => SetField(ref _safeMode, value);
+        set
+        {
+            if (SetField(ref _safeMode, value))
+            {
+                PersistEditableSettings();
+            }
+        }
     }
 
     public bool AutoShutdown
     {
         get => _autoShutdown;
-        set => SetField(ref _autoShutdown, value);
+        set
+        {
+            if (SetField(ref _autoShutdown, value))
+            {
+                PersistEditableSettings();
+            }
+        }
     }
 
     public RelayCommand EmergencyStopCommand { get; }
+
+    protected override void Refresh()
+    {
+        RefreshMetrics();
+        if (!_suppressPersist)
+        {
+            LoadEditableSettings();
+        }
+    }
+
+    private void RefreshMetrics()
+    {
+        var risk = ReadModel.GetRiskStatus();
+        var settings = ReadModel.GetRiskSettings();
+        RiskLevel = risk.RiskLevel;
+        DailyDrawdownPercent = risk.DailyDrawdownPercent;
+        ExposurePercent = risk.ExposurePercent;
+        CurrentLeverage = risk.Leverage;
+        EmergencyHalt = settings.EmergencyHalt;
+    }
+
+    private void LoadEditableSettings()
+    {
+        var s = ReadModel.GetRiskSettings();
+        _suppressPersist = true;
+        MaxDailyLossPercentText = s.MaxDailyLossPercent.ToString(CultureInfo.InvariantCulture);
+        MaxPositionSizeBtcText = s.MaxPositionSizeBtc.ToString(CultureInfo.InvariantCulture);
+        MaxLeverageText = s.MaxLeverage.ToString(CultureInfo.InvariantCulture);
+        MaxExposurePercentText = s.MaxExposurePercent.ToString(CultureInfo.InvariantCulture);
+        SafeMode = s.SafeMode;
+        AutoShutdown = s.AutoShutdown;
+        EmergencyHalt = s.EmergencyHalt;
+        _suppressPersist = false;
+    }
+
+    private void PersistEditableSettings()
+    {
+        if (_suppressPersist)
+        {
+            return;
+        }
+
+        if (!TryBuildSettings(out var settings))
+        {
+            return;
+        }
+
+        _host.PersistRiskSettings(settings);
+    }
+
+    private bool TryBuildSettings(out RiskProfileSettingsDto settings)
+    {
+        settings = new RiskProfileSettingsDto();
+        if (!decimal.TryParse(MaxDailyLossPercentText, NumberStyles.Any, CultureInfo.InvariantCulture, out var maxDailyLoss) ||
+            !decimal.TryParse(MaxPositionSizeBtcText, NumberStyles.Any, CultureInfo.InvariantCulture, out var maxBtc) ||
+            !decimal.TryParse(MaxLeverageText, NumberStyles.Any, CultureInfo.InvariantCulture, out var maxLev) ||
+            !decimal.TryParse(MaxExposurePercentText, NumberStyles.Any, CultureInfo.InvariantCulture, out var maxExp))
+        {
+            return false;
+        }
+
+        settings = new RiskProfileSettingsDto
+        {
+            MaxDailyLossPercent = maxDailyLoss,
+            MaxPositionSizeBtc = maxBtc,
+            MaxLeverage = maxLev,
+            MaxExposurePercent = maxExp,
+            SafeMode = SafeMode,
+            AutoShutdown = AutoShutdown,
+            EmergencyHalt = EmergencyHalt,
+        };
+        return true;
+    }
 }

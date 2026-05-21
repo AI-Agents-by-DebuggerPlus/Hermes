@@ -2,9 +2,61 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <StackPanel>
-        <TextBlock Text="Market · Limit · Stop · RO = reduce-only (read-only display, Phase 1 mock)"
+        <TextBlock Text="Virtual exchange · размещение и отмена ордеров"
                    Foreground="{StaticResource Brush.TextMuted}"
                    Margin="0,0,0,12" />
+
+        <Border Style="{StaticResource PanelCardStyle}" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="Новый ордер" Style="{StaticResource SectionHeaderStyle}" FontSize="13" />
+                <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="100" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="100" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="Symbol" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+                    <ComboBox Grid.Column="1" Margin="0,0,12,8"
+                              ItemsSource="{Binding Symbols}"
+                              SelectedItem="{Binding NewSymbol, Mode=TwoWay}" />
+
+                    <TextBlock Grid.Column="2" Text="Type" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+                    <ComboBox Grid.Column="3" Margin="0,0,12,8"
+                              ItemsSource="{Binding OrderTypes}"
+                              SelectedItem="{Binding NewOrderType, Mode=TwoWay}" />
+
+                    <TextBlock Grid.Row="1" Text="Side" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+                    <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,0,12,0"
+                              ItemsSource="{Binding Sides}"
+                              SelectedItem="{Binding NewSide, Mode=TwoWay}" />
+
+                    <TextBlock Grid.Row="1" Grid.Column="2" Text="Price" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+                    <TextBox Grid.Row="1" Grid.Column="3" Margin="0,0,12,0"
+                             Text="{Binding NewPriceText, UpdateSourceTrigger=PropertyChanged}"
+                             IsEnabled="{Binding IsPriceRequired}" />
+
+                    <StackPanel Grid.Row="0" Grid.Column="4" Grid.RowSpan="2" VerticalAlignment="Center">
+                        <TextBlock Text="Qty" Foreground="{StaticResource Brush.TextMuted}" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding NewQuantityText, UpdateSourceTrigger=PropertyChanged}" Width="80" Margin="0,0,0,8" />
+                        <CheckBox Content="Reduce-only"
+                                  IsChecked="{Binding NewReduceOnly, Mode=TwoWay}"
+                                  Margin="0,0,0,8" />
+                        <Button Content="Place order"
+                                Command="{Binding PlaceOrderCommand}"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Padding="12,6" />
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Border>
+
         <Border Style="{StaticResource PanelCardStyle}">
             <DataGrid ItemsSource="{Binding Orders}" Style="{StaticResource DataGridStyle}">
                 <DataGrid.Columns>
@@ -23,7 +75,7 @@
                                           Focusable="False"
                                           HorizontalAlignment="Center"
                                           VerticalAlignment="Center"
-                                          ToolTip="Reduce-only (display only)" />
+                                          ToolTip="Reduce-only" />
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>

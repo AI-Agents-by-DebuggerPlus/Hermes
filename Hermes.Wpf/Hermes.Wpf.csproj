@@ -21,6 +21,7 @@
     <ProjectReference Include="..\Hermes.MouseBridge\Hermes.MouseBridge.csproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
+    <ProjectReference Include="..\Hermes.TradingPlatform\Hermes.TradingPlatform.Shared\Hermes.TradingPlatform.Shared.csproj" />
   </ItemGroup>
 
   <Target Name="CopyWpGalleryToolToWpfOut" AfterTargets="Build">
@@ -31,6 +32,19 @@
           DestinationFolder="$(OutDir)"
           SkipUnchangedFiles="true"
           Condition="Exists('$(_GalleryTool)')" />
+  </Target>
+
+  <Target Name="CopyTradingPlatformCliToWpfOut" AfterTargets="Build">
+    <PropertyGroup>
+      <_TpCliDir>$(MSBuildThisFileDirectory)..\Hermes.TradingPlatform\Hermes.TradingPlatform.Cli\bin\$(Configuration)\net8.0\</_TpCliDir>
+      <_TpSharedDir>$(MSBuildThisFileDirectory)..\Hermes.TradingPlatform\Hermes.TradingPlatform.Shared\bin\$(Configuration)\net8.0\</_TpSharedDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <_TpCliFiles Include="$(_TpCliDir)Hermes.TradingPlatform.Cli.*" />
+      <_TpSharedFiles Include="$(_TpSharedDir)Hermes.TradingPlatform.Shared.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_TpCliFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="Exists('$(_TpCliDir)Hermes.TradingPlatform.Cli.dll')" />
+    <Copy SourceFiles="@(_TpSharedFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="Exists('$(_TpSharedDir)Hermes.TradingPlatform.Shared.dll')" />
   </Target>
 
   <Target Name="CopyMouseBridgeToWpfOut" AfterTargets="Build">

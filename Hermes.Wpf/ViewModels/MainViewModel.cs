@@ -10,6 +10,7 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using Hermes.DesktopCapture.Models;
+using Hermes.TradingPlatform.Shared.Bridge;
 using Hermes.Wpf.Commands;
 using Hermes.Wpf.Models;
 using Hermes.Wpf.Services;
@@ -63,6 +64,7 @@ public sealed class MainViewModel : BaseViewModel
     private readonly DesktopVisionSkill _desktopVisionSkill;
     private readonly DesktopScreenContextStore _desktopScreenContext = new();
     private readonly HermesGalleryPublisher _hermesGalleryPublisher;
+    private readonly TradingPlatformBridgeService _tradingBridge;
 
     public HermesGalleryPublisher GalleryPublisher => _hermesGalleryPublisher;
     private readonly ReniWaterScriptService _reniWater;
@@ -116,6 +118,9 @@ public sealed class MainViewModel : BaseViewModel
     private bool _isFlashcardStatusBarVisible;
     private string _flashcardStatusText = string.Empty;
     private bool _flashcardDotPulse;
+    private bool _pendingTradingModeSwitch;
+    private string? _lastPublishedSessionFingerprint;
+    private string _chatModeStatusText = string.Empty;
 
     private static readonly Regex HermesStreamLikelyToolActivity = new(
         @"tool_calls?|tool_use|""name""\s*:\s*""|run_terminal|execute_command|function_call|Writing file|Edited file|Applying patch|pwsh|powershell|bash\s+-lc|"
@@ -156,6 +161,7 @@ public sealed class MainViewModel : BaseViewModel
         _desktopScreenCapture = new DesktopScreenCaptureService(logService, () => Settings);
         _desktopVisionSkill = new DesktopVisionSkill(_hermesService, logService, _projectService, () => Settings);
         _hermesGalleryPublisher = new HermesGalleryPublisher(logService, () => Settings);
+        _tradingBridge = new TradingPlatformBridgeService(logService, () => Settings);
         _reniWater = new ReniWaterScriptService(logService, () => Settings);
         _reniWater.OutputReceived += line => AppendTerminal($"[reni-water] {line}");
         _reniWaterSchedule = new ReniWaterScheduleSkill(
@@ -221,9 +227,15 @@ public sealed class MainViewModel : BaseViewModel
 
             if (Projects.SelectedProject is null)
             {
+                _logService.SetActiveProject(null);
+                RefreshChatModeStatusUi();
                 Chat.Messages.Clear();
                 return;
             }
+
+            _logService.SetActiveProject(Projects.SelectedProject.Name);
+            RefreshChatModeStatusUi();
+            _ = PublishSessionContextToSupabaseIfChangedAsync("project-selected");
 
             try
             {
@@ -255,6 +267,7 @@ public sealed class MainViewModel : BaseViewModel
             _ => !_isBusy);
         SaveExperienceCommand = new RelayCommand(_ => _saveExperienceOpener?.Invoke());
         ExportEnglishTutorProgressCommand = new RelayCommand(_ => ExportEnglishTutorProgress(), _ => true);
+        LaunchTradingPlatformCommand = new RelayCommand(_ => LaunchTradingPlatformManual());
 
         _flashcardSkill = new FlashcardSkill(_logService, GenerateFlashcardJsonViaHermesAsync, PublishFlashcardJsonToSupabaseAsync);
         _flashcardSkill.StatusChanged += FlashcardSkill_OnStatusChanged;
@@ -312,6 +325,7 @@ public sealed class MainViewModel : BaseViewModel
 
         LogStartupBanner();
         _logService.LogInfo($"Session initialized. Active log: {_logService.CurrentLogFilePath}");
+        RefreshChatModeStatusUi();
     }
 
     private void LogStartupBanner()
@@ -321,7 +335,9 @@ public sealed class MainViewModel : BaseViewModel
                   ?? asm.GetName().Version?.ToString()
                   ?? "?";
         _logService.LogInfo($"[startup] Hermes.Wpf version={ver}, WSL distro (settings)={Settings.WslDistro}");
-        _logService.LogInfo($"[startup] Chat transcript file: {_chatLogService.CurrentChatLogPath}");
+        _logService.LogInfo($"[startup] Logs root: {HermesLogPaths.LogsRoot}");
+        _logService.LogInfo($"[startup] Session log: {_logService.CurrentLogFilePath}");
+        _logService.LogInfo($"[startup] Chat logs: per-project chat_{_logService.SessionStamp}.log under Logs root");
 
         var ws = Settings.WorkspaceRootWindowsPath?.Trim();
         if (!string.IsNullOrEmpty(ws))
@@ -384,6 +400,10 @@ public sealed class MainViewModel : BaseViewModel
         RaisePropertyChanged(nameof(EnglishTutorModeEnabled));
         RaisePropertyChanged(nameof(EnglishTutorStatusRibbonText));
         RaisePropertyChanged(nameof(IsEnglishTutorStatusVisible));
+        RaisePropertyChanged(nameof(TradingModeEnabled));
+        RaisePropertyChanged(nameof(TradingModeStatusRibbonText));
+        RaisePropertyChanged(nameof(IsTradingModeStatusVisible));
+        RefreshChatModeStatusUi();
         RaiseSupabaseConnectionUi();
         CommandManager.InvalidateRequerySuggested();
     }
@@ -428,6 +448,8 @@ public sealed class MainViewModel : BaseViewModel
             RaisePropertyChanged(nameof(EnglishTutorModeEnabled));
             RaisePropertyChanged(nameof(EnglishTutorStatusRibbonText));
             RaisePropertyChanged(nameof(IsEnglishTutorStatusVisible));
+            RefreshChatModeStatusUi();
+            _ = PublishSessionContextToSupabaseIfChangedAsync("english-tutor-mode");
         }
     }
 
@@ -438,7 +460,50 @@ public sealed class MainViewModel : BaseViewModel
             : string.Empty;
 
     public bool IsEnglishTutorStatusVisible =>
-        EnglishTutorModeEnabled && _flashcardSkill.Status == FlashcardStatus.Idle;
+        EnglishTutorModeEnabled && !TradingModeEnabled && _flashcardSkill.Status == FlashcardStatus.Idle;
+
+    /// <summary>Persisted режим трейдинга; «трейдинг»/«trading» — вход, «режим агента» — выход.</summary>
+    public bool TradingModeEnabled
+    {
+        get => Settings.TradingModeEnabled;
+        private set
+        {
+            if (Settings.TradingModeEnabled == value)
+            {
+                return;
+            }
+
+            Settings.TradingModeEnabled = value;
+            if (value && _tradingBridge.IsIntegrationEnabled)
+            {
+                _tradingBridge.EnsureTerminalRunning(force: true);
+                _logService.LogInfo("[trading-mode] enabled — auto-launch terminal");
+            }
+
+            RaisePropertyChanged(nameof(TradingModeEnabled));
+            RaisePropertyChanged(nameof(TradingModeStatusRibbonText));
+            RaisePropertyChanged(nameof(IsTradingModeStatusVisible));
+            RaisePropertyChanged(nameof(IsEnglishTutorStatusVisible));
+            RefreshChatModeStatusUi();
+            _ = PublishSessionContextToSupabaseIfChangedAsync("trading-mode");
+        }
+    }
+
+    public string TradingModeStatusRibbonText =>
+        TradingModeEnabled
+            ? "📈 Режим трейдинга · трейдер-исполнитель · «режим агента» — выход"
+            : string.Empty;
+
+    public bool IsTradingModeStatusVisible =>
+        TradingModeEnabled && _flashcardSkill.Status == FlashcardStatus.Idle;
+
+    public string ChatModeStatusText
+    {
+        get => _chatModeStatusText;
+        private set => SetProperty(ref _chatModeStatusText, value);
+    }
+
+    public bool IsChatModeStatusVisible => Projects.SelectedProject is not null;
 
     /// <summary>When true, chat + Supabase inbox skip Hermes; UI + outgoing Supabase mirrors still apply.</summary>
     public bool HermesAgentPaused
@@ -529,6 +594,7 @@ public sealed class MainViewModel : BaseViewModel
         string userVisibleMessage,
         string? externalBrainContextBlock,
         EnglishTutorTurnHints englishTutor,
+        TradingTurnHints trading,
         SkillTurnHints skillTurn)
     {
         var blocks = new List<string>();
@@ -557,6 +623,23 @@ public sealed class MainViewModel : BaseViewModel
             {
                 blocks.Add(EnglishTutorPromptDefaults.OutboundActivationNudge);
             }
+        }
+
+        if (Settings.TradingModeEnabled)
+        {
+            blocks.Add(TradingModePromptDefaults.ActivePersonaRu);
+            var queryIntent = TradingQueryIntentClassifier.Classify(userVisibleMessage);
+            var scopeBlock = TradingModePromptDefaults.ScopeInstructionForTurn(queryIntent);
+            if (!string.IsNullOrEmpty(scopeBlock))
+            {
+                blocks.Add(scopeBlock);
+            }
+
+            AppendTradingPlatformSnapshotBlocks(blocks);
+        }
+        else
+        {
+            blocks.Add(TradingModePromptDefaults.NormalModeGuardRu);
         }
 
         if (Settings.AppendVisionScopeReminder && IsVisionRelatedUserMessage(userVisibleMessage))
@@ -660,6 +743,42 @@ public sealed class MainViewModel : BaseViewModel
     {
         public bool ExitedThisTurn { get; } = exitedThisTurn;
         public bool EnteredThisTurn { get; } = enteredThisTurn;
+    }
+
+    private readonly struct TradingTurnHints(bool exitedThisTurn, bool enteredThisTurn)
+    {
+        public bool ExitedThisTurn { get; } = exitedThisTurn;
+        public bool EnteredThisTurn { get; } = enteredThisTurn;
+    }
+
+    private void AppendTradingPlatformSnapshotBlocks(List<string> blocks)
+    {
+        if (!_tradingBridge.IsIntegrationEnabled)
+        {
+            return;
+        }
+
+        blocks.Add(TradingPlatformInstructions.OutboundBlockRu);
+        _tradingBridge.EnsureTerminalRunning(force: true);
+        if (_tradingBridge.IsTerminalAlive())
+        {
+            var snap = _tradingBridge.TryReadSnapshot();
+            if (snap is not null)
+            {
+                blocks.Add(_tradingBridge.BuildSnapshotContextBlockRu(snap));
+            }
+            else
+            {
+                blocks.Add("### Trading Platform\nТерминал запущен, но snapshot недоступен. Подождите обновления bridge.");
+            }
+        }
+        else
+        {
+            blocks.Add(
+                "### Trading Platform\n"
+                + "Терминал не запущен (нет свежего heartbeat). Запустите Hermes.TradingPlatform.exe "
+                + "или включите автозапуск в Settings.");
+        }
     }
 
     private readonly struct SkillTurnHints(
@@ -801,6 +920,8 @@ public sealed class MainViewModel : BaseViewModel
 
     public ICommand ExportEnglishTutorProgressCommand { get; }
 
+    public ICommand LaunchTradingPlatformCommand { get; }
+
     public ICommand StopFlashcardsCommand { get; }
 
     public ICommand SubmitReniWaterCommand { get; }
@@ -934,9 +1055,103 @@ public sealed class MainViewModel : BaseViewModel
 
         RaisePropertyChanged(nameof(IsEnglishTutorStatusVisible));
         RaisePropertyChanged(nameof(EnglishTutorStatusRibbonText));
+        RaisePropertyChanged(nameof(IsTradingModeStatusVisible));
+        RaisePropertyChanged(nameof(TradingModeStatusRibbonText));
+        RefreshChatModeStatusUi();
+        _ = PublishSessionContextToSupabaseIfChangedAsync("flashcards-status");
     }
 
     private void StopFlashcardsInternal() => _flashcardSkill.Stop();
+
+    public async Task OnChatWindowOpenedAsync()
+    {
+        RefreshChatModeStatusUi();
+        if (Settings.TradingModeEnabled && _tradingBridge.IsIntegrationEnabled)
+        {
+            _tradingBridge.EnsureTerminalRunning(force: true);
+            _logService.LogInfo("[trading-bridge] auto-launch on chat open (trading mode)");
+        }
+
+        await PublishSessionContextToSupabaseIfChangedAsync("chat-opened").ConfigureAwait(true);
+    }
+
+    private void LaunchTradingPlatformManual()
+    {
+        if (!_tradingBridge.IsIntegrationEnabled)
+        {
+            AppendTerminal("[trading] Интеграция с Trading Platform отключена в Settings.", isError: true);
+            return;
+        }
+
+        var launched = _tradingBridge.EnsureTerminalRunning(force: true);
+        var alive = _tradingBridge.IsTerminalAlive();
+        AppendTerminal(
+            launched || alive
+                ? "[trading] Hermes.TradingPlatform запущен или уже активен."
+                : "[trading] Не удалось запустить Hermes.TradingPlatform.exe — проверьте путь в Settings.",
+            isError: !launched && !alive);
+        _logService.LogInfo($"[trading-bridge] manual launch launched={launched} alive={alive}");
+    }
+
+    private void RefreshChatModeStatusUi()
+    {
+        ChatModeStatusText = HermesChatModeResolver.BuildChatStatusLine(
+            Projects.SelectedProject?.Name,
+            Settings,
+            _flashcardSkill.Status);
+        RaisePropertyChanged(nameof(IsChatModeStatusVisible));
+    }
+
+    private string BuildSessionContextFingerprint()
+    {
+        var project = Projects.SelectedProject?.Name?.Trim() ?? string.Empty;
+        var mode = HermesChatModeResolver.ResolveModeId(Settings, _flashcardSkill.Status);
+        return $"{project}|{mode}";
+    }
+
+    private async Task PublishSessionContextToSupabaseIfChangedAsync(string reason)
+    {
+        if (!Settings.SupabaseRelayEnabled)
+        {
+            return;
+        }
+
+        var fingerprint = BuildSessionContextFingerprint();
+        if (string.Equals(_lastPublishedSessionFingerprint, fingerprint, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        await EnsureSupabaseRelayReadyForPublishAsync().ConfigureAwait(true);
+        if (_supabaseRelay is not { IsConnected: true })
+        {
+            return;
+        }
+
+        var project = Projects.SelectedProject?.Name;
+        if (string.IsNullOrWhiteSpace(project))
+        {
+            return;
+        }
+
+        var modeId = HermesChatModeResolver.ResolveModeId(Settings, _flashcardSkill.Status);
+        var json = HermesWpfSessionContextPayload.BuildJson(project, modeId);
+        var label = CanonicalHermesSenderName();
+
+        try
+        {
+            await _supabaseRelay.InsertAssistantRowAsync(label, json, CancellationToken.None, logPublish: false)
+                .ConfigureAwait(true);
+            _supabaseEchoTracker.RegisterAfterSuccessfulPublish(label, json);
+            _lastPublishedSessionFingerprint = fingerprint;
+            _logService.LogInfo(
+                $"[supabase] session context ({reason}): project={project}, mode={modeId}");
+        }
+        catch (Exception ex)
+        {
+            _logService.LogWarn($"[supabase] session context publish failed: {ex.Message}");
+        }
+    }
 
     private async Task<string?> GenerateFlashcardJsonViaHermesAsync(
         string topic,
@@ -1355,6 +1570,27 @@ public sealed class MainViewModel : BaseViewModel
                 return;
             }
 
+            var payloadEarly = agentUserPayload ?? string.Empty;
+            if (TryHandleBareModeSwitchLocal(payloadEarly, project.Name))
+            {
+                return;
+            }
+
+            if (TryHandleTradingModeGateLocal(payloadEarly, project.Name))
+            {
+                return;
+            }
+
+            if (TryHandleTradingStatusQueryLocal(payloadEarly, project.Name))
+            {
+                return;
+            }
+
+            if (await TryHandleClosePositionLocalAsync(payloadEarly, project.Name).ConfigureAwait(true))
+            {
+                return;
+            }
+
             string? brainBlock = null;
             if (Settings.ExternalBrainInjectIntoPrompt)
             {
@@ -1396,6 +1632,7 @@ public sealed class MainViewModel : BaseViewModel
             else if (tutorEnableRequested && !tutorWasEnabled)
             {
                 _flashcardSkill.Stop();
+                EnsureTradingDisabledForTutor("tutor-enable");
                 EnglishTutorModeEnabled = true;
                 tutorHints = new EnglishTutorTurnHints(exitedThisTurn: false, enteredThisTurn: true);
                 _logService.LogInfo("[english-tutor] режим включён (ключевая фраза в сообщении пользователя)");
@@ -1416,6 +1653,40 @@ public sealed class MainViewModel : BaseViewModel
             {
                 _logService.LogInfo(
                     $"[english-tutor] persona for prompt: enabled={Settings.EnglishTutorModeEnabled}, entered={tutorHints.EnteredThisTurn}, exited={tutorHints.ExitedThisTurn}");
+            }
+
+            var tradingWasEnabled = Settings.TradingModeEnabled;
+            var tradingDisableRequested = tradingWasEnabled && TradingModeTriggers.MatchesDisable(payload);
+            var tradingEnableRequested =
+                TradingModeTriggers.MatchesEnable(payload) && !tradingDisableRequested;
+
+            TradingTurnHints tradingHints;
+            if (tradingDisableRequested)
+            {
+                _pendingTradingModeSwitch = false;
+                TradingModeEnabled = false;
+                tradingHints = new TradingTurnHints(exitedThisTurn: true, enteredThisTurn: false);
+                _logService.LogInfo("[trading-mode] режим агента — трейдинг выключен");
+                _ = PersistSettingsQuietAsync();
+            }
+            else if (tradingEnableRequested && !tradingWasEnabled)
+            {
+                EnsureTutorDisabledForTrading("trading-enable");
+                _pendingTradingModeSwitch = false;
+                TradingModeEnabled = true;
+                tradingHints = new TradingTurnHints(exitedThisTurn: false, enteredThisTurn: true);
+                _logService.LogInfo("[trading-mode] режим трейдинга включён");
+                _ = PersistSettingsQuietAsync();
+            }
+            else
+            {
+                tradingHints = new TradingTurnHints(exitedThisTurn: false, enteredThisTurn: false);
+            }
+
+            if (Settings.TradingModeEnabled || tradingHints.ExitedThisTurn)
+            {
+                _logService.LogInfo(
+                    $"[trading-mode] persona: enabled={Settings.TradingModeEnabled}, entered={tradingHints.EnteredThisTurn}, exited={tradingHints.ExitedThisTurn}");
             }
 
             var crystallizeRequested = Settings.SkillGenerationEnabled
@@ -1441,7 +1712,7 @@ public sealed class MainViewModel : BaseViewModel
                 skillHints = new SkillTurnHints(false, null, taskMatches);
             }
 
-            var outbound = BuildOutboundHermesPrompt(payload, brainBlock, tutorHints, skillHints);
+            var outbound = BuildOutboundHermesPrompt(payload, brainBlock, tutorHints, tradingHints, skillHints);
             var timeout = ClampChatTimeout(Settings.ChatTimeoutSeconds);
             // HermesService uses ConfigureAwait(false) internally — force UI context before touching chat / Supabase.
             var result = await _hermesService.SendMessageAsync(outbound, wslPath, Settings, timeout).ConfigureAwait(true);
@@ -1518,6 +1789,43 @@ public sealed class MainViewModel : BaseViewModel
                         displayResponse = nicer;
                     }
                 }
+            }
+            else if (Settings.TradingModeEnabled
+                     && _tradingBridge.IsIntegrationEnabled
+                     && TradingPlatformIntentParser.TryConsumeIntent(response, out var tradingCmd, out var tradingQueryOnly))
+            {
+                if (tradingQueryOnly)
+                {
+                    _logService.LogInfo("[trading-bridge] query intent — snapshot already in outbound prompt");
+                }
+                else if (tradingCmd is not null)
+                {
+                    _chatLogService.AppendMessage(project.Name, "System", $"[trading-cmd] {tradingCmd.Action} {tradingCmd.Symbol}");
+                    _tradingBridge.EnsureTerminalRunning(force: true);
+                    if (!_tradingBridge.IsTerminalAlive())
+                    {
+                        displayResponse = TradingPlatformIntentParser.UserFacingLine(
+                            false,
+                            "Hermes.TradingPlatform.exe не запущен. Запустите терминал и повторите.");
+                        _logService.LogWarn($"[trading-bridge] {tradingCmd.Action} aborted — terminal offline");
+                    }
+                    else
+                    {
+                        var tradeResult = await _tradingBridge.TryEnqueueCommandAsync(tradingCmd).ConfigureAwait(true);
+                        displayResponse = TradingPlatformIntentParser.UserFacingLine(tradeResult.Ok, tradeResult.Detail);
+                        _logService.LogInfo($"[trading-bridge] {tradingCmd.Action} ok={tradeResult.Ok} detail={tradeResult.Detail}");
+                        _chatLogService.AppendMessage(project.Name, "System", $"[trading-result] ok={tradeResult.Ok} {tradeResult.Detail}");
+                    }
+                }
+            }
+
+            if (tradingHints.ExitedThisTurn)
+            {
+                displayResponse = HermesModeAcknowledgments.AgentModeActivated;
+            }
+            else if (tradingHints.EnteredThisTurn && TradingModeTriggers.IsBareEnableCommand(payload))
+            {
+                displayResponse = HermesModeAcknowledgments.TradingModeActivated;
             }
 
             Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = displayResponse });
@@ -2219,6 +2527,240 @@ public sealed class MainViewModel : BaseViewModel
         _ = PersistSettingsQuietAsync();
     }
 
+    private void EnsureTutorDisabledForTrading(string reasonTag)
+    {
+        if (!Settings.EnglishTutorModeEnabled)
+        {
+            return;
+        }
+
+        EnglishTutorModeEnabled = false;
+        _logService.LogInfo($"[english-tutor] авто-выход (trading-mode: {reasonTag})");
+        _ = PersistSettingsQuietAsync();
+        RaisePropertyChanged(nameof(EnglishTutorStatusRibbonText));
+        RaisePropertyChanged(nameof(IsEnglishTutorStatusVisible));
+    }
+
+    private void EnsureTradingDisabledForTutor(string reasonTag)
+    {
+        if (!Settings.TradingModeEnabled)
+        {
+            return;
+        }
+
+        _pendingTradingModeSwitch = false;
+        TradingModeEnabled = false;
+        _logService.LogInfo($"[trading-mode] авто-выход (english-tutor: {reasonTag})");
+        _ = PersistSettingsQuietAsync();
+    }
+
+    private bool TryHandleTradingStatusQueryLocal(string payload, string projectName)
+    {
+        if (!Settings.TradingModeEnabled)
+        {
+            return false;
+        }
+
+        var intent = TradingQueryIntentClassifier.Classify(payload);
+        if (intent == TradingQueryIntent.None)
+        {
+            return false;
+        }
+
+        _tradingBridge.EnsureTerminalRunning(force: true);
+        if (!_tradingBridge.IsTerminalAlive())
+        {
+            PostLocalHermesReply(projectName, TradingStatusReplyFormatter.TerminalUnavailableMessage());
+            _logService.LogInfo($"[trading-status] {intent}: terminal not running");
+            return true;
+        }
+
+        var snap = _tradingBridge.TryReadSnapshot();
+        if (snap is null)
+        {
+            PostLocalHermesReply(projectName, TradingStatusReplyFormatter.TerminalUnavailableMessage());
+            _logService.LogInfo($"[trading-status] {intent}: snapshot missing");
+            return true;
+        }
+
+        var reply = intent switch
+        {
+            TradingQueryIntent.BalanceOnly => TradingStatusReplyFormatter.FormatBalanceOnly(snap),
+            TradingQueryIntent.AccountSummary => TradingStatusReplyFormatter.FormatAccountSummary(snap),
+            _ => string.Empty,
+        };
+
+        if (string.IsNullOrEmpty(reply))
+        {
+            return false;
+        }
+
+        PostLocalHermesReply(projectName, reply);
+        _logService.LogInfo($"[trading-status] local reply ({intent}), balance={snap.Account.Balance:N2}");
+        return true;
+    }
+
+    private bool TryHandleTradingModeGateLocal(string payload, string projectName)
+    {
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            return false;
+        }
+
+        if (_pendingTradingModeSwitch)
+        {
+            if (TradingModeTriggers.MatchesConfirmNo(payload))
+            {
+                _pendingTradingModeSwitch = false;
+                PostTradingModeGateReply(
+                    projectName,
+                    "Остаёмся в режиме агента. Торговые команды — после «трейдинг» или «trading».");
+                return true;
+            }
+
+            if (TradingModeTriggers.MatchesConfirmYes(payload))
+            {
+                EnsureTutorDisabledForTrading("confirm-yes");
+                _pendingTradingModeSwitch = false;
+                TradingModeEnabled = true;
+                _ = PersistSettingsQuietAsync();
+                _logService.LogInfo("[trading-mode] подтверждён переход в режим трейдинга");
+
+                if (IsBareTradingConfirmMessage(payload))
+                {
+                    _tradingBridge.EnsureTerminalRunning(force: true);
+                    PostTradingModeGateReply(projectName, HermesModeAcknowledgments.TradingModeActivated);
+                    RefreshChatModeStatusUi();
+                    _ = PublishSessionContextToSupabaseIfChangedAsync("confirm-trading-mode");
+                    return true;
+                }
+
+                _tradingBridge.EnsureTerminalRunning(force: true);
+                RefreshChatModeStatusUi();
+                _ = PublishSessionContextToSupabaseIfChangedAsync("confirm-trading-mode");
+                return false;
+            }
+        }
+
+        if (!Settings.TradingModeEnabled
+            && !_pendingTradingModeSwitch
+            && TradingTaskDetector.IsTradingRelated(payload))
+        {
+            _pendingTradingModeSwitch = true;
+            PostTradingModeGateReply(projectName, TradingModePromptDefaults.SwitchPromptUserBubble);
+            _logService.LogInfo("[trading-mode] запрос подтверждения переключения");
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsBareTradingConfirmMessage(string payload)
+    {
+        var t = payload.Trim().ToLowerInvariant();
+        return t is "да" or "yes" or "ok" or "ок" or "okay" or "ага" or "угу" or "конечно" or "давай";
+    }
+
+    private void PostTradingModeGateReply(string projectName, string text) =>
+        PostLocalHermesReply(projectName, text);
+
+    private bool TryHandleBareModeSwitchLocal(string payload, string projectName)
+    {
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            return false;
+        }
+
+        if (TradingModeTriggers.IsBareAgentModeCommand(payload))
+        {
+            _pendingTradingModeSwitch = false;
+            if (Settings.TradingModeEnabled)
+            {
+                TradingModeEnabled = false;
+                _ = PersistSettingsQuietAsync();
+            }
+
+            PostLocalHermesReply(projectName, HermesModeAcknowledgments.AgentModeActivated);
+            RefreshChatModeStatusUi();
+            _ = PublishSessionContextToSupabaseIfChangedAsync("bare-agent-mode");
+            _logService.LogInfo("[trading-mode] bare switch → agent mode (local ack)");
+            return true;
+        }
+
+        if (TradingModeTriggers.IsBareEnableCommand(payload))
+        {
+            _pendingTradingModeSwitch = false;
+            EnsureTutorDisabledForTrading("bare-enable");
+            if (!Settings.TradingModeEnabled)
+            {
+                TradingModeEnabled = true;
+                _ = PersistSettingsQuietAsync();
+            }
+
+            _tradingBridge.EnsureTerminalRunning(force: true);
+            PostLocalHermesReply(projectName, HermesModeAcknowledgments.TradingModeActivated);
+            RefreshChatModeStatusUi();
+            _ = PublishSessionContextToSupabaseIfChangedAsync("bare-trading-mode");
+            _logService.LogInfo("[trading-mode] bare switch → trading mode (local ack)");
+            return true;
+        }
+
+        return false;
+    }
+
+    private async Task<bool> TryHandleClosePositionLocalAsync(string payload, string projectName)
+    {
+        if (!Settings.TradingModeEnabled || !_tradingBridge.IsIntegrationEnabled)
+        {
+            return false;
+        }
+
+        if (!TradingClosePositionTriggers.Matches(payload))
+        {
+            return false;
+        }
+
+        _tradingBridge.EnsureTerminalRunning(force: true);
+        if (!_tradingBridge.IsTerminalAlive())
+        {
+            PostLocalHermesReply(projectName, TradingStatusReplyFormatter.TerminalUnavailableMessage());
+            _logService.LogWarn("[trading-close] terminal offline");
+            return true;
+        }
+
+        var snap = _tradingBridge.TryReadSnapshot();
+        var known = snap?.Tickers.Select(t => t.Symbol).ToList();
+        var symbol = TradingSymbolResolver.ResolveFromText(payload, known);
+        if (string.IsNullOrWhiteSpace(symbol))
+        {
+            PostLocalHermesReply(projectName, "Укажите инструмент (например ETH / ETHUSDT).");
+            _logService.LogWarn("[trading-close] symbol not resolved from user text");
+            return true;
+        }
+
+        var cmd = new TradingPlatformCommand
+        {
+            Action = "close_position",
+            Symbol = symbol,
+            RequestedBy = "Hermes.Wpf-local",
+        };
+        _logService.LogInfo($"[trading-close] local close_position symbol={symbol}");
+        _chatLogService.AppendMessage(projectName, "System", $"[trading-close] enqueue close_position {symbol}");
+        var result = await _tradingBridge.TryEnqueueCommandAsync(cmd).ConfigureAwait(true);
+        var line = TradingPlatformIntentParser.UserFacingLine(result.Ok, result.Detail);
+        PostLocalHermesReply(projectName, line);
+        _chatLogService.AppendMessage(projectName, "System", $"[trading-close] ok={result.Ok} {result.Detail}");
+        return true;
+    }
+
+    private void PostLocalHermesReply(string projectName, string text)
+    {
+        Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = text });
+        _chatLogService.AppendMessage(projectName, "Hermes", text);
+        _ = PublishAssistantTurnToSupabaseIfPossibleAsync(text);
+        _ = TrySaveHistoryAfterTurnAsync(projectName);
+    }
+
     private async Task TrySaveHistoryAfterTurnAsync(string projectName)
     {
         try
@@ -2454,6 +2996,7 @@ public sealed class MainViewModel : BaseViewModel
             }
 
             RaiseSupabaseConnectionUi();
+            await PublishSessionContextToSupabaseIfChangedAsync("relay-connected").ConfigureAwait(true);
         }
         catch (Exception ex)
         {
@@ -2472,6 +3015,7 @@ public sealed class MainViewModel : BaseViewModel
         _supabaseRelay = null;
         _supabasePollingEnabled = false;
         _supabaseSeenMessageIds.Clear();
+        _lastPublishedSessionFingerprint = null;
         RaiseSupabaseConnectionUi();
         return Task.CompletedTask;
     }
@@ -2479,6 +3023,11 @@ public sealed class MainViewModel : BaseViewModel
     private void HydrateSupabaseSnapshotRowIntoChat(SupabaseMessageRow m)
     {
         if (IsOwnMirroredUserRow(m))
+        {
+            return;
+        }
+
+        if (HermesWpfSessionContextPayload.IsSessionPayload(m.Content))
         {
             return;
         }
@@ -2571,6 +3120,11 @@ public sealed class MainViewModel : BaseViewModel
         if (IsHermesSenderRow(m, canon))
         {
             if (_supabaseEchoTracker.TryConsumeEcho(m, canon))
+            {
+                return;
+            }
+
+            if (HermesWpfSessionContextPayload.IsSessionPayload(m.Content))
             {
                 return;
             }

@@ -51,6 +51,8 @@ public sealed class SettingsViewModel : BaseViewModel
     private string _desktopScreenshotDirectory = string.Empty;
     private string _desktopScreenshotMonitorIndexEdit = "-1";
     private string _lastScreenshotBrowsePath = string.Empty;
+    private bool _tradingPlatformIntegrationEnabled = true;
+    private bool _tradingPlatformAutoLaunchTerminal;
 
     public SettingsViewModel(HermesSettings settings)
     {
@@ -106,6 +108,8 @@ public sealed class SettingsViewModel : BaseViewModel
         _desktopMouseSkillEnabled = settings.DesktopMouseSkillEnabled;
         _desktopVisionAnalyzeEnabled = settings.DesktopVisionAnalyzeEnabled;
         _desktopVisionUseAnnotatedImage = settings.DesktopVisionUseAnnotatedImage;
+        _tradingPlatformIntegrationEnabled = settings.TradingPlatformIntegrationEnabled;
+        _tradingPlatformAutoLaunchTerminal = settings.TradingPlatformAutoLaunchTerminal;
     }
 
     private static int ClampPollInterval(int seconds)
@@ -521,6 +525,26 @@ public sealed class SettingsViewModel : BaseViewModel
         {
             _settings.DesktopMouseSkillEnabled = value;
             SetProperty(ref _desktopMouseSkillEnabled, value);
+        }
+    }
+
+    public bool TradingPlatformIntegrationEnabled
+    {
+        get => _tradingPlatformIntegrationEnabled;
+        set
+        {
+            _settings.TradingPlatformIntegrationEnabled = value;
+            SetProperty(ref _tradingPlatformIntegrationEnabled, value);
+        }
+    }
+
+    public bool TradingPlatformAutoLaunchTerminal
+    {
+        get => _tradingPlatformAutoLaunchTerminal;
+        set
+        {
+            _settings.TradingPlatformAutoLaunchTerminal = value;
+            SetProperty(ref _tradingPlatformAutoLaunchTerminal, value);
         }
     }
 

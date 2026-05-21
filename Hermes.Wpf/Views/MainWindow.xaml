@@ -85,6 +85,11 @@
                             Margin="0,0,8,8"
                             Content="Logs"
                             Click="OpenLogsButton_OnClick" />
+                    <Button Width="130"
+                            Margin="0,0,8,8"
+                            Content="Терминал"
+                            ToolTip="Запустить Hermes.TradingPlatform.exe"
+                            Command="{Binding LaunchTradingPlatformCommand}" />
                 </WrapPanel>
 
                 <TabControl Grid.Row="2"

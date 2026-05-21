@@ -8,38 +8,62 @@ public sealed class LogService
 {
     private readonly object _sync = new();
 
-    /// <summary>BOM helps viewers (Notepad/PowerShell) detect UTF‑8 when Cyrillic is logged.</summary>
     private static readonly Encoding SessionFileEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
 
-    private readonly string _logDirectory;
-    private readonly string _sessionLogFilePath;
+    private string _sessionLogFilePath;
+    private string? _activeProjectFolder;
 
     public LogService()
     {
-        _logDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "HermesWpf",
-            "logs");
-
-        Directory.CreateDirectory(_logDirectory);
-
         SessionStamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-        var fileName = $"hermes_session_{SessionStamp}.log";
-        _sessionLogFilePath = Path.Combine(_logDirectory, fileName);
-        File.AppendAllText(_sessionLogFilePath, $"=== Session started {DateTime.Now:O} ==={Environment.NewLine}",
+        Directory.CreateDirectory(HermesLogPaths.LogsRoot);
+        _sessionLogFilePath = BuildSessionLogPath(HermesLogPaths.AppFolderName);
+        File.AppendAllText(
+            _sessionLogFilePath,
+            $"=== Session started {DateTime.Now:O} ==={Environment.NewLine}",
             SessionFileEncoding);
-        DeleteOldLogs(keepLatest: 10);
+        PruneOldSessionLogs(HermesLogPaths.GetProjectDirectory(HermesLogPaths.AppFolderName));
     }
 
-    /// <summary>Matches <c>hermes_session_{SessionStamp}.log</c> and sibling <c>chat_{SessionStamp}.log</c>.</summary>
     public string SessionStamp { get; }
 
     public ObservableCollection<string> Entries { get; } = [];
 
-    public string CurrentLogFilePath => _sessionLogFilePath;
+    public string CurrentLogFilePath
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _sessionLogFilePath;
+            }
+        }
+    }
+
+    public void SetActiveProject(string? projectName)
+    {
+        var folder = HermesLogPaths.SanitizeProjectFolderName(projectName);
+        lock (_sync)
+        {
+            if (string.Equals(_activeProjectFolder, folder, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            _activeProjectFolder = folder;
+            _sessionLogFilePath = BuildSessionLogPath(folder);
+            File.AppendAllText(
+                _sessionLogFilePath,
+                $"=== Session log (project {folder}) {DateTime.Now:O} ==={Environment.NewLine}",
+                SessionFileEncoding);
+            PruneOldSessionLogs(HermesLogPaths.GetProjectDirectory(folder));
+        }
+    }
 
     public void LogInfo(string message) => Log("INFO", message);
+
     public void LogWarn(string message) => Log("WARN", message);
+
     public void LogError(string message) => Log("ERROR", message);
 
     public void LogTerminal(string message) => Log("TERM", message);
@@ -69,23 +93,36 @@ public sealed class LogService
         }
     }
 
-    private void DeleteOldLogs(int keepLatest)
-    {
-        var logs = new DirectoryInfo(_logDirectory)
-            .GetFiles("*.log", SearchOption.TopDirectoryOnly)
-            .OrderByDescending(file => file.LastWriteTimeUtc)
-            .ToList();
+    private string BuildSessionLogPath(string projectFolder) =>
+        Path.Combine(
+            HermesLogPaths.GetProjectDirectory(
+                projectFolder == HermesLogPaths.AppFolderName ? null : projectFolder),
+            $"hermes_session_{SessionStamp}.log");
 
-        foreach (var oldLog in logs.Skip(keepLatest))
+    private static void PruneOldSessionLogs(string projectDirectory, int keepLatest = 15)
+    {
+        try
         {
-            try
+            var logs = new DirectoryInfo(projectDirectory)
+                .GetFiles("hermes_session_*.log", SearchOption.TopDirectoryOnly)
+                .OrderByDescending(f => f.LastWriteTimeUtc)
+                .ToList();
+
+            foreach (var old in logs.Skip(keepLatest))
             {
-                oldLog.Delete();
+                try
+                {
+                    old.Delete();
+                }
+                catch
+                {
+                    // ignore locked files
+                }
             }
-            catch
-            {
-                // Keep app stable even if OS temporarily locks a file.
-            }
+        }
+        catch
+        {
+            // non-fatal
         }
     }
 }

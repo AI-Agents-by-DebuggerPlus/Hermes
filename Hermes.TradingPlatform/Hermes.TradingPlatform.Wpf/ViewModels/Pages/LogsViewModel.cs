@@ -4,15 +4,19 @@ using Hermes.TradingPlatform.Wpf.Services;
 
 namespace Hermes.TradingPlatform.Wpf.ViewModels.Pages;
 
-public sealed class LogsViewModel : BaseViewModel
+public sealed class LogsViewModel : TradingPageViewModel
 {
-    public LogsViewModel(MockTradingDataService data)
+    public LogsViewModel(TradingReadModel readModel)
+        : base(readModel) => Refresh();
+
+    public ObservableCollection<LogEntryDto> Entries { get; } = [];
+
+    protected override void Refresh()
     {
-        foreach (var log in data.GetLogs())
+        Entries.Clear();
+        foreach (var log in ReadModel.GetLogs())
         {
             Entries.Add(log);
         }
     }
-
-    public ObservableCollection<LogEntryDto> Entries { get; } = [];
 }

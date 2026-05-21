@@ -4,11 +4,36 @@ using Hermes.TradingPlatform.Wpf.Services;
 
 namespace Hermes.TradingPlatform.Wpf.ViewModels.Pages;
 
-public sealed class StrategiesViewModel : BaseViewModel
+public sealed class StrategiesViewModel : TradingPageViewModel
 {
-    public StrategiesViewModel(MockTradingDataService data)
+    private readonly TradingPlatformHost _host;
+
+    public StrategiesViewModel(TradingReadModel readModel, TradingPlatformHost host)
+        : base(readModel)
     {
-        foreach (var s in data.GetStrategies())
+        _host = host;
+
+        ToggleStrategyCommand = new RelayCommand(p =>
+        {
+            if (p is StrategyCardItemViewModel card)
+            {
+                var next = !card.IsEnabled;
+                card.IsEnabled = next;
+                card.Status = next ? "Running" : "Idle";
+                _host.SetStrategyEnabled(card.Id, next);
+            }
+        });
+
+        Refresh();
+    }
+
+    public ObservableCollection<StrategyCardItemViewModel> Strategies { get; } = [];
+    public RelayCommand ToggleStrategyCommand { get; }
+
+    protected override void Refresh()
+    {
+        Strategies.Clear();
+        foreach (var s in ReadModel.GetStrategies())
         {
             Strategies.Add(new StrategyCardItemViewModel
             {
@@ -20,16 +45,5 @@ public sealed class StrategiesViewModel : BaseViewModel
                 IsEnabled = s.IsEnabled,
             });
         }
-
-        ToggleStrategyCommand = new RelayCommand(p =>
-        {
-            if (p is StrategyCardItemViewModel card)
-            {
-                card.IsEnabled = !card.IsEnabled;
-            }
-        });
     }
-
-    public ObservableCollection<StrategyCardItemViewModel> Strategies { get; } = [];
-    public RelayCommand ToggleStrategyCommand { get; }
 }

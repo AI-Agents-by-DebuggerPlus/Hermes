@@ -83,6 +83,22 @@ public sealed class LogEntryDto
     public required string Message { get; init; }
 }
 
+public sealed class TradeJournalEntryDto
+{
+    public DateTime Timestamp { get; init; }
+    public required string OrderId { get; init; }
+    public required string Symbol { get; init; }
+    public required string Kind { get; init; }
+    public required string Side { get; init; }
+    public decimal Quantity { get; init; }
+    public decimal FillPrice { get; init; }
+    public decimal Fee { get; init; }
+    public decimal RealizedPnl { get; init; }
+    public decimal BalanceBefore { get; init; }
+    public decimal BalanceAfter { get; init; }
+    public bool ReduceOnly { get; init; }
+}
+
 public sealed class HermesTaskDto
 {
     public required string Title { get; init; }

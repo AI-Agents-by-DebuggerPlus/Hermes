@@ -6,12 +6,12 @@
 
 | Фаза | Статус | Содержание |
 |------|--------|------------|
-| **1** | ✅ Текущая | UI-only, mock data, WPF terminal |
-| 2 | План | Domain models, event bus |
-| 3 | План | Virtual exchange core |
-| 4 | План | Binance WebSocket market data |
-| 5 | План | Strategy execution |
-| 6 | План | Hermes orchestration (без bypass risk) |
+| **1** | ✅ | UI-only, mock data, WPF terminal |
+| **2** | ✅ | Domain models, in-memory event bus, state store |
+| **3** | ✅ MVP | Virtual exchange, mock ticks, new order, risk persist |
+| **4** | ✅ | Binance Futures public WebSocket (ticker) |
+| **5** | ✅ MVP | Strategy runner, 3 built-in strategies, auto-exec |
+| **6** | ✅ MVP | Hermes orchestration (monitor / explain / review) |
 
 ## Solution
 
@@ -25,6 +25,7 @@
 | `Hermes.TradingPlatform.Exchange` | Virtual exchange (Phase 3+) |
 | `Hermes.TradingPlatform.Risk` | Risk engine (Phase 3+) |
 | `Hermes.TradingPlatform.Strategies` | Strategies (Phase 5+) |
+| `Hermes.TradingPlatform.Orchestration` | Hermes layer (Phase 6) |
 | `Hermes.TradingPlatform.Data` | SQLite / PostgreSQL (Phase 2+) |
 
 ## Запуск
@@ -40,4 +41,10 @@ dotnet build Hermes.TradingPlatform.sln -c Release
 - Event-driven, modular, replayable
 - Hermes не исполняет ордера и не обходит risk manager
 
-См. также спецификацию в корневом TASK (чат / issue).
+- [Phase 1 — UI](Phase1_UI_Spec.md)
+- [Phase 2 — State & events](Phase2_State_And_Events.md)
+- [Phase 3 — Virtual exchange](Phase3_Virtual_Exchange.md)
+- [Phase 4 — Binance market data](Phase4_Binance_Market_Data.md)
+- [Phase 5 — Strategy execution](Phase5_Strategy_Execution.md)
+- [Phase 6 — Hermes orchestration](Phase6_Hermes_Orchestration.md)
+- [Список задач (TASKS)](TASKS.md)

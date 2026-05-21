@@ -16,7 +16,15 @@ public partial class ChatWindow : System.Windows.Window
         ContentRendered += ChatWindow_OnContentRendered;
     }
 
-    private void ChatWindow_OnLoaded(object sender, RoutedEventArgs e) => ScrollChatToEnd();
+    private void ChatWindow_OnLoaded(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel vm)
+        {
+            _ = vm.OnChatWindowOpenedAsync();
+        }
+
+        ScrollChatToEnd();
+    }
 
     private void ChatWindow_OnContentRendered(object? sender, EventArgs e) => ScrollChatToEnd();
 

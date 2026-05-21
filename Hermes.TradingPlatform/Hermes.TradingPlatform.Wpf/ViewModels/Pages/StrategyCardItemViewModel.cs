@@ -6,7 +6,13 @@ public sealed class StrategyCardItemViewModel : BaseViewModel
     public required string Name { get; init; }
     public required string Description { get; init; }
     public required string RiskProfile { get; init; }
-    public required string Status { get; init; }
+    private string _status = "Idle";
+
+    public string Status
+    {
+        get => _status;
+        set => SetField(ref _status, value);
+    }
 
     private bool _isEnabled;
 

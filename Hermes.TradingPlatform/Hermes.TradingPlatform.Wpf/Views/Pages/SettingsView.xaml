@@ -3,10 +3,42 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel MaxWidth="720">
-            <TextBlock Text="Platform settings (mock — Phase 1)"
+            <TextBlock Text="Platform settings · market data Phase 4"
                        Foreground="{StaticResource Brush.TextMuted}"
                        FontSize="12"
                        Margin="0,0,0,16" />
+
+            <!-- Market data -->
+            <Border Style="{StaticResource PanelCardStyle}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="Market data" Style="{StaticResource SectionHeaderStyle}" FontSize="13" />
+                    <Grid Margin="0,4,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="Source" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="1"
+                                  ItemsSource="{Binding MarketDataModes}"
+                                  SelectedItem="{Binding MarketDataMode, Mode=TwoWay}" />
+                        <TextBlock Grid.Row="1" Text="Endpoint" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" Margin="0,8,0,0" />
+                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding ApiEndpoint, Mode=OneWay}" IsReadOnly="True" Margin="0,8,0,0" />
+                        <TextBlock Grid.Row="2" Text="Status" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" Margin="0,8,0,0" />
+                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding FeedStatus}" Foreground="{StaticResource Brush.Text}" Margin="0,8,0,0" />
+                    </Grid>
+                    <Button Content="Apply market data source"
+                            Command="{Binding ApplyMarketDataCommand}"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            HorizontalAlignment="Left"
+                            Margin="0,12,0,0"
+                            Padding="12,6" />
+                </StackPanel>
+            </Border>
 
             <!-- Exchange -->
             <Border Style="{StaticResource PanelCardStyle}" Margin="0,0,0,12">
@@ -34,8 +66,8 @@
                             <ColumnDefinition Width="180" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="Endpoint / status" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
-                        <TextBox Grid.Column="1" Text="{Binding ApiEndpoint, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Text="Execution" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="Virtual exchange (paper)" IsReadOnly="True" />
                     </Grid>
                 </StackPanel>
             </Border>
@@ -52,6 +84,10 @@
                         <TextBlock Text="Theme" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
                         <TextBox Grid.Column="1" Text="{Binding Theme, UpdateSourceTrigger=PropertyChanged}" />
                     </Grid>
+                    <CheckBox Margin="0,12,0,0"
+                              Content="Звуки сделок (как в MetaTrader)"
+                              IsChecked="{Binding TradingSoundsEnabled, Mode=TwoWay}"
+                              ToolTip="Системные звуки Windows при исполнении ордеров: открытие, закрытие, ошибка" />
                 </StackPanel>
             </Border>
 
@@ -89,7 +125,7 @@
             <Border Style="{StaticResource PanelCardStyle}">
                 <StackPanel>
                     <TextBlock Text="Hermes integration (Phase 6)" Style="{StaticResource SectionHeaderStyle}" FontSize="13" />
-                    <TextBlock Text="Orchestration only — does not bypass Risk Manager."
+                    <TextBlock Text="Monitor / explain / review only. Does not place orders or bypass Risk Manager."
                                Foreground="{StaticResource Brush.TextMuted}"
                                FontSize="11"
                                TextWrapping="Wrap"

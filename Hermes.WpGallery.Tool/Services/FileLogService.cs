@@ -43,19 +43,12 @@ public class FileLogService
 
     private static string ResolveLogsDirectory()
     {
-        var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
-        while (dir != null)
+        var root = Environment.GetEnvironmentVariable("HERMES_LOGS_ROOT")?.Trim();
+        if (string.IsNullOrEmpty(root))
         {
-            if (dir.Name.Equals("HermesWpfGallery", StringComparison.OrdinalIgnoreCase))
-                return Path.Combine(dir.FullName, "Logs");
-
-            var logs = Path.Combine(dir.FullName, "Logs");
-            if (Directory.Exists(logs))
-                return logs;
-
-            dir = dir.Parent;
+            root = @"D:\Programming\AI_Agents\Hermes\Logs";
         }
 
-        return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs");
+        return Path.Combine(root, "Hermes.WpGallery.Tool");
     }
 }
