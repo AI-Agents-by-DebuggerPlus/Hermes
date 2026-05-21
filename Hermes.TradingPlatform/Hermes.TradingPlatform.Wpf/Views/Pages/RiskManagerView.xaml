@@ -1,0 +1,50 @@
+<UserControl x:Class="Hermes.TradingPlatform.Wpf.Views.Pages.RiskManagerView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctrl="clr-namespace:Hermes.TradingPlatform.Wpf.Controls">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="320" />
+        </Grid.ColumnDefinitions>
+        <Border Style="{StaticResource PanelCardStyle}" Margin="0,0,12,0">
+            <StackPanel>
+                <TextBlock Text="Risk limits (mock)" Style="{StaticResource SectionHeaderStyle}" />
+                <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="200" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Text="Max Daily Loss %" Foreground="{StaticResource Brush.TextMuted}" Margin="0,8" />
+                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding MaxDailyLossPercent}" Margin="0,4" />
+                    <TextBlock Grid.Row="1" Text="Max Position Size (BTC)" Foreground="{StaticResource Brush.TextMuted}" Margin="0,8" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding MaxPositionSizeBtc}" Margin="0,4" />
+                    <TextBlock Grid.Row="2" Text="Max Leverage" Foreground="{StaticResource Brush.TextMuted}" Margin="0,8" />
+                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding MaxLeverage}" Margin="0,4" />
+                    <TextBlock Grid.Row="3" Text="Max Exposure %" Foreground="{StaticResource Brush.TextMuted}" Margin="0,8" />
+                    <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding MaxExposurePercent}" Margin="0,4" />
+                    <CheckBox Grid.Row="4" Grid.ColumnSpan="2" Content="Safe Mode" IsChecked="{Binding SafeMode}" Margin="0,12,0,0" Foreground="{StaticResource Brush.Text}" />
+                    <CheckBox Grid.Row="5" Grid.ColumnSpan="2" Content="Auto Shutdown on breach" IsChecked="{Binding AutoShutdown}" Foreground="{StaticResource Brush.Text}" />
+                </Grid>
+            </StackPanel>
+        </Border>
+        <StackPanel Grid.Column="1">
+            <ctrl:RiskIndicator RiskLevel="{Binding RiskLevel}"
+                                ExposurePercent="{Binding ExposurePercent}"
+                                DailyDrawdownPercent="{Binding DailyDrawdownPercent}"
+                                Margin="0,0,0,12" />
+            <Button Content="EMERGENCY STOP" Style="{StaticResource DangerButtonStyle}"
+                    Command="{Binding EmergencyStopCommand}" FontWeight="Bold" FontSize="14" />
+            <TextBlock Text="Leverage (current)" Foreground="{StaticResource Brush.TextMuted}" Margin="0,16,0,4" />
+            <TextBlock Text="{Binding CurrentLeverage, StringFormat={}{0:F1}x}" FontSize="24" Foreground="{StaticResource Brush.Text}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

@@ -92,5 +92,14 @@ public static class AgentSkillsCatalog
             Summary =
                 "Win32: перемещение по экрану (виртуальный монитор), левый и правый клик. Включите в Settings навык курсора и используйте проверку на этой вкладке. Для вызовов из Hermes/WSL доступен Hermes.MouseBridge (после сборки копируется в папку Hermes.Wpf). Клавиатура и UI Automation — отдельным этапом (см. Docs/Plans).",
         },
+        new AgentSkillCard
+        {
+            Category = "Generated",
+            Title = "Skill generation (кристаллизация)",
+            Summary =
+                "Hermes может сохранять переиспользуемые навыки: JSON {\"skill\":\"skill_save\",…} или маркеры HERMES_SKILL_CRYSTALLIZE_BEGIN/END. "
+                + "Файлы: manifest.json, SKILL.md, run.ps1|run.py в %AppData%\\HermesWpf\\skills; зеркало WSL ~/.hermes/skills. "
+                + "Запуск: фразы-триггеры (script) или {\"skill\":\"run_generated\",\"id\":\"…\"}.",
+        },
     ];
 }

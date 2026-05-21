@@ -1,0 +1,21 @@
+<UserControl x:Class="Hermes.TradingPlatform.Wpf.Controls.RiskIndicator"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Border Style="{StaticResource PanelCardStyle}">
+        <StackPanel>
+            <TextBlock Text="Risk Level" Style="{StaticResource SectionHeaderStyle}" />
+            <TextBlock Text="{Binding RiskLevel, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                       FontSize="28" FontWeight="Bold" Foreground="{StaticResource Brush.Text}" />
+            <ProgressBar Value="{Binding ExposurePercent, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                         Maximum="100" Height="8" Margin="0,12,0,4" />
+            <TextBlock FontSize="11">
+                <Run Text="Exposure " Foreground="{StaticResource Brush.TextMuted}" />
+                <Run Foreground="{StaticResource Brush.Text}"
+                     Text="{Binding ExposurePercent, RelativeSource={RelativeSource AncestorType=UserControl}, StringFormat={}{0:F1}%}" />
+                <Run Text=" · DD " Foreground="{StaticResource Brush.TextMuted}" />
+                <Run Foreground="{StaticResource Brush.Text}"
+                     Text="{Binding DailyDrawdownPercent, RelativeSource={RelativeSource AncestorType=UserControl}, StringFormat={}{0:F1}%}" />
+            </TextBlock>
+        </StackPanel>
+    </Border>
+</UserControl>

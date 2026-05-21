@@ -16,6 +16,7 @@ public sealed class ExternalBrainService : IDisposable
     private readonly LogService _log;
     private readonly HermesSettings _settings;
     private readonly Dispatcher _dispatcher;
+    private readonly MemoryVectorIndex _vectorIndex;
 
     private readonly object _cacheLock = new();
     private ImmutableList<MemoryItem> _memories = ImmutableList<MemoryItem>.Empty;
@@ -30,6 +31,7 @@ public sealed class ExternalBrainService : IDisposable
         _log = log;
         _settings = settings;
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+        _vectorIndex = new MemoryVectorIndex(log);
         EnsureDebounceTimer();
         EnglishLearningVaultPaths.EnsureLayout(ResolveEffectiveMemoryPath());
         RestartWatcherUnsafe();
@@ -85,24 +87,33 @@ public sealed class ExternalBrainService : IDisposable
         return Task.FromResult(SnapshotOrdered());
     }
 
-    public Task<List<MemoryItem>> SearchAsync(string query, CancellationToken cancellationToken = default)
+    public async Task<List<MemoryItem>> SearchAsync(string query, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var q = query?.Trim() ?? string.Empty;
         if (string.IsNullOrEmpty(q))
         {
-            return Task.FromResult(SnapshotOrdered());
+            return SnapshotOrdered();
+        }
+
+        if (_settings.ExternalBrainVectorRetrievalEnabled)
+        {
+            var vectorHits = await _vectorIndex.SelectTopAsync(q, 50, _settings, cancellationToken)
+                .ConfigureAwait(false);
+            if (vectorHits.Count > 0)
+            {
+                return vectorHits;
+            }
         }
 
         var tokens = Tokenize(q);
         var scored = ScoreMemories(tokens, Snapshot());
-        var list = scored
+        return scored
             .OrderByDescending(kv => kv.Score)
             .ThenByDescending(kv => kv.M.Timestamp)
             .ThenByDescending(kv => kv.M.Importance)
             .Select(kv => kv.M)
             .ToList();
-        return Task.FromResult(list);
     }
 
     public Task<List<MemoryItem>> GetRecentAsync(TimeSpan timeSpan, CancellationToken cancellationToken = default)
@@ -130,24 +141,34 @@ public sealed class ExternalBrainService : IDisposable
             .ToList());
     }
 
-    public Task<string> BuildContextAsync(string userQuery, int maxItems)
+    public async Task<string> BuildContextAsync(string userQuery, int maxItems)
     {
         var path = ResolveEffectiveMemoryPath();
         if (string.IsNullOrEmpty(path) || !Directory.Exists(path))
         {
-            return Task.FromResult(string.Empty);
+            return string.Empty;
         }
 
         var cap = Math.Clamp(maxItems, 1, 20);
         var snap = Snapshot();
-        var tokens = Tokenize(userQuery ?? string.Empty);
-        var candidates = ScoreMemories(tokens, snap)
-            .OrderByDescending(kv => kv.Score)
-            .ThenByDescending(kv => kv.M.Timestamp)
-            .ThenByDescending(kv => kv.M.Importance)
-            .Take(cap)
-            .Select(kv => kv.M)
-            .ToList();
+        List<MemoryItem> candidates;
+
+        if (_settings.ExternalBrainVectorRetrievalEnabled)
+        {
+            candidates = await _vectorIndex.SelectTopAsync(userQuery ?? string.Empty, cap, _settings)
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            var tokens = Tokenize(userQuery ?? string.Empty);
+            candidates = ScoreMemories(tokens, snap)
+                .OrderByDescending(kv => kv.Score)
+                .ThenByDescending(kv => kv.M.Timestamp)
+                .ThenByDescending(kv => kv.M.Importance)
+                .Take(cap)
+                .Select(kv => kv.M)
+                .ToList();
+        }
 
         if (candidates.Count == 0)
         {
@@ -156,9 +177,14 @@ public sealed class ExternalBrainService : IDisposable
 
         if (candidates.Count == 0)
         {
-            return Task.FromResult(string.Empty);
+            return string.Empty;
         }
 
+        return FormatContextBlock(candidates);
+    }
+
+    private static string FormatContextBlock(IReadOnlyList<MemoryItem> candidates)
+    {
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("--- EXTERNAL BRAIN (Markdown vault excerpts) ---");
         foreach (var m in candidates)
@@ -190,8 +216,7 @@ public sealed class ExternalBrainService : IDisposable
 
         sb.AppendLine("Treat as factual user memory unless contradicted by the user.");
         sb.AppendLine("--- END EXTERNAL BRAIN ---");
-
-        return Task.FromResult(sb.ToString());
+        return sb.ToString();
     }
 
     /// <summary>Sync facade (uses in-memory cache only).</summary>
@@ -369,6 +394,17 @@ public sealed class ExternalBrainService : IDisposable
 
                 _log.LogInfo($"[external-brain] loaded {ordered.Count} *.md from {path} ({reasonTag})");
             }).ConfigureAwait(false);
+
+            try
+            {
+                var vaultPath = ResolveEffectiveMemoryPath();
+                var snap = Snapshot();
+                await _vectorIndex.RebuildAsync(snap, _settings, vaultPath).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarn($"[vector-memory] index rebuild: {ex.Message}");
+            }
 
             NotifyMemoriesChanged();
         }

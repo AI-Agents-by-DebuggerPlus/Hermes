@@ -32,6 +32,16 @@ public sealed class SettingsViewModel : BaseViewModel
     private string _supabaseLocalSenderName = "Desktop";
     private string _externalBrainMemoryPath = string.Empty;
     private bool _externalBrainInjectIntoPrompt = true;
+    private bool _externalBrainVectorRetrievalEnabled = true;
+    private bool _externalBrainUseOllamaEmbeddings = true;
+    private string _externalBrainOllamaBaseUrl = "http://127.0.0.1:11434";
+    private string _externalBrainEmbeddingModel = "nomic-embed-text";
+    private bool _skillGenerationEnabled = true;
+    private bool _skillMirrorToWslHermes = true;
+    private bool _skillRunTestsBeforeSave = true;
+    private bool _skillSandboxBeforeSave = true;
+    private bool _skillAutoResolveForTasks = true;
+    private string _generatedSkillsDirectory = string.Empty;
     private bool _syncWslAgentMemoryToExternalBrain = true;
     private int _externalBrainMaxContextItems = 10;
     private string _externalBrainMaxContextEdit = "10";
@@ -74,6 +84,20 @@ public sealed class SettingsViewModel : BaseViewModel
             : settings.SupabaseLocalSenderName.Trim();
         _externalBrainMemoryPath = settings.ExternalBrainMemoryPath ?? string.Empty;
         _externalBrainInjectIntoPrompt = settings.ExternalBrainInjectIntoPrompt;
+        _externalBrainVectorRetrievalEnabled = settings.ExternalBrainVectorRetrievalEnabled;
+        _externalBrainUseOllamaEmbeddings = settings.ExternalBrainUseOllamaEmbeddings;
+        _externalBrainOllamaBaseUrl = string.IsNullOrWhiteSpace(settings.ExternalBrainOllamaBaseUrl)
+            ? "http://127.0.0.1:11434"
+            : settings.ExternalBrainOllamaBaseUrl.Trim();
+        _externalBrainEmbeddingModel = string.IsNullOrWhiteSpace(settings.ExternalBrainEmbeddingModel)
+            ? "nomic-embed-text"
+            : settings.ExternalBrainEmbeddingModel.Trim();
+        _skillGenerationEnabled = settings.SkillGenerationEnabled;
+        _skillMirrorToWslHermes = settings.SkillMirrorToWslHermes;
+        _skillRunTestsBeforeSave = settings.SkillRunTestsBeforeSave;
+        _skillSandboxBeforeSave = settings.SkillSandboxBeforeSave;
+        _skillAutoResolveForTasks = settings.SkillAutoResolveForTasks;
+        _generatedSkillsDirectory = settings.GeneratedSkillsDirectory ?? string.Empty;
         _syncWslAgentMemoryToExternalBrain = settings.SyncWslAgentMemoryToExternalBrain;
         _externalBrainMaxContextItems = Math.Clamp(settings.ExternalBrainMaxContextItems, 1, 20);
         _externalBrainMaxContextEdit = _externalBrainMaxContextItems.ToString(CultureInfo.InvariantCulture);
@@ -374,6 +398,109 @@ public sealed class SettingsViewModel : BaseViewModel
         {
             _settings.ExternalBrainInjectIntoPrompt = value;
             SetProperty(ref _externalBrainInjectIntoPrompt, value);
+        }
+    }
+
+    public bool ExternalBrainVectorRetrievalEnabled
+    {
+        get => _externalBrainVectorRetrievalEnabled;
+        set
+        {
+            _settings.ExternalBrainVectorRetrievalEnabled = value;
+            SetProperty(ref _externalBrainVectorRetrievalEnabled, value);
+        }
+    }
+
+    public bool ExternalBrainUseOllamaEmbeddings
+    {
+        get => _externalBrainUseOllamaEmbeddings;
+        set
+        {
+            _settings.ExternalBrainUseOllamaEmbeddings = value;
+            SetProperty(ref _externalBrainUseOllamaEmbeddings, value);
+        }
+    }
+
+    public string ExternalBrainOllamaBaseUrl
+    {
+        get => _externalBrainOllamaBaseUrl;
+        set
+        {
+            var v = string.IsNullOrWhiteSpace(value) ? "http://127.0.0.1:11434" : value.Trim();
+            _settings.ExternalBrainOllamaBaseUrl = v;
+            SetProperty(ref _externalBrainOllamaBaseUrl, v);
+        }
+    }
+
+    public string ExternalBrainEmbeddingModel
+    {
+        get => _externalBrainEmbeddingModel;
+        set
+        {
+            var v = string.IsNullOrWhiteSpace(value) ? "nomic-embed-text" : value.Trim();
+            _settings.ExternalBrainEmbeddingModel = v;
+            SetProperty(ref _externalBrainEmbeddingModel, v);
+        }
+    }
+
+    public bool SkillGenerationEnabled
+    {
+        get => _skillGenerationEnabled;
+        set
+        {
+            _settings.SkillGenerationEnabled = value;
+            SetProperty(ref _skillGenerationEnabled, value);
+        }
+    }
+
+    public bool SkillMirrorToWslHermes
+    {
+        get => _skillMirrorToWslHermes;
+        set
+        {
+            _settings.SkillMirrorToWslHermes = value;
+            SetProperty(ref _skillMirrorToWslHermes, value);
+        }
+    }
+
+    public bool SkillRunTestsBeforeSave
+    {
+        get => _skillRunTestsBeforeSave;
+        set
+        {
+            _settings.SkillRunTestsBeforeSave = value;
+            SetProperty(ref _skillRunTestsBeforeSave, value);
+        }
+    }
+
+    public bool SkillSandboxBeforeSave
+    {
+        get => _skillSandboxBeforeSave;
+        set
+        {
+            _settings.SkillSandboxBeforeSave = value;
+            SetProperty(ref _skillSandboxBeforeSave, value);
+        }
+    }
+
+    public bool SkillAutoResolveForTasks
+    {
+        get => _skillAutoResolveForTasks;
+        set
+        {
+            _settings.SkillAutoResolveForTasks = value;
+            SetProperty(ref _skillAutoResolveForTasks, value);
+        }
+    }
+
+    public string GeneratedSkillsDirectory
+    {
+        get => _generatedSkillsDirectory;
+        set
+        {
+            var v = value ?? string.Empty;
+            _settings.GeneratedSkillsDirectory = v;
+            SetProperty(ref _generatedSkillsDirectory, v);
         }
     }
 

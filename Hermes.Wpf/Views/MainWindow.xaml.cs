@@ -88,6 +88,7 @@ public partial class MainWindow : Window
         DataContext = vm;
         vm.AttachSaveExperienceOpener(OpenSaveExperienceUi);
         vm.SyncWslAgentMemoryToVault("startup");
+        vm.SyncPlatformKnowledgeToVault("startup");
         OpenChatWindow();
         await vm.RefreshConnectionAsync();
 
@@ -329,7 +330,9 @@ public partial class MainWindow : Window
                 if (DataContext is MainViewModel vm)
                 {
                     vm.SyncWslAgentMemoryToVault("settings");
+                    vm.SyncPlatformKnowledgeToVault("settings");
                     vm.ReloadAppearanceFromSettings();
+                    vm.ReloadGeneratedSkillsCatalog();
                     await vm.RestartSupabaseRelayAsync();
                 }
 

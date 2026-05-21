@@ -1,0 +1,28 @@
+<UserControl x:Class="Hermes.TradingPlatform.Wpf.Controls.HermesStateWidget"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Border Style="{StaticResource PanelCardStyle}">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="Hermes" Style="{StaticResource SectionHeaderStyle}" />
+                <TextBlock Text="{Binding State, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                           FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}" />
+                <TextBlock Margin="0,6,0,0" Foreground="{StaticResource Brush.TextMuted}" FontSize="12">
+                    <Run Text="Strategy: " /><Run Text="{Binding ActiveStrategy, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                </TextBlock>
+                <TextBlock Foreground="{StaticResource Brush.TextMuted}" FontSize="11" Margin="0,2,0,0">
+                    <Run Text="Mode: " /><Run Text="{Binding Mode, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                </TextBlock>
+            </StackPanel>
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                <TextBlock Text="Confidence" Foreground="{StaticResource Brush.TextMuted}" FontSize="10" HorizontalAlignment="Right" />
+                <TextBlock Text="{Binding Confidence, RelativeSource={RelativeSource AncestorType=UserControl}, StringFormat={}{0:P0}}"
+                           FontSize="22" FontWeight="Bold" Foreground="#A78BFA" HorizontalAlignment="Right" />
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>

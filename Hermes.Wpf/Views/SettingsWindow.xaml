@@ -320,6 +320,12 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="10" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="10" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="10" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="10" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="16" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="10" />
@@ -411,18 +417,84 @@
 
                         <TextBlock Grid.Row="10"
                                    Grid.Column="0"
+                                   VerticalAlignment="Center"
+                                   Text="Vector memory"
+                                   TextWrapping="Wrap" />
+                        <StackPanel Grid.Row="10"
+                                    Grid.Column="1"
+                                    Orientation="Vertical">
+                            <CheckBox Content="Семантический поиск по vault (TF-IDF; Ollama — если доступен)"
+                                      IsChecked="{Binding ExternalBrainVectorRetrievalEnabled}" />
+                            <CheckBox Margin="0,8,0,0"
+                                      Content="Пробовать Ollama embeddings (иначе только TF-IDF)"
+                                      IsChecked="{Binding ExternalBrainUseOllamaEmbeddings}"
+                                      IsEnabled="{Binding ExternalBrainVectorRetrievalEnabled}" />
+                            <TextBlock Margin="0,8,0,0"
+                                       Opacity="0.72"
+                                       Text="Ollama URL" />
+                            <TextBox Margin="0,4,0,0"
+                                     IsEnabled="{Binding ExternalBrainVectorRetrievalEnabled}"
+                                     Text="{Binding ExternalBrainOllamaBaseUrl, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Margin="0,8,0,0"
+                                       Opacity="0.72"
+                                       Text="Embedding model" />
+                            <TextBox Margin="0,4,0,0"
+                                     IsEnabled="{Binding ExternalBrainVectorRetrievalEnabled}"
+                                     Text="{Binding ExternalBrainEmbeddingModel, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Margin="0,6,0,0"
+                                       Opacity="0.72"
+                                       TextWrapping="Wrap"
+                                       Text="Перед ответом Hermes: Querying vector memory… в логе. Кэш эмбеддингов: %AppData%\HermesWpf\embedding_cache." />
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="12"
+                                   Grid.Column="0"
+                                   VerticalAlignment="Top"
+                                   Text="Skill generation"
+                                   TextWrapping="Wrap" />
+                        <StackPanel Grid.Row="12"
+                                    Grid.Column="1"
+                                    Orientation="Vertical">
+                            <CheckBox Content="Разрешить сохранение навыков (skill_save JSON → каталог skills)"
+                                      IsChecked="{Binding SkillGenerationEnabled}" />
+                            <CheckBox Margin="0,8,0,0"
+                                      Content="Зеркалировать в WSL ~/.hermes/skills"
+                                      IsChecked="{Binding SkillMirrorToWslHermes}"
+                                      IsEnabled="{Binding SkillGenerationEnabled}" />
+                            <CheckBox Margin="0,8,0,0"
+                                      Content="Smoke-test (test_command) перед сохранением"
+                                      IsChecked="{Binding SkillRunTestsBeforeSave}"
+                                      IsEnabled="{Binding SkillGenerationEnabled}" />
+                            <CheckBox Margin="0,8,0,0"
+                                      Content="Sandbox: прогон script в temp перед сохранением"
+                                      IsChecked="{Binding SkillSandboxBeforeSave}"
+                                      IsEnabled="{Binding SkillGenerationEnabled}" />
+                            <CheckBox Margin="0,8,0,0"
+                                      Content="Автовыбор навыка под задачу (skill resolver в промпт)"
+                                      IsChecked="{Binding SkillAutoResolveForTasks}"
+                                      IsEnabled="{Binding SkillGenerationEnabled}" />
+                            <TextBlock Margin="0,8,0,0"
+                                       Opacity="0.72"
+                                       Text="Папка skills (пусто = %AppData%\HermesWpf\skills)" />
+                            <TextBox Margin="0,4,0,0"
+                                     IsEnabled="{Binding SkillGenerationEnabled}"
+                                     Text="{Binding GeneratedSkillsDirectory, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="14"
+                                   Grid.Column="0"
                                    Grid.ColumnSpan="2"
                                    Opacity="0.85"
                                    FontWeight="SemiBold"
                                    Text="Скриншот монитора" />
 
-                        <TextBlock Grid.Row="12"
+                        <TextBlock Grid.Row="16"
                                    Grid.Column="0"
                                    VerticalAlignment="Top"
                                    Margin="0,4,8,0"
                                    Text="Копия (дубликат)"
                                    TextWrapping="Wrap" />
-                        <StackPanel Grid.Row="12" Grid.Column="1" VerticalAlignment="Top">
+                        <StackPanel Grid.Row="16" Grid.Column="1" VerticalAlignment="Top">
                             <DockPanel LastChildFill="True">
                                 <Button Width="92"
                                         Margin="0,0,8,0"
@@ -439,13 +511,13 @@
                                        Text="Пусто — дубликат не создаётся. Основные файлы всегда в %LocalAppData%\HermesWpf\screenshots." />
                         </StackPanel>
 
-                        <TextBlock Grid.Row="14"
+                        <TextBlock Grid.Row="18"
                                    Grid.Column="0"
                                    VerticalAlignment="Top"
                                    Margin="0,4,8,0"
                                    Text="Монитор (индекс)"
                                    TextWrapping="Wrap" />
-                        <StackPanel Grid.Row="14" Grid.Column="1" VerticalAlignment="Top">
+                        <StackPanel Grid.Row="18" Grid.Column="1" VerticalAlignment="Top">
                             <TextBox Width="72"
                                      HorizontalAlignment="Left"
                                      LostFocus="ScreenshotMonitorIndex_OnLostFocus"
@@ -456,13 +528,13 @@
                                        Text="-1 = основной монитор, 0 = первый, 1 = второй и т.д." />
                         </StackPanel>
 
-                        <TextBlock Grid.Row="16"
+                        <TextBlock Grid.Row="20"
                                    Grid.Column="0"
                                    VerticalAlignment="Top"
                                    Margin="0,4,8,0"
                                    Text="Анализ Hermes"
                                    TextWrapping="Wrap" />
-                        <StackPanel Grid.Row="16"
+                        <StackPanel Grid.Row="20"
                                     Grid.Column="1"
                                     VerticalAlignment="Top">
                             <CheckBox Content="После захвата вызывать Hermes CLI (vision_analyze)"
@@ -477,13 +549,13 @@
                                        Text="Не вызывается при «Пауза агента». Таймаут — Chat timeout в настройках." />
                         </StackPanel>
 
-                        <TextBlock Grid.Row="18"
+                        <TextBlock Grid.Row="22"
                                    Grid.Column="0"
                                    VerticalAlignment="Top"
                                    Margin="0,4,8,0"
                                    Text="WordPress"
                                    TextWrapping="Wrap" />
-                        <StackPanel Grid.Row="18"
+                        <StackPanel Grid.Row="22"
                                     Grid.Column="1"
                                     VerticalAlignment="Top">
                             <TextBlock Opacity="0.72"
@@ -496,20 +568,20 @@
                                     Click="OpenWordPressGallery_OnClick" />
                         </StackPanel>
 
-                        <TextBlock Grid.Row="20"
+                        <TextBlock Grid.Row="24"
                                    Grid.Column="0"
                                    Grid.ColumnSpan="2"
                                    Opacity="0.85"
                                    FontWeight="SemiBold"
                                    Text="Навык: курсор мыши (Windows)" />
 
-                        <TextBlock Grid.Row="22"
+                        <TextBlock Grid.Row="26"
                                    Grid.Column="0"
                                    VerticalAlignment="Top"
                                    Margin="0,4,8,0"
                                    Text="Разрешить"
                                    TextWrapping="Wrap" />
-                        <StackPanel Grid.Row="22"
+                        <StackPanel Grid.Row="26"
                                     Grid.Column="1"
                                     Orientation="Vertical"
                                     VerticalAlignment="Top">

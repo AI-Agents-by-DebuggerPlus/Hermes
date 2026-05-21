@@ -1,0 +1,39 @@
+<UserControl x:Class="Hermes.TradingPlatform.Wpf.Views.Pages.DashboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctrl="clr-namespace:Hermes.TradingPlatform.Wpf.Controls">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,8,0">
+        <StackPanel>
+            <UniformGrid Columns="4" Margin="0,0,0,16">
+                <ctrl:StatCard Label="Balance" Value="{Binding Account.Balance, StringFormat=N2}" Subtext="USDT" Margin="0,0,8,0" />
+                <ctrl:StatCard Label="Equity" Value="{Binding Account.Equity, StringFormat=N2}" Subtext="USDT" Margin="4,0,4,0" />
+                <ctrl:StatCard Label="Free Margin" Value="{Binding Account.FreeMargin, StringFormat={}{0:N2}}" Margin="4,0,4,0" />
+                <ctrl:StatCard Label="Used Margin" Value="{Binding Account.UsedMargin, StringFormat={}{0:N2}}" Margin="8,0,0,0" />
+            </UniformGrid>
+
+            <Grid Margin="0,0,0,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <ctrl:PnlCard x:Name="PnlWidget" Margin="0,0,8,0" />
+                <ctrl:RiskIndicator Grid.Column="1" RiskLevel="{Binding Risk.RiskLevel}"
+                                    ExposurePercent="{Binding Risk.ExposurePercent}"
+                                    DailyDrawdownPercent="{Binding Risk.DailyDrawdownPercent}"
+                                    Margin="4,0,4,0" />
+                <ctrl:HermesStateWidget Grid.Column="2" State="{Binding Hermes.State}"
+                                        ActiveStrategy="{Binding Hermes.ActiveStrategy}"
+                                        Confidence="{Binding Hermes.Confidence}"
+                                        Mode="{Binding Hermes.Mode}"
+                                        Margin="8,0,0,0" />
+            </Grid>
+
+            <TextBlock Text="Open Positions" Style="{StaticResource SectionHeaderStyle}" />
+            <ctrl:PositionGrid ItemsSource="{Binding OpenPositions}" Margin="0,0,0,16" />
+
+            <TextBlock Text="Active Orders" Style="{StaticResource SectionHeaderStyle}" />
+            <ctrl:OrderGrid ItemsSource="{Binding ActiveOrders}" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

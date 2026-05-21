@@ -1,0 +1,15 @@
+<UserControl x:Class="Hermes.TradingPlatform.Wpf.Controls.PositionGrid"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <DataGrid ItemsSource="{Binding ItemsSource, RelativeSource={RelativeSource AncestorType=UserControl}}"
+              Style="{StaticResource DataGridStyle}">
+        <DataGrid.Columns>
+            <DataGridTextColumn Header="Symbol" Binding="{Binding Symbol}" Width="*" />
+            <DataGridTextColumn Header="Side" Binding="{Binding Side}" Width="70" />
+            <DataGridTextColumn Header="Size" Binding="{Binding Size}" Width="80" />
+            <DataGridTextColumn Header="Entry" Binding="{Binding EntryPrice, StringFormat=N2}" Width="90" />
+            <DataGridTextColumn Header="Mark" Binding="{Binding MarkPrice, StringFormat=N2}" Width="90" />
+            <DataGridTextColumn Header="uPnL" Binding="{Binding UnrealizedPnl, StringFormat=N2}" Width="80" />
+        </DataGrid.Columns>
+    </DataGrid>
+</UserControl>

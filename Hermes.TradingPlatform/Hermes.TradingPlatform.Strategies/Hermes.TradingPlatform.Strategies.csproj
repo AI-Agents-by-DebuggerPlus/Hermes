@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Hermes.TradingPlatform.Strategies</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Hermes.TradingPlatform.Core\Hermes.TradingPlatform.Core.csproj" />
+    <ProjectReference Include="..\Hermes.TradingPlatform.Shared\Hermes.TradingPlatform.Shared.csproj" />
+  </ItemGroup>
+</Project>

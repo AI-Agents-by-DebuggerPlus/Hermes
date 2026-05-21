@@ -51,6 +51,7 @@ public sealed class MainViewModel : BaseViewModel
     private readonly ChatLogService _chatLogService;
     private readonly ExternalBrainService _externalBrain;
     private readonly WslAgentMemorySyncService _wslAgentMemorySync;
+    private readonly HermesPlatformKnowledgeSyncService _platformKnowledgeSync;
     private readonly WslAgentMemoryService _wslAgentMemoryService;
     private readonly MemoryExtractorService _memoryExtractor = new();
     private MemoryDraft? _lastExperienceDraft;
@@ -66,6 +67,13 @@ public sealed class MainViewModel : BaseViewModel
     public HermesGalleryPublisher GalleryPublisher => _hermesGalleryPublisher;
     private readonly ReniWaterScriptService _reniWater;
     private readonly ReniWaterScheduleSkill _reniWaterSchedule;
+    private readonly GeneratedSkillCatalogService _generatedSkillCatalog;
+    private readonly GeneratedSkillRunner _generatedSkillRunner;
+    private readonly SkillGenerationService _skillGeneration;
+    private readonly GeneratedSkillVaultSyncService _skillVaultSync;
+    private readonly GeneratedSkillIndexService _skillIndex;
+    private readonly GeneratedSkillTaskMatcher _skillTaskMatcher;
+    public GeneratedSkillsViewModel GeneratedSkills { get; }
     private readonly DispatcherTimer _watchdogTimer;
     private readonly DispatcherTimer _reniWaterPollTimer;
     private readonly DispatcherTimer _reniWaterScheduleTimer;
@@ -135,6 +143,7 @@ public sealed class MainViewModel : BaseViewModel
         Settings = settings;
         _externalBrain = externalBrain;
         _wslAgentMemorySync = new WslAgentMemorySyncService(_logService);
+        _platformKnowledgeSync = new HermesPlatformKnowledgeSyncService(_logService);
         _wslAgentMemoryService = new WslAgentMemoryService();
         WslMemory = new WslMemoryViewModel(
             _logService,
@@ -153,10 +162,40 @@ public sealed class MainViewModel : BaseViewModel
             logService,
             () => Settings,
             () => RunReniWaterSubmitUiAsync());
+        _generatedSkillRunner = new GeneratedSkillRunner(_logService);
+        var skillSandbox = new SkillSandboxService(_logService, _generatedSkillRunner);
+        _skillVaultSync = new GeneratedSkillVaultSyncService(_logService);
+        _skillIndex = new GeneratedSkillIndexService(_logService);
+        _skillTaskMatcher = new GeneratedSkillTaskMatcher(_logService);
+        _generatedSkillCatalog = new GeneratedSkillCatalogService(() => Settings);
+        _skillGeneration = new SkillGenerationService(
+            _logService,
+            () => Settings,
+            _generatedSkillRunner,
+            skillSandbox,
+            _skillVaultSync);
         _chatFontSize = ClampChatFontForUi(Settings.ChatFontSize);
         Settings.ChatFontSize = _chatFontSize;
         Chat = new ChatViewModel();
         Projects = new ProjectViewModel();
+        GeneratedSkills = new GeneratedSkillsViewModel(
+            _generatedSkillCatalog,
+            _generatedSkillRunner,
+            () => Settings,
+            _logService,
+            line =>
+            {
+                if (Projects.SelectedProject is null)
+                {
+                    return;
+                }
+
+                Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = line });
+                _chatLogService.AppendMessage(Projects.SelectedProject.Name, "Hermes", line);
+                _ = PublishAssistantTurnToSupabaseIfPossibleAsync(line);
+            });
+        _generatedSkillCatalog.CatalogChanged += OnGeneratedSkillsCatalogChanged;
+        _generatedSkillCatalog.Reload();
         Projects.PropertyChanged += async (_, args) =>
         {
             if (args.PropertyName != nameof(ProjectViewModel.SelectedProject))
@@ -299,6 +338,20 @@ public sealed class MainViewModel : BaseViewModel
             _logService.LogWarn(
                 "[supabase] Заданы URL и anon key, но «Relay enabled» выключен — сообщения из Supabase не попадут в основной чат и ответы не публикуются.");
         }
+        else if (Settings.SupabaseRelayEnabled
+                 && (string.IsNullOrWhiteSpace(Settings.SupabaseUrl)
+                     || string.IsNullOrWhiteSpace(Settings.SupabaseAnonKey)))
+        {
+            _logService.LogError(
+                "[supabase] Relay включён, но URL или anon key пусты — подключение невозможно. "
+                + "Settings → Supabase (или перенос из %LocalAppData%\\DesktopVoiceChat\\settings.json при следующем запуске).");
+        }
+        else if (!string.IsNullOrWhiteSpace(Settings.SupabaseUrl)
+                 && !string.IsNullOrWhiteSpace(Settings.SupabaseAnonKey))
+        {
+            _logService.LogInfo(
+                $"[supabase] credentials present (host={LogRedaction.SupabaseHostForLog(Settings.SupabaseUrl)}, relay={(Settings.SupabaseRelayEnabled ? "on" : "off")}).");
+        }
     }
 
     public Task InitializeSupabaseRelayAsync() => StartSupabaseRelayCoreAsync();
@@ -344,6 +397,19 @@ public sealed class MainViewModel : BaseViewModel
         catch (Exception ex)
         {
             _logService.LogWarn($"[wsl-memory-sync] {reason}: {ex.Message}");
+        }
+    }
+
+    /// <summary>Exports platform memory/skills documentation into External Brain vault.</summary>
+    public void SyncPlatformKnowledgeToVault(string reason)
+    {
+        try
+        {
+            _platformKnowledgeSync.TrySync(Settings, _externalBrain);
+        }
+        catch (Exception ex)
+        {
+            _logService.LogWarn($"[platform-knowledge] {reason}: {ex.Message}");
         }
     }
 
@@ -462,11 +528,13 @@ public sealed class MainViewModel : BaseViewModel
     private string BuildOutboundHermesPrompt(
         string userVisibleMessage,
         string? externalBrainContextBlock,
-        EnglishTutorTurnHints englishTutor)
+        EnglishTutorTurnHints englishTutor,
+        SkillTurnHints skillTurn)
     {
         var blocks = new List<string>();
         blocks.Add(ChatBehaviorDefaults.InstructionPriorityRu);
         blocks.Add(ChatBehaviorDefaults.TaskPrecisionRu);
+        blocks.Add(HermesPlatformKnowledgeInstructions.OutboundBlockRu);
         if (!Settings.EnglishTutorModeEnabled)
         {
             blocks.Add(ChatBehaviorDefaults.HermesWpfClientCapabilitiesRu);
@@ -508,6 +576,33 @@ public sealed class MainViewModel : BaseViewModel
             blocks.Add(FlashcardRelayInstructions.OutboundBlockRu);
         }
 
+        if (Settings.SkillGenerationEnabled)
+        {
+            if (skillTurn.TaskMatches is { Count: > 0 })
+            {
+                blocks.Add(SkillResolverInstructions.TaskMatchBlockRu(skillTurn.TaskMatches));
+            }
+
+            blocks.Add(SkillGenerationInstructions.OutboundBlockRu);
+            var catalogHint = _generatedSkillCatalog.CompactCatalogForPrompt();
+            if (!string.IsNullOrWhiteSpace(catalogHint))
+            {
+                blocks.Add(catalogHint);
+            }
+
+            foreach (var genBlock in _generatedSkillCatalog.OutboundPromptBlocks())
+            {
+                blocks.Add(genBlock);
+            }
+
+            if (skillTurn.CrystallizeRequested)
+            {
+                var ctx = skillTurn.ReflectionContext ?? SkillReflectionService.BuildFromMessages(Chat.Messages);
+                blocks.Add(SkillReflectionService.CrystallizeNowBlockRu(ctx));
+                _logService.LogInfo("[skill-gen] reflective crystallization block appended to outbound prompt");
+            }
+        }
+
         var desktopBlock = _desktopScreenContext.BuildOutboundInjectionBlock();
         if (!string.IsNullOrWhiteSpace(desktopBlock) && ShouldInjectDesktopContext(userVisibleMessage))
         {
@@ -547,10 +642,34 @@ public sealed class MainViewModel : BaseViewModel
         return $"{visionUserRequest}\n\n---\n[System / Hermes WPF]\n{string.Join("\n\n", blocks)}";
     }
 
+    private void OnGeneratedSkillsCatalogChanged()
+    {
+        RaisePropertyChanged(nameof(AgentSkills));
+        GeneratedSkills.Refresh();
+        _skillTaskMatcher.Rebuild(_generatedSkillCatalog.Skills);
+        _skillIndex.WriteIndex(Settings, _generatedSkillCatalog.Skills);
+        _skillVaultSync.SyncAll(_externalBrain, _generatedSkillCatalog.Skills);
+    }
+
+    public void ReloadGeneratedSkillsCatalog()
+    {
+        _generatedSkillCatalog.Reload();
+    }
+
     private readonly struct EnglishTutorTurnHints(bool exitedThisTurn, bool enteredThisTurn)
     {
         public bool ExitedThisTurn { get; } = exitedThisTurn;
         public bool EnteredThisTurn { get; } = enteredThisTurn;
+    }
+
+    private readonly struct SkillTurnHints(
+        bool crystallizeRequested,
+        string? reflectionContext,
+        IReadOnlyList<SkillTaskMatch>? taskMatches)
+    {
+        public bool CrystallizeRequested { get; } = crystallizeRequested;
+        public string? ReflectionContext { get; } = reflectionContext;
+        public IReadOnlyList<SkillTaskMatch>? TaskMatches { get; } = taskMatches;
     }
 
     private async Task PersistSettingsQuietAsync()
@@ -910,7 +1029,7 @@ public sealed class MainViewModel : BaseViewModel
             ? "Relay активен: таблица messages — синхронизация чата с Android и др."
             : "Relay отключён. Нажмите Connect (нужны URL и anon key в Settings).";
 
-    public IReadOnlyList<AgentSkillCard> AgentSkills => AgentSkillsCatalog.All;
+    public IReadOnlyList<AgentSkillCard> AgentSkills => _generatedSkillCatalog.AllCards();
 
     public ConnectionState CurrentConnectionState
     {
@@ -1231,6 +1350,11 @@ public sealed class MainViewModel : BaseViewModel
                 return;
             }
 
+            if (await TryHandleGeneratedSkillLocalAsync(agentUserPayload, project.Name).ConfigureAwait(true))
+            {
+                return;
+            }
+
             string? brainBlock = null;
             if (Settings.ExternalBrainInjectIntoPrompt)
             {
@@ -1294,7 +1418,30 @@ public sealed class MainViewModel : BaseViewModel
                     $"[english-tutor] persona for prompt: enabled={Settings.EnglishTutorModeEnabled}, entered={tutorHints.EnteredThisTurn}, exited={tutorHints.ExitedThisTurn}");
             }
 
-            var outbound = BuildOutboundHermesPrompt(payload, brainBlock, tutorHints);
+            var crystallizeRequested = Settings.SkillGenerationEnabled
+                                       && SkillCrystallizeTriggers.Matches(payload);
+            IReadOnlyList<SkillTaskMatch>? taskMatches = null;
+            if (Settings.SkillGenerationEnabled && Settings.SkillAutoResolveForTasks)
+            {
+                taskMatches = _skillTaskMatcher.Rank(
+                    payload,
+                    Settings.SkillResolveMaxSuggestions,
+                    Settings.SkillResolveMinScore);
+            }
+
+            SkillTurnHints skillHints;
+            if (crystallizeRequested)
+            {
+                var reflection = SkillReflectionService.BuildFromMessages(Chat.Messages);
+                skillHints = new SkillTurnHints(true, reflection, taskMatches);
+                _logService.LogInfo("[skill-gen] user requested skill crystallization");
+            }
+            else
+            {
+                skillHints = new SkillTurnHints(false, null, taskMatches);
+            }
+
+            var outbound = BuildOutboundHermesPrompt(payload, brainBlock, tutorHints, skillHints);
             var timeout = ClampChatTimeout(Settings.ChatTimeoutSeconds);
             // HermesService uses ConfigureAwait(false) internally — force UI context before touching chat / Supabase.
             var result = await _hermesService.SendMessageAsync(outbound, wslPath, Settings, timeout).ConfigureAwait(true);
@@ -1314,7 +1461,32 @@ public sealed class MainViewModel : BaseViewModel
             await _englishTutorVocabulary.TryMergeAssistantTailAsync(response).ConfigureAwait(true);
             var displayResponse = response;
 
-            if (FlashcardRelayIntentParser.TryConsumeIntent(response, out var fcKind, out var fcStart))
+            if (Settings.SkillGenerationEnabled
+                && SkillCrystallizeIntentParser.TryConsumeSaveIntent(response, out var skillSave)
+                && skillSave is not null)
+            {
+                var saveResult = await _skillGeneration
+                    .TrySaveAsync(skillSave, response, _externalBrain)
+                    .ConfigureAwait(true);
+                displayResponse = saveResult.UserMessage;
+                ReloadGeneratedSkillsCatalog();
+            }
+            else if (Settings.SkillGenerationEnabled
+                     && SkillCrystallizeIntentParser.TryConsumeRunIntent(response, out var runSkillId)
+                     && runSkillId is not null)
+            {
+                var skill = _generatedSkillCatalog.FindById(runSkillId);
+                if (skill is not null)
+                {
+                    var run = await _generatedSkillRunner.RunAsync(skill).ConfigureAwait(true);
+                    displayResponse = SkillCrystallizeIntentParser.UserFacingRunLine(runSkillId, run.Ok, run.Detail);
+                }
+                else
+                {
+                    displayResponse = $"[skill] Навык «{runSkillId}» не найден в каталоге.";
+                }
+            }
+            else if (FlashcardRelayIntentParser.TryConsumeIntent(response, out var fcKind, out var fcStart))
             {
                 if (fcKind == FlashcardRelayIntentParser.FlashcardRelayIntentKind.Stop)
                 {
@@ -1352,6 +1524,7 @@ public sealed class MainViewModel : BaseViewModel
             _lastExperienceDraft = _memoryExtractor.ExtractExperience(payload, displayResponse);
             _chatLogService.AppendMessage(project.Name, "Hermes", displayResponse);
             SyncWslAgentMemoryToVault("after-chat");
+            SyncPlatformKnowledgeToVault("after-chat");
             _ = WslMemory.RefreshAsync();
             await PublishAssistantTurnToSupabaseIfPossibleAsync(displayResponse);
             await TrySaveHistoryAfterTurnAsync(project.Name);
@@ -1395,6 +1568,48 @@ public sealed class MainViewModel : BaseViewModel
         _chatLogService.AppendMessage(projectName, "Hermes", line);
         _ = PublishAssistantTurnToSupabaseIfPossibleAsync(line);
         _logService.LogInfo("[flashcards] local view-mode start (defaults applied).");
+        return true;
+    }
+
+    private async Task<bool> TryHandleGeneratedSkillLocalAsync(string userPayload, string projectName)
+    {
+        if (!Settings.SkillGenerationEnabled)
+        {
+            return false;
+        }
+
+        if (SkillRunTriggers.TryParseRunRequest(userPayload, out var runId))
+        {
+            var byId = _generatedSkillCatalog.FindById(runId);
+            if (byId is not null)
+            {
+                var runResult = await _generatedSkillRunner.RunAsync(byId).ConfigureAwait(true);
+                var runLine = SkillCrystallizeIntentParser.UserFacingRunLine(runId, runResult.Ok, runResult.Detail);
+                Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = runLine });
+                _chatLogService.AppendMessage(projectName, "Hermes", runLine);
+                await PublishAssistantTurnToSupabaseIfPossibleAsync(runLine).ConfigureAwait(true);
+                _logService.LogInfo($"[skill] explicit run id={runId} ok={runResult.Ok}");
+                return true;
+            }
+        }
+
+        var skill = _generatedSkillCatalog.MatchTrigger(userPayload);
+        if (skill is null)
+        {
+            return false;
+        }
+
+        if (!string.Equals(skill.Kind, "script", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var run = await _generatedSkillRunner.RunAsync(skill).ConfigureAwait(true);
+        var line = SkillCrystallizeIntentParser.UserFacingRunLine(skill.Id, run.Ok, run.Detail);
+        Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = line });
+        _chatLogService.AppendMessage(projectName, "Hermes", line);
+        await PublishAssistantTurnToSupabaseIfPossibleAsync(line).ConfigureAwait(true);
+        _logService.LogInfo($"[skill] local trigger run id={skill.Id} ok={run.Ok}");
         return true;
     }
 
@@ -2045,13 +2260,15 @@ public sealed class MainViewModel : BaseViewModel
         }
 
         var label = CanonicalHermesSenderName();
+        var contentForSupabase = BilingualSegmentFormatter.ToSupabaseContent(assistantPlainText);
 
         try
         {
-            await _supabaseRelay.InsertAssistantRowAsync(label, assistantPlainText);
-            _supabaseEchoTracker.RegisterAfterSuccessfulPublish(label, assistantPlainText);
+            await _supabaseRelay.InsertAssistantRowAsync(label, contentForSupabase);
+            _supabaseEchoTracker.RegisterAfterSuccessfulPublish(label, contentForSupabase);
+            var formatKind = BilingualSegmentFormatter.ShouldPublishAsRawJson(assistantPlainText) ? "raw" : "bilingual";
             _logService.LogInfo(
-                $"[supabase] Ответ агента записан в messages (sender_name={label}, chars={assistantPlainText.Length}).");
+                $"[supabase] Ответ агента записан в messages (sender_name={label}, chars={contentForSupabase.Length}, format={formatKind}).");
         }
         catch (Exception ex)
         {
@@ -2173,7 +2390,9 @@ public sealed class MainViewModel : BaseViewModel
         if (string.IsNullOrWhiteSpace(Settings.SupabaseUrl) ||
             string.IsNullOrWhiteSpace(Settings.SupabaseAnonKey))
         {
-            _logService.LogError("[supabase] URL or anon key empty; relay not started.");
+            _logService.LogError(
+                "[supabase] URL or anon key empty; relay not started. "
+                + "Заполните Settings → Supabase или сохраните credentials в %LocalAppData%\\DesktopVoiceChat\\settings.json и перезапустите Hermes.Wpf.");
             return;
         }
 

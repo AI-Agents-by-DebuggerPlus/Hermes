@@ -11,6 +11,68 @@
                 Margin="0,0,0,12"
                 Padding="12"
                 Style="{StaticResource PanelBorderStyle}">
+            <StackPanel DataContext="{Binding GeneratedSkills}">
+                <TextBlock FontWeight="SemiBold"
+                           Text="Сгенерированные навыки"
+                           TextWrapping="Wrap" />
+                <TextBlock Margin="0,6,0,0"
+                           FontSize="13"
+                           Foreground="{StaticResource MutedTextBrush}"
+                           Text="{Binding StatusLine}"
+                           TextWrapping="Wrap" />
+                <WrapPanel Margin="0,10,0,0">
+                    <Button MinWidth="120"
+                            Margin="0,0,8,8"
+                            Padding="8,4"
+                            Command="{Binding RefreshCommand}"
+                            Content="Обновить" />
+                    <Button MinWidth="140"
+                            Margin="0,0,8,8"
+                            Padding="8,4"
+                            Command="{Binding OpenFolderCommand}"
+                            Content="Открыть папку" />
+                </WrapPanel>
+                <ListView x:Name="GeneratedSkillsList"
+                          Margin="0,8,0,0"
+                          MaxHeight="220"
+                          BorderThickness="1"
+                          ItemsSource="{Binding Items}">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="Id" Width="120" DisplayMemberBinding="{Binding Id}" />
+                            <GridViewColumn Header="Название" Width="160" DisplayMemberBinding="{Binding Title}" />
+                            <GridViewColumn Header="Kind" Width="64" DisplayMemberBinding="{Binding Kind}" />
+                            <GridViewColumn Header="On" Width="36" DisplayMemberBinding="{Binding Enabled}" />
+                            <GridViewColumn Header="Триггеры" Width="180" DisplayMemberBinding="{Binding TriggersDisplay}" />
+                        </GridView>
+                    </ListView.View>
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <EventSetter Event="MouseDoubleClick" Handler="GeneratedSkillItem_OnDoubleClick" />
+                        </Style>
+                    </ListView.ItemContainerStyle>
+                </ListView>
+                <WrapPanel Margin="0,8,0,0">
+                    <Button MinWidth="100"
+                            Margin="0,0,8,0"
+                            Padding="8,4"
+                            Command="{Binding RunSkillCommand}"
+                            CommandParameter="{Binding SelectedItem, ElementName=GeneratedSkillsList}"
+                            Content="Запустить" />
+                    <Button MinWidth="120"
+                            Padding="8,4"
+                            Command="{Binding ToggleEnabledCommand}"
+                            CommandParameter="{Binding SelectedItem, ElementName=GeneratedSkillsList}"
+                            Content="Вкл/Выкл" />
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Top"
+                Margin="0,0,0,12"
+                Padding="12"
+                Style="{StaticResource PanelBorderStyle}">
             <StackPanel>
                 <TextBlock FontWeight="SemiBold"
                            Text="Показания воды — Рені (Водоканал)"

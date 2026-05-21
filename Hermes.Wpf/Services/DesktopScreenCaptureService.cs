@@ -19,12 +19,14 @@ public sealed class DesktopScreenCaptureService
     public ScreenCaptureResult CapturePrimaryMonitor()
     {
         var primaryDir = GetPrimaryOutputDirectory();
+        var duplicateDir = GetDuplicateOutputDirectory();
+        DeletePreviousCaptures(primaryDir, duplicateDir);
+
         var index = _settings().DesktopScreenshotMonitorIndex;
         _log.LogInfo($"[screen-capture] monitor index={index}, primary dir={primaryDir}");
 
         var result = ScreenCapturePipeline.CaptureMonitor(primaryDir, index);
 
-        var duplicateDir = GetDuplicateOutputDirectory();
         if (duplicateDir is null)
         {
             return result;
@@ -79,5 +81,44 @@ public sealed class DesktopScreenCaptureService
 
         var dest = Path.Combine(duplicateDir, Path.GetFileName(sourcePath));
         File.Copy(sourcePath, dest, overwrite: true);
+    }
+
+    private void DeletePreviousCaptures(string primaryDir, string? duplicateDir)
+    {
+        var removed = 0;
+        removed += DeleteScreenCaptureFilesIn(primaryDir);
+        if (!string.IsNullOrWhiteSpace(duplicateDir))
+        {
+            removed += DeleteScreenCaptureFilesIn(duplicateDir);
+        }
+
+        if (removed > 0)
+        {
+            _log.LogInfo($"[screen-capture] removed {removed} previous file(s) before capture");
+        }
+    }
+
+    private static int DeleteScreenCaptureFilesIn(string directory)
+    {
+        if (!Directory.Exists(directory))
+        {
+            return 0;
+        }
+
+        var count = 0;
+        foreach (var path in Directory.EnumerateFiles(directory, "screen_*", SearchOption.TopDirectoryOnly))
+        {
+            try
+            {
+                File.Delete(path);
+                count++;
+            }
+            catch
+            {
+                // non-fatal — new capture may overwrite same stamp on retry
+            }
+        }
+
+        return count;
     }
 }

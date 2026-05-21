@@ -22,13 +22,27 @@ public sealed class SettingsService
     {
         if (!File.Exists(_settingsFilePath))
         {
-            var defaults = new HermesSettings();
-            await SaveAsync(defaults);
-            return defaults;
+            return await CreateAndSaveDefaultsAsync();
         }
 
-        await using var stream = File.OpenRead(_settingsFilePath);
-        var settings = await JsonSerializer.DeserializeAsync<HermesSettings>(stream) ?? new HermesSettings();
+        var raw = await File.ReadAllTextAsync(_settingsFilePath);
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            BackupCorruptSettingsFile("empty");
+            return await CreateAndSaveDefaultsAsync();
+        }
+
+        HermesSettings settings;
+        try
+        {
+            settings = JsonSerializer.Deserialize<HermesSettings>(raw) ?? new HermesSettings();
+        }
+        catch (JsonException)
+        {
+            BackupCorruptSettingsFile("invalid-json");
+            return await CreateAndSaveDefaultsAsync();
+        }
+
         settings.SavedProjectPaths ??= [];
         settings.VisionScopeReminderNote ??= string.Empty;
         settings.WorkspaceRootWindowsPath ??= string.Empty;
@@ -46,12 +60,27 @@ public sealed class SettingsService
         settings.ExternalBrainMemoryPath ??= string.Empty;
         settings.ExternalBrainMaxContextItems =
             Math.Clamp(settings.ExternalBrainMaxContextItems, 1, 20);
+        settings.ExternalBrainOllamaBaseUrl = string.IsNullOrWhiteSpace(settings.ExternalBrainOllamaBaseUrl)
+            ? "http://127.0.0.1:11434"
+            : settings.ExternalBrainOllamaBaseUrl.Trim();
+        settings.ExternalBrainEmbeddingModel = string.IsNullOrWhiteSpace(settings.ExternalBrainEmbeddingModel)
+            ? "nomic-embed-text"
+            : settings.ExternalBrainEmbeddingModel.Trim();
+        settings.GeneratedSkillsDirectory ??= string.Empty;
+        settings.SkillMaxGenerationAttempts = Math.Clamp(settings.SkillMaxGenerationAttempts, 1, 10);
+        settings.SkillSandboxTimeoutSeconds = Math.Clamp(settings.SkillSandboxTimeoutSeconds, 5, 300);
+        settings.SkillResolveMaxSuggestions = Math.Clamp(settings.SkillResolveMaxSuggestions, 1, 8);
+        settings.SkillResolveMinScore = Math.Clamp(settings.SkillResolveMinScore, 0.1, 0.9);
         if (settings.ChatFontSize is < 8 or > 36 or double.NaN or double.PositiveInfinity or double.NegativeInfinity)
         {
             settings.ChatFontSize = 14;
         }
 
         MigrateHermesGallerySettings(settings);
+        if (MigrateSupabaseFromDesktopVoiceChat(settings))
+        {
+            await SaveAsync(settings);
+        }
 
         return settings;
     }
@@ -60,6 +89,17 @@ public sealed class SettingsService
     {
         settings.ExternalBrainMemoryPath ??= string.Empty;
         settings.ExternalBrainMaxContextItems = Math.Clamp(settings.ExternalBrainMaxContextItems, 1, 20);
+        settings.ExternalBrainOllamaBaseUrl = string.IsNullOrWhiteSpace(settings.ExternalBrainOllamaBaseUrl)
+            ? "http://127.0.0.1:11434"
+            : settings.ExternalBrainOllamaBaseUrl.Trim();
+        settings.ExternalBrainEmbeddingModel = string.IsNullOrWhiteSpace(settings.ExternalBrainEmbeddingModel)
+            ? "nomic-embed-text"
+            : settings.ExternalBrainEmbeddingModel.Trim();
+        settings.GeneratedSkillsDirectory ??= string.Empty;
+        settings.SkillMaxGenerationAttempts = Math.Clamp(settings.SkillMaxGenerationAttempts, 1, 10);
+        settings.SkillSandboxTimeoutSeconds = Math.Clamp(settings.SkillSandboxTimeoutSeconds, 5, 300);
+        settings.SkillResolveMaxSuggestions = Math.Clamp(settings.SkillResolveMaxSuggestions, 1, 8);
+        settings.SkillResolveMinScore = Math.Clamp(settings.SkillResolveMinScore, 0.1, 0.9);
         settings.SupabasePollIntervalSeconds = Math.Clamp(settings.SupabasePollIntervalSeconds, 1, 120);
         if (string.IsNullOrWhiteSpace(settings.SupabaseHermesSenderName))
         {
@@ -79,8 +119,39 @@ public sealed class SettingsService
             settings.SupabaseLocalSenderName = settings.SupabaseLocalSenderName.Trim();
         }
 
-        await using var stream = File.Create(_settingsFilePath);
-        await JsonSerializer.SerializeAsync(stream, settings, _jsonOptions);
+        var tempPath = _settingsFilePath + ".tmp";
+        await using (var stream = File.Create(tempPath))
+        {
+            await JsonSerializer.SerializeAsync(stream, settings, _jsonOptions);
+        }
+
+        File.Move(tempPath, _settingsFilePath, overwrite: true);
+    }
+
+    private async Task<HermesSettings> CreateAndSaveDefaultsAsync()
+    {
+        var defaults = new HermesSettings();
+        await SaveAsync(defaults);
+        return defaults;
+    }
+
+    private void BackupCorruptSettingsFile(string reason)
+    {
+        try
+        {
+            if (!File.Exists(_settingsFilePath))
+            {
+                return;
+            }
+
+            var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            var backupPath = $"{_settingsFilePath}.{reason}.{stamp}.bak";
+            File.Copy(_settingsFilePath, backupPath, overwrite: true);
+        }
+        catch
+        {
+            // non-fatal
+        }
     }
 
     private static void MigrateHermesGallerySettings(HermesSettings s)
@@ -128,6 +199,79 @@ public sealed class SettingsService
             }
         }
     }
+
+    /// <summary>
+    /// Copies Supabase URL/anon key from DesktopVoiceChat when Hermes settings are empty
+    /// (same project family; path: %LocalAppData%\DesktopVoiceChat\settings.json).
+    /// </summary>
+    private static bool MigrateSupabaseFromDesktopVoiceChat(HermesSettings s)
+    {
+        if (!string.IsNullOrWhiteSpace(s.SupabaseUrl) && !string.IsNullOrWhiteSpace(s.SupabaseAnonKey))
+        {
+            return false;
+        }
+
+        var legacyPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "DesktopVoiceChat",
+            "settings.json");
+        if (!File.Exists(legacyPath))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(legacyPath));
+            var root = doc.RootElement;
+            var url = ReadJsonString(root, "SupabaseUrl");
+            var key = ReadJsonString(root, "SupabaseAnonKey");
+            if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(key))
+            {
+                return false;
+            }
+
+            var changed = false;
+            if (string.IsNullOrWhiteSpace(s.SupabaseUrl))
+            {
+                s.SupabaseUrl = url.Trim();
+                changed = true;
+            }
+
+            if (string.IsNullOrWhiteSpace(s.SupabaseAnonKey))
+            {
+                s.SupabaseAnonKey = key.Trim();
+                changed = true;
+            }
+
+            if (string.Equals(s.SupabaseLocalSenderName, "Desktop", StringComparison.OrdinalIgnoreCase)
+                && root.TryGetProperty("SenderName", out var senderEl))
+            {
+                var sender = (senderEl.GetString() ?? string.Empty).Trim();
+                if (sender.Length > 0)
+                {
+                    s.SupabaseLocalSenderName = sender;
+                    changed = true;
+                }
+            }
+
+            if (root.TryGetProperty("UseAnonymousSession", out var anonEl)
+                && anonEl.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            {
+                s.SupabaseUseAnonymousAuth = anonEl.GetBoolean();
+                changed = true;
+            }
+
+            return changed;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string ReadJsonString(JsonElement root, string name) =>
+        root.TryGetProperty(name, out var el) ? (el.GetString() ?? string.Empty).Trim() : string.Empty;
 
     private static void NormalizeHermesGallerySiteUrl(HermesSettings s)
     {

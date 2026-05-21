@@ -1,0 +1,24 @@
+<UserControl x:Class="Hermes.TradingPlatform.Wpf.Views.Pages.MarketWatchView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Border Style="{StaticResource PanelCardStyle}">
+        <DataGrid ItemsSource="{Binding Tickers}" Style="{StaticResource DataGridStyle}">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="★" Binding="{Binding WatchlistStar}" Width="40" />
+                <DataGridTextColumn Header="Symbol" Binding="{Binding Symbol}" Width="*" />
+                <DataGridTextColumn Header="Price" Binding="{Binding Price, StringFormat=N2}" Width="120" />
+                <DataGridTextColumn Header="24h %" Binding="{Binding ChangeDisplay}" Width="80" />
+                <DataGridTextColumn Header="Volume" Binding="{Binding Volume24h, StringFormat=N0}" Width="140" />
+                <DataGridTemplateColumn Header="Watchlist" Width="100">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Button Content="Toggle" Style="{StaticResource SecondaryButtonStyle}" Padding="6,2"
+                                    Command="{Binding DataContext.ToggleWatchlistCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{Binding}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+    </Border>
+</UserControl>

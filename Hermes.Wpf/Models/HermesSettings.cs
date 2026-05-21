@@ -83,8 +83,50 @@ public sealed class HermesSettings
     /// <summary>Maximum memories appended to the outbound prompt context block (clamped 1–20).</summary>
     public int ExternalBrainMaxContextItems { get; set; } = 12;
 
+    /// <summary>Semantic retrieval (TF-IDF / Ollama embeddings) instead of token overlap only.</summary>
+    public bool ExternalBrainVectorRetrievalEnabled { get; set; } = true;
+
+    /// <summary>When true and Ollama is reachable, use dense embeddings; otherwise TF-IDF.</summary>
+    public bool ExternalBrainUseOllamaEmbeddings { get; set; } = true;
+
+    /// <summary>Ollama base URL for /api/embed (e.g. http://127.0.0.1:11434).</summary>
+    public string ExternalBrainOllamaBaseUrl { get; set; } = "http://127.0.0.1:11434";
+
+    /// <summary>Ollama embedding model (nomic-embed-text, all-minilm, …).</summary>
+    public string ExternalBrainEmbeddingModel { get; set; } = "nomic-embed-text";
+
     /// <summary>Export <c>~/.hermes/memories/*.md</c> from WSL into the External Brain vault.</summary>
     public bool SyncWslAgentMemoryToExternalBrain { get; set; } = true;
+
+    /// <summary>Allow Hermes to crystallize reusable skills into the local skills catalog.</summary>
+    public bool SkillGenerationEnabled { get; set; } = true;
+
+    /// <summary>Mirror saved skills to WSL <c>~/.hermes/skills/</c>.</summary>
+    public bool SkillMirrorToWslHermes { get; set; } = true;
+
+    /// <summary>Windows root for generated skills; empty = %AppData%\\HermesWpf\\skills.</summary>
+    public string GeneratedSkillsDirectory { get; set; } = string.Empty;
+
+    /// <summary>Max folder suffix attempts when skill id already exists (1–10).</summary>
+    public int SkillMaxGenerationAttempts { get; set; } = 3;
+
+    /// <summary>Run optional test_command from skill_save JSON before confirming save.</summary>
+    public bool SkillRunTestsBeforeSave { get; set; } = true;
+
+    /// <summary>Execute script skills in temp sandbox before persisting to skills folder.</summary>
+    public bool SkillSandboxBeforeSave { get; set; } = true;
+
+    /// <summary>Sandbox / script run timeout (seconds, 5–300).</summary>
+    public int SkillSandboxTimeoutSeconds { get; set; } = 60;
+
+    /// <summary>Rank saved skills against each user task and inject resolver block into Hermes prompt.</summary>
+    public bool SkillAutoResolveForTasks { get; set; } = true;
+
+    /// <summary>Max skill candidates in resolver block (1–8).</summary>
+    public int SkillResolveMaxSuggestions { get; set; } = 3;
+
+    /// <summary>Minimum match score 0.1–0.9 for resolver suggestions.</summary>
+    public double SkillResolveMinScore { get; set; } = 0.28;
 
     /// <summary>
     /// When true, Hermes.Wpf may run synthetic cursor moves/tests (desktop skill).

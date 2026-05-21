@@ -1,0 +1,20 @@
+<UserControl x:Class="Hermes.TradingPlatform.Wpf.Views.Pages.ReplayView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Border Style="{StaticResource PanelCardStyle}">
+        <StackPanel>
+            <TextBlock Text="{Binding StatusLine}" FontSize="16" Foreground="{StaticResource Brush.Text}" Margin="0,0,0,16" />
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                <Button Content="▶ Play" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding PlayCommand}" Margin="0,0,8,0" />
+                <Button Content="⏸ Pause" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding PauseCommand}" Margin="0,0,8,0" />
+                <Button Content="1x" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding Speed1xCommand}" Margin="0,0,4,0" />
+                <Button Content="2x" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding Speed2xCommand}" Margin="0,0,4,0" />
+                <Button Content="4x" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding Speed4xCommand}" />
+            </StackPanel>
+            <TextBlock Text="Jump to timestamp (mock scrubber)" Style="{StaticResource SectionHeaderStyle}" />
+            <Slider Minimum="0" Maximum="100" Value="42" Margin="0,8,0,0" />
+            <TextBlock Text="{Binding CurrentTime, StringFormat=Session time: {0:yyyy-MM-dd HH:mm:ss}}"
+                       Foreground="{StaticResource Brush.TextMuted}" Margin="0,8,0,0" />
+        </StackPanel>
+    </Border>
+</UserControl>

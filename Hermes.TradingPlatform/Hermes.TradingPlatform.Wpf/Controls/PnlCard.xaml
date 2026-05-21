@@ -1,0 +1,27 @@
+<UserControl x:Class="Hermes.TradingPlatform.Wpf.Controls.PnlCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Border Style="{StaticResource PanelCardStyle}">
+        <StackPanel>
+            <TextBlock Text="PnL" Style="{StaticResource SectionHeaderStyle}" />
+            <UniformGrid Columns="2" Rows="2">
+                <StackPanel Margin="0,0,8,8">
+                    <TextBlock Text="Today" Foreground="{StaticResource Brush.TextMuted}" FontSize="10" />
+                    <TextBlock Text="{Binding Today, StringFormat={}{0:N2} USDT}" FontWeight="SemiBold" Foreground="{StaticResource Brush.Positive}" />
+                </StackPanel>
+                <StackPanel Margin="8,0,0,8">
+                    <TextBlock Text="Week" Foreground="{StaticResource Brush.TextMuted}" FontSize="10" />
+                    <TextBlock Text="{Binding Week, StringFormat={}{0:N2}}" Foreground="{StaticResource Brush.Text}" />
+                </StackPanel>
+                <StackPanel Margin="0,8,8,0">
+                    <TextBlock Text="Month" Foreground="{StaticResource Brush.TextMuted}" FontSize="10" />
+                    <TextBlock Text="{Binding Month, StringFormat={}{0:N2}}" Foreground="{StaticResource Brush.Text}" />
+                </StackPanel>
+                <StackPanel Margin="8,8,0,0">
+                    <TextBlock Text="All Time" Foreground="{StaticResource Brush.TextMuted}" FontSize="10" />
+                    <TextBlock Text="{Binding AllTime, StringFormat={}{0:N2}}" Foreground="{StaticResource Brush.Text}" />
+                </StackPanel>
+            </UniformGrid>
+        </StackPanel>
+    </Border>
+</UserControl>
