@@ -122,10 +122,12 @@ flowchart TB
 |----------|------|
 | [Instructions/start.md](Instructions/start.md) | Концепция WPF ↔ WSL |
 | [Instructions/Gemini/persistent_memory_skill_g.md](Instructions/Gemini/persistent_memory_skill_g.md) | Память и навыки (актуально для WPF) |
-| [Experience_And_Skills_Logic_Report.md](Experience_And_Skills_Logic_Report.md) | Полный отчёт по опыту и skills |
-| [External_Brain_Implementation_Report.md](External_Brain_Implementation_Report.md) | External Brain vault |
+| [Report/Experience_And_Skills_Logic_Report.md](Report/Experience_And_Skills_Logic_Report.md) | Полный отчёт по опыту и skills |
+| [Report/External_Brain_Implementation_Report.md](Report/External_Brain_Implementation_Report.md) | External Brain vault |
+| [Report/Hermes_Current_Implementation_Report.md](Report/Hermes_Current_Implementation_Report.md) | Сводный отчёт о реализации проекта |
+| [Report/Hermes_Trading_Platform_Integration.md](Report/Hermes_Trading_Platform_Integration.md) | Интеграция Wpf ↔ Trading Platform |
 | [Plans/UI_Automation_and_Agent_Skills.md](Plans/UI_Automation_and_Agent_Skills.md) | План UI automation |
-| [Hermes_Connection_Implementation_And_Logs_Report.md](Hermes_Connection_Implementation_And_Logs_Report.md) | Подключение WSL/Hermes |
+| [Report/Hermes_Connection_Implementation_And_Logs_Report.md](Report/Hermes_Connection_Implementation_And_Logs_Report.md) | Подключение WSL/Hermes |
 
 Инструкции для разных ассистентов: `Docs/Instructions/Claude_Instructions/`, `ChatGPT_Instructions/`, `Gemini/`.
 
@@ -173,7 +175,7 @@ Hermes.Wpf
 2. `Hermes.Wpf/Services/HermesService.cs` — вызов WSL.
 3. `Hermes.Wpf/Services/ExternalBrainService.cs` — долгосрочная память.
 4. `Hermes.Wpf/Services/BilingualSegmentFormatter.cs` — формат для Android TTS.
-5. [Experience_And_Skills_Logic_Report.md](Experience_And_Skills_Logic_Report.md) — поведение памяти и навыков.
+5. [Report/Experience_And_Skills_Logic_Report.md](Report/Experience_And_Skills_Logic_Report.md) — поведение памяти и навыков.
 
 ---
 

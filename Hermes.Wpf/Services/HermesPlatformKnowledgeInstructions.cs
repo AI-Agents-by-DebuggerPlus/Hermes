@@ -21,13 +21,13 @@ public static class HermesPlatformKnowledgeInstructions
         + "2. **По запросу (создание нового):** только когда пользователь просит **«сохрани как навык»** / кристаллизацию, или ты возвращаешь JSON `{\"skill\":\"skill_save\",…}` → клиент: sandbox (`[skill-sandbox]`) → `%AppData%\\HermesWpf\\skills\\&lt;id&gt;\\` (manifest.json, SKILL.md, run.ps1|py), зеркало `~/.hermes/skills/`, `index.json`, заметка в vault `Procedures/GeneratedSkills/`.\n"
         + "3. **НЕ автоматически:** новый навык **не** создаётся после каждой успешной задачи без `skill_save` / явной просьбы.\n\n"
         + "**Ответы пользователю:** если спрашивают «как работает память/навыки/самообучение в Hermes» — опирайся на этот блок и при необходимости на vault-заметку `Knowledge/Hermes/Experience_and_Skills_Logic.md`. Не утверждай, что функции из старых README уже есть в WPF, если их нет в списке выше.\n"
-        + "Подробный отчёт в репозитории: `Docs/Experience_And_Skills_Logic_Report.md`.\n\n"
-        + "**Hermes Trading Platform (paper terminal):** отдельное приложение `Hermes.TradingPlatform.exe`. При включённой интеграции в Settings клиент подмешивает live snapshot (позиции, баланс, ордера, риск, стратегии) и принимает JSON `{\"skill\":\"trading\",…}` для ордеров и алгоритмов через file-bridge + CLI. Ордера проходят virtual exchange и RiskValidator. Подробнее: `Docs/Hermes_Trading_Platform_Integration.md`.";
+        + "Подробный отчёт в репозитории: `Docs/Report/Experience_And_Skills_Logic_Report.md`.\n\n"
+        + "**Hermes Trading Platform (paper terminal):** отдельное приложение `Hermes.TradingPlatform.exe`. При включённой интеграции в Settings клиент подмешивает live snapshot (позиции, баланс, ордера, риск, стратегии) и принимает JSON `{\"skill\":\"trading\",…}` для ордеров и алгоритмов через file-bridge + CLI. Ордера проходят virtual exchange и RiskValidator. Подробнее: `Docs/Report/Hermes_Trading_Platform_Integration.md`.";
 
     /// <summary>Vault note body (without YAML) — synced when repo report is unavailable.</summary>
     public static string VaultMarkdownBody =>
         "# Hermes.Wpf: память, самообучение и навыки\n\n"
-        + "Автосинхронизация из Hermes.Wpf. Полная версия: `Docs/Experience_And_Skills_Logic_Report.md`.\n\n"
+        + "Автосинхронизация из Hermes.Wpf. Полная версия: `Docs/Report/Experience_And_Skills_Logic_Report.md`.\n\n"
         + "## Память\n"
         + "- External Brain vault, vector/lexical retrieval в промпт.\n"
         + "- Черновик опыта после каждого ответа; ручное сохранение в vault.\n"

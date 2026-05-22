@@ -2,7 +2,7 @@
 
 **Дата:** 2026-05-18  
 **Область:** Hermes.Wpf — External Brain, извлечение опыта из чата, WSL-память, vector memory, generated skills (кристаллизация, resolver, sandbox).  
-**Связанные документы:** [External_Brain_Implementation_Report.md](External_Brain_Implementation_Report.md), [persistent_memory_skill_g.md](Instructions/Gemini/persistent_memory_skill_g.md), [UI_Automation_and_Agent_Skills.md](Plans/UI_Automation_and_Agent_Skills.md).
+**Связанные документы:** [External_Brain_Implementation_Report.md](External_Brain_Implementation_Report.md), [persistent_memory_skill_g.md](../Instructions/Gemini/persistent_memory_skill_g.md), [UI_Automation_and_Agent_Skills.md](../Plans/UI_Automation_and_Agent_Skills.md).
 
 ---
 
@@ -269,7 +269,7 @@ _lastExperienceDraft = _memoryExtractor.ExtractExperience(payload, displayRespon
 | Канал | Компонент | Когда |
 |-------|-----------|--------|
 | **Всегда в промпт** | `HermesPlatformKnowledgeInstructions.OutboundBlockRu` | Каждый `hermes chat` через `BuildOutboundHermesPrompt` |
-| **Vault для retrieval** | `HermesPlatformKnowledgeSyncService` → `Knowledge/Hermes/Experience_and_Skills_Logic.md` | Старт, после чата, закрытие Settings; источник — `Docs/Experience_And_Skills_Logic_Report.md` или fallback-тело |
+| **Vault для retrieval** | `HermesPlatformKnowledgeSyncService` → `Knowledge/Hermes/Experience_and_Skills_Logic.md` | Старт, после чата, закрытие Settings; источник — `Docs/Report/Experience_And_Skills_Logic_Report.md` или fallback-тело |
 
 Лог синхронизации: `[platform-knowledge] exported …`
 
@@ -437,7 +437,7 @@ _lastExperienceDraft = _memoryExtractor.ExtractExperience(payload, displayRespon
 Resolver только **находит** `manage_zip`, если он уже сохранён; создание — отдельный явный шаг кристаллизации.
 
 **Где читать пользовательскую инструкцию?**  
-`Docs/Instructions/Gemini/persistent_memory_skill_g.md` (обновлена под текущую сборку WPF).
+`Docs/Instructions/Gemini/persistent_memory_skill_g.md` (обновлена под текущую сборку WPF). Сводный отчёт: [Hermes_Current_Implementation_Report.md](Hermes_Current_Implementation_Report.md).
 
 ---
 

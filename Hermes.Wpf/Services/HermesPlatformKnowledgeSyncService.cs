@@ -10,7 +10,7 @@ public sealed class HermesPlatformKnowledgeSyncService
 {
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
-    private const string RepoReportRelative = "Docs/Experience_And_Skills_Logic_Report.md";
+    private const string RepoReportRelative = "Docs/Report/Experience_And_Skills_Logic_Report.md";
 
     private readonly LogService _log;
 

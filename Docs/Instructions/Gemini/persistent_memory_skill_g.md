@@ -2,7 +2,7 @@
 
 Документ описывает **концепцию** и **реальную реализацию** в экосистеме Hermes: WPF-клиент + WSL Hermes CLI + External Brain vault.
 
-**Hermes «знает» эту логику в рантайме:** Hermes.Wpf добавляет блок `HermesPlatformKnowledgeInstructions` в каждый исходящий `hermes chat` и синхронизирует полный отчёт в vault `Knowledge/Hermes/Experience_and_Skills_Logic.md` (из `Docs/Experience_And_Skills_Logic_Report.md`). Подробности: `Docs/Experience_And_Skills_Logic_Report.md`.
+**Hermes «знает» эту логику в рантайме:** Hermes.Wpf добавляет блок `HermesPlatformKnowledgeInstructions` в каждый исходящий `hermes chat` и синхронизирует полный отчёт в vault `Knowledge/Hermes/Experience_and_Skills_Logic.md` (из `Docs/Report/Experience_And_Skills_Logic_Report.md`). Подробности: `Docs/Report/Experience_And_Skills_Logic_Report.md`.
 
 ## 1. Три уровня памяти
 
