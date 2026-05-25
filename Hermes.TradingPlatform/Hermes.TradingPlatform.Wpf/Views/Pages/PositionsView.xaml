@@ -9,12 +9,12 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0">
-            <TextBlock Text="Ручная торговля · paper exchange без агента"
+            <TextBlock Text="Manual trading · paper exchange (no agent)"
                        Foreground="{StaticResource Brush.TextMuted}"
                        Margin="0,0,0,8" />
             <Border Style="{StaticResource PanelCardStyle}" Margin="0,0,0,12">
                 <StackPanel>
-                    <TextBlock Text="Открыть позицию (market)" Style="{StaticResource SectionHeaderStyle}" FontSize="13" />
+                    <TextBlock Text="Open position (market)" Style="{StaticResource SectionHeaderStyle}" FontSize="13" />
                     <Grid Margin="0,8,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="100" />
@@ -49,8 +49,8 @@
         <Border Grid.Row="1" Style="{StaticResource PanelCardStyle}" Margin="0,0,0,12">
             <DockPanel>
                 <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
-                    <TextBlock Text="Открытые позиции" Style="{StaticResource SectionHeaderStyle}" FontSize="13" />
-                    <Button Content="Закрыть все"
+                    <TextBlock Text="Open positions" Style="{StaticResource SectionHeaderStyle}" FontSize="13" />
+                    <Button Content="Close all"
                             Command="{Binding CloseAllCommand}"
                             Style="{StaticResource DangerButtonStyle}"
                             HorizontalAlignment="Right"
@@ -63,12 +63,14 @@
                         <DataGridTextColumn Header="Size" Binding="{Binding Size}" Width="80" />
                         <DataGridTextColumn Header="Entry" Binding="{Binding EntryPrice, StringFormat=N2}" Width="90" />
                         <DataGridTextColumn Header="Mark" Binding="{Binding MarkPrice, StringFormat=N2}" Width="90" />
+                        <DataGridTextColumn Header="SL" Binding="{Binding StopLossPrice, StringFormat=N2, TargetNullValue=—}" Width="90" />
+                        <DataGridTextColumn Header="TP" Binding="{Binding TakeProfitPrice, StringFormat=N2, TargetNullValue=—}" Width="90" />
                         <DataGridTextColumn Header="uPnL" Binding="{Binding UnrealizedPnl, StringFormat=N2}" Width="80" />
                         <DataGridTextColumn Header="rPnL" Binding="{Binding RealizedPnl, StringFormat=N2}" Width="80" />
-                        <DataGridTemplateColumn Header="Действие" Width="100">
+                        <DataGridTemplateColumn Header="Action" Width="100">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <Button Content="Закрыть"
+                                    <Button Content="Close"
                                             Command="{Binding DataContext.ClosePositionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="{Binding}"
                                             Style="{StaticResource DangerButtonStyle}"
@@ -84,7 +86,7 @@
         <Border Grid.Row="2" Style="{StaticResource PanelCardStyle}">
             <DockPanel>
                 <TextBlock DockPanel.Dock="Top"
-                           Text="Журнал сделок"
+                           Text="Trade journal"
                            Style="{StaticResource SectionHeaderStyle}"
                            FontSize="13"
                            Margin="0,0,0,8" />

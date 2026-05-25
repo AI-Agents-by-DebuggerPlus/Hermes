@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.IO;
 using System.Text;
+using Hermes.TradingPlatform.Shared.Infrastructure;
 
 namespace Hermes.Wpf.Services;
 
@@ -53,30 +54,6 @@ public sealed class ChatLogService
         return path;
     }
 
-    private static void PruneOldChatLogs(string projectDirectory, int keepLatest = 15)
-    {
-        try
-        {
-            var logs = new DirectoryInfo(projectDirectory)
-                .GetFiles("chat_*.log", SearchOption.TopDirectoryOnly)
-                .OrderByDescending(f => f.LastWriteTimeUtc)
-                .ToList();
-
-            foreach (var old in logs.Skip(keepLatest))
-            {
-                try
-                {
-                    old.Delete();
-                }
-                catch
-                {
-                    // ignore
-                }
-            }
-        }
-        catch
-        {
-            // non-fatal
-        }
-    }
+    private static void PruneOldChatLogs(string projectDirectory) =>
+        SessionLogPruner.PruneDirectory(projectDirectory, "chat_*.log");
 }

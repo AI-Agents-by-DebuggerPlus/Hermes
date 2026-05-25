@@ -10,6 +10,7 @@ public sealed class GeneratedSkillTaskMatcher
     private static readonly Regex TokenSplit = new(@"[\s,.;:!?()[\]{}""'`_\-]+", RegexOptions.Compiled);
 
     private readonly LogService _log;
+    private readonly RoleSkillIndex _roleSkillIndex;
     private readonly object _lock = new();
 
     private IReadOnlyList<GeneratedSkillManifest> _skills = [];
@@ -17,7 +18,11 @@ public sealed class GeneratedSkillTaskMatcher
     private string[] _vocabulary = [];
     private float[] _idf = [];
 
-    public GeneratedSkillTaskMatcher(LogService log) => _log = log;
+    public GeneratedSkillTaskMatcher(LogService log, RoleSkillIndex roleSkillIndex)
+    {
+        _log = log;
+        _roleSkillIndex = roleSkillIndex;
+    }
 
     public void Rebuild(IReadOnlyList<GeneratedSkillManifest> skills)
     {
@@ -30,7 +35,14 @@ public sealed class GeneratedSkillTaskMatcher
         _log.LogInfo($"[skill-resolver] index ready ({_skills.Count} enabled skill(s))");
     }
 
-    public IReadOnlyList<SkillTaskMatch> Rank(string userTask, int maxItems, double minScore)
+    public IReadOnlyList<SkillTaskMatch> Rank(string userTask, int maxItems, double minScore) =>
+        Rank(userTask, AgentRole.Universal, maxItems, minScore);
+
+    public IReadOnlyList<SkillTaskMatch> Rank(
+        string userTask,
+        AgentRole activeRole,
+        int maxItems,
+        double minScore)
     {
         var text = (userTask ?? string.Empty).Trim();
         if (text.Length < 6)
@@ -44,7 +56,8 @@ public sealed class GeneratedSkillTaskMatcher
         Dictionary<string, float[]> tfidfById;
         lock (_lock)
         {
-            skills = _skills.ToList();
+            var roleFiltered = _roleSkillIndex.GetSkillsForRole(activeRole, 50);
+            skills = roleFiltered.Count > 0 ? roleFiltered.ToList() : _skills.ToList();
             vocabulary = _vocabulary;
             idf = _idf;
             tfidfById = _tfidfById;

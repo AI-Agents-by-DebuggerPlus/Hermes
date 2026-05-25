@@ -294,13 +294,22 @@ public partial class MainWindow : Window
             return;
         }
 
+        var galleryPublisher = DataContext is MainViewModel vmCtx ? vmCtx.GalleryPublisher : null;
+
         if (_settingsWindow is null || !_settingsWindow.IsLoaded)
         {
-            _settingsWindow = new SettingsWindow(_settings);
+            _settingsWindow = new SettingsWindow(_settings, _logService, _settingsService, galleryPublisher);
             _settingsWindow.Owner = this;
             _settingsWindow.Closed += async (_, _) =>
             {
                 await _settingsService.SaveAsync(_settings);
+                if (_settingsWindow.DataContext is SettingsViewModel settingsVm)
+                {
+                    settingsVm.SettingsStatusText = SettingsSaveFeedback.FullSettingsSaved(
+                        _settingsService.SettingsFilePath,
+                        _settings);
+                }
+
                 if (DataContext is MainViewModel vm)
                 {
                     vm.SyncWslAgentMemoryToVault("settings");

@@ -344,6 +344,22 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="10" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="10" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="10" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="10" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="10" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="10" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="10" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="10" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="10" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="200" />
@@ -453,10 +469,74 @@
 
                         <TextBlock Grid.Row="12"
                                    Grid.Column="0"
+                                   Grid.ColumnSpan="2"
+                                   Opacity="0.85"
+                                   FontWeight="SemiBold"
+                                   Text="Role memory (самообучение по ролям)" />
+
+                        <TextBlock Grid.Row="14"
+                                   Grid.Column="0"
+                                   VerticalAlignment="Center"
+                                   Text="Автосохранение"
+                                   TextWrapping="Wrap" />
+                        <StackPanel Grid.Row="14"
+                                    Grid.Column="1"
+                                    Orientation="Vertical">
+                            <CheckBox Content="Role auto-capture (importance ≥ порога → vault)"
+                                      IsChecked="{Binding RoleAutoCapture}" />
+                            <StackPanel Margin="24,8,0,0" Orientation="Horizontal">
+                                <TextBlock VerticalAlignment="Center"
+                                           Opacity="0.85"
+                                           Text="Min importance (1–5):" />
+                                <TextBox Width="48"
+                                         Margin="8,0,0,0"
+                                         Text="{Binding RoleAutoCaptureMinImportance, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Margin="16,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Opacity="0.85"
+                                           Text="Min length:" />
+                                <TextBox Width="64"
+                                         Margin="8,0,0,0"
+                                         Text="{Binding RoleAutoCaptureMinLength, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <CheckBox Margin="0,8,0,0"
+                                      Content="ROLE CONTEXT block в промпт"
+                                      IsChecked="{Binding RoleContextBlockEnabled}" />
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="16"
+                                   Grid.Column="0"
+                                   VerticalAlignment="Top"
+                                   Text="Trading episodes"
+                                   TextWrapping="Wrap" />
+                        <StackPanel Grid.Row="16"
+                                    Grid.Column="1"
+                                    Orientation="Vertical">
+                            <CheckBox Content="Экспорт значимых событий в Knowledge/Trading/Episodes"
+                                      IsChecked="{Binding TradingExperienceExportEnabled}" />
+                            <StackPanel Margin="24,8,0,0" Orientation="Horizontal">
+                                <TextBlock VerticalAlignment="Center"
+                                           Opacity="0.85"
+                                           Text="PnL threshold:" />
+                                <TextBox Width="72"
+                                         Margin="8,0,0,0"
+                                         Text="{Binding TradingExperiencePnlThreshold, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Margin="16,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Opacity="0.85"
+                                           Text="Drawdown %:" />
+                                <TextBox Width="56"
+                                         Margin="8,0,0,0"
+                                         Text="{Binding TradingExperienceDrawdownThreshold, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="18"
+                                   Grid.Column="0"
                                    VerticalAlignment="Top"
                                    Text="Skill generation"
                                    TextWrapping="Wrap" />
-                        <StackPanel Grid.Row="12"
+                        <StackPanel Grid.Row="18"
                                     Grid.Column="1"
                                     Orientation="Vertical">
                             <CheckBox Content="Разрешить сохранение навыков (skill_save JSON → каталог skills)"
@@ -485,20 +565,20 @@
                                      Text="{Binding GeneratedSkillsDirectory, UpdateSourceTrigger=PropertyChanged}" />
                         </StackPanel>
 
-                        <TextBlock Grid.Row="14"
+                        <TextBlock Grid.Row="20"
                                    Grid.Column="0"
                                    Grid.ColumnSpan="2"
                                    Opacity="0.85"
                                    FontWeight="SemiBold"
                                    Text="Скриншот монитора" />
 
-                        <TextBlock Grid.Row="16"
+                        <TextBlock Grid.Row="22"
                                    Grid.Column="0"
                                    VerticalAlignment="Top"
                                    Margin="0,4,8,0"
                                    Text="Копия (дубликат)"
                                    TextWrapping="Wrap" />
-                        <StackPanel Grid.Row="16" Grid.Column="1" VerticalAlignment="Top">
+                        <StackPanel Grid.Row="22" Grid.Column="1" VerticalAlignment="Top">
                             <DockPanel LastChildFill="True">
                                 <Button Width="92"
                                         Margin="0,0,8,0"
@@ -515,13 +595,13 @@
                                        Text="Пусто — дубликат не создаётся. Основные файлы всегда в %LocalAppData%\HermesWpf\screenshots." />
                         </StackPanel>
 
-                        <TextBlock Grid.Row="18"
+                        <TextBlock Grid.Row="24"
                                    Grid.Column="0"
                                    VerticalAlignment="Top"
                                    Margin="0,4,8,0"
                                    Text="Монитор (индекс)"
                                    TextWrapping="Wrap" />
-                        <StackPanel Grid.Row="18" Grid.Column="1" VerticalAlignment="Top">
+                        <StackPanel Grid.Row="24" Grid.Column="1" VerticalAlignment="Top">
                             <TextBox Width="72"
                                      HorizontalAlignment="Left"
                                      LostFocus="ScreenshotMonitorIndex_OnLostFocus"
@@ -532,13 +612,13 @@
                                        Text="-1 = основной монитор, 0 = первый, 1 = второй и т.д." />
                         </StackPanel>
 
-                        <TextBlock Grid.Row="20"
+                        <TextBlock Grid.Row="26"
                                    Grid.Column="0"
                                    VerticalAlignment="Top"
                                    Margin="0,4,8,0"
                                    Text="Анализ Hermes"
                                    TextWrapping="Wrap" />
-                        <StackPanel Grid.Row="20"
+                        <StackPanel Grid.Row="26"
                                     Grid.Column="1"
                                     VerticalAlignment="Top">
                             <CheckBox Content="После захвата вызывать Hermes CLI (vision_analyze)"
@@ -553,13 +633,13 @@
                                        Text="Не вызывается при «Пауза агента». Таймаут — Chat timeout в настройках." />
                         </StackPanel>
 
-                        <TextBlock Grid.Row="22"
+                        <TextBlock Grid.Row="28"
                                    Grid.Column="0"
                                    VerticalAlignment="Top"
                                    Margin="0,4,8,0"
                                    Text="WordPress"
                                    TextWrapping="Wrap" />
-                        <StackPanel Grid.Row="22"
+                        <StackPanel Grid.Row="28"
                                     Grid.Column="1"
                                     VerticalAlignment="Top">
                             <TextBlock Opacity="0.72"
@@ -572,20 +652,20 @@
                                     Click="OpenWordPressGallery_OnClick" />
                         </StackPanel>
 
-                        <TextBlock Grid.Row="24"
+                        <TextBlock Grid.Row="30"
                                    Grid.Column="0"
                                    Grid.ColumnSpan="2"
                                    Opacity="0.85"
                                    FontWeight="SemiBold"
                                    Text="Навык: курсор мыши (Windows)" />
 
-                        <TextBlock Grid.Row="26"
+                        <TextBlock Grid.Row="32"
                                    Grid.Column="0"
                                    VerticalAlignment="Top"
                                    Margin="0,4,8,0"
                                    Text="Разрешить"
                                    TextWrapping="Wrap" />
-                        <StackPanel Grid.Row="26"
+                        <StackPanel Grid.Row="32"
                                     Grid.Column="1"
                                     Orientation="Vertical"
                                     VerticalAlignment="Top">
@@ -598,20 +678,20 @@
                                        Text="Консоль Hermes.MouseBridge не проверяет этот флажок — её запускайте только когда доверяете источнику команд. Координаты — пиксели виртуального экрана." />
                         </StackPanel>
 
-                        <TextBlock Grid.Row="28"
+                        <TextBlock Grid.Row="34"
                                    Grid.Column="0"
                                    Grid.ColumnSpan="2"
                                    Opacity="0.85"
                                    FontWeight="SemiBold"
                                    Text="Hermes Trading Platform" />
 
-                        <TextBlock Grid.Row="30"
+                        <TextBlock Grid.Row="36"
                                    Grid.Column="0"
                                    VerticalAlignment="Top"
                                    Margin="0,4,8,0"
                                    Text="Чат ↔ терминал"
                                    TextWrapping="Wrap" />
-                        <StackPanel Grid.Row="30"
+                        <StackPanel Grid.Row="36"
                                     Grid.Column="1"
                                     Orientation="Vertical"
                                     VerticalAlignment="Top">
@@ -626,14 +706,64 @@
                                        TextWrapping="Wrap"
                                        Text="Нужен запущенный терминал (paper trading). Bridge: %LocalAppData%\HermesTrading\bridge\. Ордера проходят RiskValidator в терминале." />
                         </StackPanel>
+
+                        <TextBlock Grid.Row="38"
+                                   Grid.Column="0"
+                                   Grid.ColumnSpan="2"
+                                   Opacity="0.85"
+                                   FontWeight="SemiBold"
+                                   Text="ИИ-помощник (OpenRouter)" />
+
+                        <TextBlock Grid.Row="40"
+                                   Grid.Column="0"
+                                   VerticalAlignment="Top"
+                                   Margin="0,4,8,0"
+                                   Text="OpenRouter"
+                                   TextWrapping="Wrap" />
+                        <StackPanel Grid.Row="40"
+                                    Grid.Column="1"
+                                    Orientation="Vertical"
+                                    VerticalAlignment="Top">
+                            <TextBox Text="{Binding InAppAssistantOpenRouterApiKey, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Margin="0,8,0,0" Opacity="0.85" Text="Model" />
+                            <TextBox Margin="0,4,0,0"
+                                     Width="320"
+                                     HorizontalAlignment="Left"
+                                     Text="{Binding InAppAssistantOpenRouterModel, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Margin="0,6,0,0"
+                                       Opacity="0.72"
+                                       TextWrapping="Wrap"
+                                       Text="Мини-чат ✦ на любой вкладке. Ключ: openrouter.ai/keys. Бесплатно: openrouter/free или meta-llama/llama-3.2-3b-instruct:free" />
+                            <Button Margin="0,10,0,0"
+                                    HorizontalAlignment="Left"
+                                    Padding="12,4"
+                                    Content="Сохранить ключ OpenRouter сейчас"
+                                    Click="SaveOpenRouterSection_OnClick" />
+                        </StackPanel>
                     </Grid>
                 </Border>
 
-                <Button Width="100"
-                        HorizontalAlignment="Right"
-                        Margin="0,12,0,0"
-                        Content="Close"
-                        Click="CloseButton_OnClick" />
+                <Border Margin="0,12,0,0"
+                        Padding="10,8"
+                        Background="#1E2836"
+                        CornerRadius="6">
+                    <TextBlock Text="{Binding SettingsStatusText}"
+                               TextWrapping="Wrap"
+                               FontSize="12"
+                               Opacity="0.9" />
+                </Border>
+
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            Margin="0,10,0,0">
+                    <Button Width="110"
+                            Margin="0,0,8,0"
+                            Content="Сохранить"
+                            Click="SaveButton_OnClick" />
+                    <Button Width="100"
+                            Content="Close"
+                            Click="CloseButton_OnClick" />
+                </StackPanel>
             </StackPanel>
         </Grid>
     </ScrollViewer>

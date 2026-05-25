@@ -9,7 +9,7 @@
         </Grid.ColumnDefinitions>
         <Border Style="{StaticResource PanelCardStyle}" Margin="0,0,12,0">
             <StackPanel>
-                <TextBlock Text="Risk limits (saved to state + disk)" Style="{StaticResource SectionHeaderStyle}" />
+                <TextBlock Text="Risk limits (persisted to disk)" Style="{StaticResource SectionHeaderStyle}" />
                 <TextBlock Text="{Binding EmergencyHaltBanner}"
                            Foreground="{StaticResource Brush.Negative}"
                            FontWeight="Bold"
@@ -37,17 +37,52 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Text="Max Daily Loss %" Foreground="{StaticResource Brush.TextMuted}" Margin="0,8" />
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,8">
+                        <TextBlock Text="Max daily loss %" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+                        <ctrl:HelpHintIcon HelpText="Дневной лимит просадки в процентах от депозита" Margin="6,0,0,0" />
+                    </StackPanel>
                     <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding MaxDailyLossPercentText, UpdateSourceTrigger=PropertyChanged}" Margin="0,4" />
-                    <TextBlock Grid.Row="1" Text="Max Position Size (BTC)" Foreground="{StaticResource Brush.TextMuted}" Margin="0,8" />
-                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding MaxPositionSizeBtcText, UpdateSourceTrigger=PropertyChanged}" Margin="0,4" />
-                    <TextBlock Grid.Row="2" Text="Max Leverage" Foreground="{StaticResource Brush.TextMuted}" Margin="0,8" />
-                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding MaxLeverageText, UpdateSourceTrigger=PropertyChanged}" Margin="0,4" />
-                    <TextBlock Grid.Row="3" Text="Max Exposure %" Foreground="{StaticResource Brush.TextMuted}" Margin="0,8" />
-                    <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding MaxExposurePercentText, UpdateSourceTrigger=PropertyChanged}" Margin="0,4" />
-                    <CheckBox Grid.Row="4" Grid.ColumnSpan="2" Content="Safe Mode" IsChecked="{Binding SafeMode}" Margin="0,12,0,0" Foreground="{StaticResource Brush.Text}" />
-                    <CheckBox Grid.Row="5" Grid.ColumnSpan="2" Content="Auto Shutdown on breach" IsChecked="{Binding AutoShutdown}" Foreground="{StaticResource Brush.Text}" />
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8">
+                        <TextBlock Text="Risk per trade %" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+                        <ctrl:HelpHintIcon HelpText="Максимальный риск на одну сделку в % от депозита (по умолчанию 1%)" Margin="6,0,0,0" />
+                    </StackPanel>
+                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding MaxRiskPerTradePercentText, UpdateSourceTrigger=PropertyChanged}" Margin="0,4" />
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,8">
+                        <TextBlock Text="Max position size (BTC)" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+                        <ctrl:HelpHintIcon HelpText="Абсолютный лимит размера позиции в BTC" Margin="6,0,0,0" />
+                    </StackPanel>
+                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding MaxPositionSizeBtcText, UpdateSourceTrigger=PropertyChanged}" Margin="0,4" />
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,8">
+                        <TextBlock Text="Max leverage" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+                        <ctrl:HelpHintIcon HelpText="Верхний предел кредитного плеча для счёта" Margin="6,0,0,0" />
+                    </StackPanel>
+                    <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding MaxLeverageText, UpdateSourceTrigger=PropertyChanged}" Margin="0,4" />
+                    <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,8">
+                        <TextBlock Text="Max exposure %" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+                        <ctrl:HelpHintIcon HelpText="Максимальная доля капитала в открытых позициях" Margin="6,0,0,0" />
+                    </StackPanel>
+                    <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding MaxExposurePercentText, UpdateSourceTrigger=PropertyChanged}" Margin="0,4" />
+                    <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,8">
+                        <TextBlock Text="TP multiplier (×SL)" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+                        <ctrl:HelpHintIcon HelpText="Take-profit = SL × множитель. По умолчанию 2 (RR 1:2)." Margin="6,0,0,0" />
+                    </StackPanel>
+                    <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding DefaultTakeProfitRrMultiplierText, UpdateSourceTrigger=PropertyChanged}" Margin="0,4" />
+                    <StackPanel Grid.Row="6" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,12,0,0">
+                        <CheckBox Content="Auto SL/TP при открытии" IsChecked="{Binding AutoApplyDefaultSlTp}" Foreground="{StaticResource Brush.Text}" />
+                        <ctrl:HelpHintIcon HelpText="Если SL/TP не указаны при размещении ордера, автоматически выставляются reduce-only стоп-лосс (по риску на сделку) и тейк-профит (= SL × множитель)." Margin="6,0,0,0" />
+                    </StackPanel>
+                    <StackPanel Grid.Row="7" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,12,0,0">
+                        <CheckBox Content="Safe Mode" IsChecked="{Binding SafeMode}" Foreground="{StaticResource Brush.Text}" />
+                        <ctrl:HelpHintIcon HelpText="Разрешены только ордера reduce-only (сокращение позиции)" Margin="6,0,0,0" />
+                    </StackPanel>
+                    <StackPanel Grid.Row="8" Grid.ColumnSpan="2" Orientation="Horizontal">
+                        <CheckBox Content="Auto-shutdown on breach" IsChecked="{Binding AutoShutdown}" Foreground="{StaticResource Brush.Text}" />
+                        <ctrl:HelpHintIcon HelpText="Автоматически останавливать стратегии при превышении лимитов" Margin="6,0,0,0" />
+                    </StackPanel>
                 </Grid>
             </StackPanel>
         </Border>

@@ -11,6 +11,7 @@ public static class TradingPlatformInstructions
         + "- Объяснять устройство платформы (virtual exchange, risk manager, strategy runner, orchestration layer без прямых ордеров).\n\n"
         + "**Торговые действия из чата** — только JSON (без Markdown), один объект на ответ (не для вопросов «баланс»/«сводка» — на них отвечай текстом):\n"
         + "• **Закрыть позицию** (предпочтительно): `{\"skill\":\"trading\",\"action\":\"close_position\",\"symbol\":\"ETHUSDT\"}` — терминал сам возьмёт размер и сторону (Short→Buy RO, Long→Sell RO). **Не** используй place_order с Buy для закрытия шорта.\n"
+        + "• Открыть позицию (лонг/шорт) без стратегии: если цена не указана — **сначала спроси** «По какой цене?»; при ответе «по рыночной» / market — `place_order` Market с `price=0` (исполнение по текущей цене терминала).\n"
         + "• Рыночный/лимит/стоп ордер: `{\"skill\":\"trading\",\"action\":\"place_order\",\"symbol\":\"BTCUSDT\",\"side\":\"Buy\",\"order_type\":\"Market\",\"quantity\":0.01,\"price\":0,\"reduce_only\":false}`\n"
         + "  (Market: price=0; Limit/Stop: price обязателен; side: Buy|Sell; order_type: Market|Limit|Stop; reduce_only=true только для уменьшения существующей позиции)\n"
         + "• Отмена: `{\"skill\":\"trading\",\"action\":\"cancel_order\",\"order_id\":\"o-1001\"}`\n"

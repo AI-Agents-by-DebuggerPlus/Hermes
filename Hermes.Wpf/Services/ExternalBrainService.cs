@@ -17,6 +17,7 @@ public sealed class ExternalBrainService : IDisposable
     private readonly HermesSettings _settings;
     private readonly Dispatcher _dispatcher;
     private readonly MemoryVectorIndex _vectorIndex;
+    private RoleAwareMemoryRouter? _roleRouter;
 
     private readonly object _cacheLock = new();
     private ImmutableList<MemoryItem> _memories = ImmutableList<MemoryItem>.Empty;
@@ -33,12 +34,16 @@ public sealed class ExternalBrainService : IDisposable
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         _vectorIndex = new MemoryVectorIndex(log);
         EnsureDebounceTimer();
-        EnglishLearningVaultPaths.EnsureLayout(ResolveEffectiveMemoryPath());
+        var vault = ResolveEffectiveMemoryPath();
+        EnglishLearningVaultPaths.EnsureLayout(vault);
+        VaultInitializer.EnsureLayout(vault);
         RestartWatcherUnsafe();
         _ = ReloadFromDiskAsync("service-ctor");
     }
 
     public event Action? MemoriesChanged;
+
+    public void SetRoleRouter(RoleAwareMemoryRouter router) => _roleRouter = router;
 
     public string ResolveEffectiveMemoryPath()
     {
@@ -107,7 +112,7 @@ public sealed class ExternalBrainService : IDisposable
         }
 
         var tokens = Tokenize(q);
-        var scored = ScoreMemories(tokens, Snapshot());
+        var scored = MemoryLexicalScorer.Score(tokens, Snapshot());
         return scored
             .OrderByDescending(kv => kv.Score)
             .ThenByDescending(kv => kv.M.Timestamp)
@@ -141,46 +146,63 @@ public sealed class ExternalBrainService : IDisposable
             .ToList());
     }
 
-    public async Task<string> BuildContextAsync(string userQuery, int maxItems)
+    public async Task<string> BuildContextAsync(string userQuery, int maxItems) =>
+        (await BuildContextDetailedAsync(userQuery, maxItems).ConfigureAwait(false)).Block;
+
+    public async Task<(string Block, IReadOnlyList<MemoryItem> Items)> BuildContextDetailedAsync(
+        string userQuery,
+        int maxItems)
     {
         var path = ResolveEffectiveMemoryPath();
         if (string.IsNullOrEmpty(path) || !Directory.Exists(path))
         {
-            return string.Empty;
+            return (string.Empty, []);
         }
 
         var cap = Math.Clamp(maxItems, 1, 20);
         var snap = Snapshot();
         List<MemoryItem> candidates;
+        var poolSize = _roleRouter is not null && _roleRouter.CurrentRole != AgentRole.Universal
+            ? Math.Min(cap * 2, 20)
+            : cap;
 
         if (_settings.ExternalBrainVectorRetrievalEnabled)
         {
-            candidates = await _vectorIndex.SelectTopAsync(userQuery ?? string.Empty, cap, _settings)
+            candidates = await _vectorIndex.SelectTopAsync(userQuery ?? string.Empty, poolSize, _settings)
                 .ConfigureAwait(false);
         }
         else
         {
             var tokens = Tokenize(userQuery ?? string.Empty);
-            candidates = ScoreMemories(tokens, snap)
+            candidates = MemoryLexicalScorer.Score(tokens, snap)
                 .OrderByDescending(kv => kv.Score)
                 .ThenByDescending(kv => kv.M.Timestamp)
                 .ThenByDescending(kv => kv.M.Importance)
-                .Take(cap)
+                .Take(poolSize)
                 .Select(kv => kv.M)
                 .ToList();
         }
 
         if (candidates.Count == 0)
         {
-            candidates = snap.OrderByDescending(m => m.Timestamp).Take(cap).ToList();
+            candidates = snap.OrderByDescending(m => m.Timestamp).Take(poolSize).ToList();
+        }
+
+        if (_roleRouter is not null)
+        {
+            candidates = _roleRouter.FilterAndBoost(candidates, userQuery ?? string.Empty, cap).ToList();
+        }
+        else if (candidates.Count > cap)
+        {
+            candidates = candidates.Take(cap).ToList();
         }
 
         if (candidates.Count == 0)
         {
-            return string.Empty;
+            return (string.Empty, []);
         }
 
-        return FormatContextBlock(candidates);
+        return (FormatContextBlock(candidates), candidates);
     }
 
     private static string FormatContextBlock(IReadOnlyList<MemoryItem> candidates)
@@ -504,45 +526,6 @@ public sealed class ExternalBrainService : IDisposable
             .Where(t => t.Length > 1)
             .Distinct()
             .ToImmutableList();
-    }
-
-    private static IEnumerable<(MemoryItem M, double Score)> ScoreMemories(
-        ImmutableList<string> tokens,
-        ImmutableList<MemoryItem> items)
-    {
-        if (tokens.IsEmpty)
-        {
-            return items.Select(static m => (m, RankMetaOnly(m)));
-        }
-
-        return items.Select(m =>
-        {
-            var hay = (m.Content + "\n" + m.Type + '\n' + m.Project + '\n' + string.Join(' ', m.Tags)).ToLowerInvariant();
-            var file = Path.GetFileName(m.SourceFile).ToLowerInvariant();
-            var relevance = 0.0;
-            foreach (var t in tokens)
-            {
-                if (hay.Contains(t, StringComparison.Ordinal))
-                {
-                    relevance += 3;
-                }
-
-                if (file.Contains(t, StringComparison.Ordinal))
-                {
-                    relevance += 2;
-                }
-
-                if (m.Tags.Exists(tag => tag.Contains(t, StringComparison.Ordinal)))
-                {
-                    relevance += 4;
-                }
-            }
-
-            var imp = Math.Max(1, m.Importance);
-            var rec = RecencyMultiplier(m);
-            var combined = (relevance + 0.01) * (0.45 + imp * 0.25) * rec;
-            return (m, combined);
-        });
     }
 
     private static double RankMetaOnly(MemoryItem m)

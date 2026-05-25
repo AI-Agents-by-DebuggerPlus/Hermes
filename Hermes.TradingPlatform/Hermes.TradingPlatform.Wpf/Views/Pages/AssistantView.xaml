@@ -1,0 +1,109 @@
+<UserControl x:Class="Hermes.TradingPlatform.Wpf.Views.Pages.AssistantView"
+
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+
+             xmlns:ctrl="clr-namespace:Hermes.TradingPlatform.Wpf.Controls">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+
+        <StackPanel MaxWidth="720">
+
+            <TextBlock Text="AI Assistant · OpenRouter"
+
+                       Style="{StaticResource SectionHeaderStyle}"
+
+                       FontSize="16" />
+
+            <TextBlock Text="Direct OpenRouter API (not Google Gemini, not Hermes WSL). Free tier: openrouter/free or meta-llama/llama-3.2-3b-instruct:free"
+
+                       Foreground="{StaticResource Brush.TextMuted}"
+
+                       TextWrapping="Wrap"
+
+                       Margin="0,0,0,12" />
+
+
+
+            <Border Style="{StaticResource PanelCardStyle}" Margin="0,0,0,8">
+
+                <StackPanel>
+
+                    <Grid Margin="0,0,0,8">
+
+                        <Grid.ColumnDefinitions>
+
+                            <ColumnDefinition Width="140" />
+
+                            <ColumnDefinition Width="*" />
+
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+
+                            <TextBlock Text="API key" Foreground="{StaticResource Brush.TextMuted}" />
+
+                            <ctrl:HelpHintIcon HelpText="Ключ sk-or-v1-… с openrouter.ai/keys" Margin="6,0,0,0" />
+
+                        </StackPanel>
+
+                        <TextBox Grid.Column="1" Text="{Binding OpenRouterApiKey, UpdateSourceTrigger=PropertyChanged}" />
+
+                    </Grid>
+
+                    <Grid Margin="0,0,0,8">
+
+                        <Grid.ColumnDefinitions>
+
+                            <ColumnDefinition Width="140" />
+
+                            <ColumnDefinition Width="*" />
+
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+
+                            <TextBlock Text="Model" Foreground="{StaticResource Brush.TextMuted}" />
+
+                            <ctrl:HelpHintIcon HelpText="ID модели OpenRouter, например openrouter/free" Margin="6,0,0,0" />
+
+                        </StackPanel>
+
+                        <TextBox Grid.Column="1" Text="{Binding OpenRouterModel, UpdateSourceTrigger=PropertyChanged}" />
+
+                    </Grid>
+
+                    <StackPanel Orientation="Horizontal">
+
+                        <Button Content="Save OpenRouter"
+
+                                Command="{Binding SaveOpenRouterCommand}"
+
+                                Style="{StaticResource SecondaryButtonStyle}"
+
+                                HorizontalAlignment="Left"
+
+                                Padding="12,6" />
+
+                        <ctrl:HelpHintIcon HelpText="Сохранить ключ и модель в platform-settings.json" Margin="8,0,0,0" />
+
+                    </StackPanel>
+
+                </StackPanel>
+
+            </Border>
+
+
+
+            <Border Padding="12,10" Background="#1A2330" CornerRadius="6" BorderBrush="#2A3A4E" BorderThickness="1" Margin="0,0,0,8">
+
+                <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" Foreground="{StaticResource Brush.TextMuted}" FontSize="12" />
+
+            </Border>
+        </StackPanel>
+
+    </ScrollViewer>
+
+</UserControl>
+

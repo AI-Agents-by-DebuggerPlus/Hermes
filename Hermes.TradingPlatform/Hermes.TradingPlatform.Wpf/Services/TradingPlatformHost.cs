@@ -60,6 +60,7 @@ public sealed class TradingPlatformHost : IDisposable
         var settingsDto = PlatformSettingsStore.Load();
         MarketDataSource = PlatformSettingsFileStore.ParseSource(settingsDto.MarketDataSource);
         HermesOrchestrationEnabled = settingsDto.HermesOrchestrationEnabled;
+        ApplyAccountLeverageFromSettings(settingsDto);
 
         RiskValidator = new RiskValidator();
         Exchange = new VirtualExchangeEngine(StateStore, EventBus, RiskValidator);
@@ -197,12 +198,18 @@ public sealed class TradingPlatformHost : IDisposable
         {
 
             s.Risk.MaxDailyLossPercent = settings.MaxDailyLossPercent;
-
+            s.Risk.MaxRiskPerTradePercent = settings.MaxRiskPerTradePercent;
             s.Risk.MaxPositionSizeBtc = settings.MaxPositionSizeBtc;
 
             s.Risk.MaxLeverage = settings.MaxLeverage;
 
             s.Risk.MaxExposurePercent = settings.MaxExposurePercent;
+
+            s.Risk.DefaultTakeProfitRrMultiplier = settings.DefaultTakeProfitRrMultiplier > 0
+                ? settings.DefaultTakeProfitRrMultiplier
+                : 2m;
+
+            s.Risk.AutoApplyDefaultSlTp = settings.AutoApplyDefaultSlTp;
 
             s.Risk.SafeMode = settings.SafeMode;
 
@@ -225,12 +232,7 @@ public sealed class TradingPlatformHost : IDisposable
         HermesOrchestrationEnabled = enabled;
         HermesOrchestrator.SetEnabled(enabled);
         var current = PlatformSettingsStore.Load();
-        PlatformSettingsStore.Save(new PlatformSettingsDto
-        {
-            MarketDataSource = current.MarketDataSource,
-            HermesOrchestrationEnabled = enabled,
-            TradingSoundsEnabled = current.TradingSoundsEnabled,
-        });
+        PlatformSettingsStore.Save(CopySettings(current, s => s.HermesOrchestrationEnabled = enabled));
 
         EventBus.Publish(new PlatformLogEvent(new PlatformLogEntry
         {
@@ -245,12 +247,8 @@ public sealed class TradingPlatformHost : IDisposable
     {
         MarketDataSource = source;
         var current = PlatformSettingsStore.Load();
-        PlatformSettingsStore.Save(new PlatformSettingsDto
-        {
-            MarketDataSource = PlatformSettingsFileStore.ToStorageValue(source),
-            HermesOrchestrationEnabled = current.HermesOrchestrationEnabled,
-            TradingSoundsEnabled = current.TradingSoundsEnabled,
-        });
+        PlatformSettingsStore.Save(CopySettings(current, s =>
+            s.MarketDataSource = PlatformSettingsFileStore.ToStorageValue(source)));
 
 
 
@@ -296,7 +294,7 @@ public sealed class TradingPlatformHost : IDisposable
 
         _activeFeed = MarketDataSource == MarketDataSource.BinanceFutures
 
-            ? new BinanceFuturesMarketDataFeed(EventBus, symbols)
+            ? new BinanceFuturesMarketDataFeed(EventBus, symbols, TradingPlatformFileLogger.Instance.Info)
 
             : new MockMarketDataFeed(EventBus, seed);
 
@@ -332,6 +330,18 @@ public sealed class TradingPlatformHost : IDisposable
 
 
 
+    public void ClearPlatformLogs()
+    {
+        StateStore.Mutate(s => s.Logs.Clear());
+        EventBus.Publish(new PlatformLogEvent(new PlatformLogEntry
+        {
+            Timestamp = DateTimeOffset.UtcNow,
+            EventType = "System",
+            Source = "Platform",
+            Message = "Logs cleared.",
+        }));
+    }
+
     public void EmergencyStop(string reason)
 
     {
@@ -365,12 +375,86 @@ public sealed class TradingPlatformHost : IDisposable
     public void SetTradingSoundsEnabled(bool enabled)
     {
         var current = PlatformSettingsStore.Load();
-        PlatformSettingsStore.Save(new PlatformSettingsDto
+        PlatformSettingsStore.Save(CopySettings(current, s => s.TradingSoundsEnabled = enabled));
+    }
+
+    public void SetInAppAssistantSettings(string apiKey, string model)
+    {
+        var current = PlatformSettingsStore.Load();
+        PlatformSettingsStore.Save(CopySettings(current, s =>
+        {
+            s.InAppAssistantOpenRouterApiKey = apiKey?.Trim() ?? string.Empty;
+            s.InAppAssistantOpenRouterModel = string.IsNullOrWhiteSpace(model) ? "openrouter/free" : model.Trim();
+        }));
+    }
+
+    public void SaveAccountSettings(decimal initialBalance, decimal accountLeverage, string leverageMode)
+    {
+        var current = PlatformSettingsStore.Load();
+        PlatformSettingsStore.Save(CopySettings(current, s =>
+        {
+            s.InitialAccountBalance = initialBalance;
+            s.AccountLeverage = accountLeverage;
+            s.LeverageMode = string.IsNullOrWhiteSpace(leverageMode) ? "Fixed" : leverageMode.Trim();
+        }));
+        ApplyAccountLeverageFromSettings(PlatformSettingsStore.Load());
+    }
+
+    public void ResetPaperAccount()
+    {
+        var settings = PlatformSettingsStore.Load();
+        var leverage = ResolveEffectiveLeverage(settings);
+        var clean = InitialTradingSeed.CreateClean(settings.InitialAccountBalance, leverage);
+
+        StateStore.Initialize(clean);
+        Exchange.RestoreOrderSequence(1000);
+        JournalFileWriter.Clear();
+        SessionStateStore.Save(StateStore.Snapshot, Exchange.NextOrderSequence);
+
+        EventBus.Publish(new PlatformLogEvent(new PlatformLogEntry
+        {
+            Timestamp = DateTimeOffset.UtcNow,
+            EventType = "System",
+            Source = "Platform",
+            Message = $"Paper account reset: balance={settings.InitialAccountBalance:N2}, leverage={leverage:F1}x",
+        }));
+    }
+
+    private void ApplyAccountLeverageFromSettings(PlatformSettingsDto settings)
+    {
+        var leverage = ResolveEffectiveLeverage(settings);
+        StateStore.Mutate(s => s.Account.Leverage = leverage);
+    }
+
+    private decimal ResolveEffectiveLeverage(PlatformSettingsDto settings)
+    {
+        if (string.Equals(settings.LeverageMode, "Maximum", StringComparison.OrdinalIgnoreCase))
+        {
+            return StateStore.Snapshot.Risk.MaxLeverage;
+        }
+
+        return settings.AccountLeverage > 0 ? settings.AccountLeverage : 3m;
+    }
+
+    private static PlatformSettingsDto CopySettings(
+        PlatformSettingsDto current,
+        Action<PlatformSettingsDto>? mutate)
+    {
+        var copy = new PlatformSettingsDto
         {
             MarketDataSource = current.MarketDataSource,
             HermesOrchestrationEnabled = current.HermesOrchestrationEnabled,
-            TradingSoundsEnabled = enabled,
-        });
+            TradingSoundsEnabled = current.TradingSoundsEnabled,
+            InAppAssistantOpenRouterApiKey = current.InAppAssistantOpenRouterApiKey,
+            InAppAssistantOpenRouterModel = string.IsNullOrWhiteSpace(current.InAppAssistantOpenRouterModel)
+                ? "openrouter/free"
+                : current.InAppAssistantOpenRouterModel,
+            InitialAccountBalance = current.InitialAccountBalance,
+            AccountLeverage = current.AccountLeverage,
+            LeverageMode = string.IsNullOrWhiteSpace(current.LeverageMode) ? "Fixed" : current.LeverageMode,
+        };
+        mutate?.Invoke(copy);
+        return copy;
     }
 
     public void Dispose()

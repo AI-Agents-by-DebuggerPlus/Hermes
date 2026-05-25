@@ -22,7 +22,16 @@
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
     <ProjectReference Include="..\Hermes.TradingPlatform\Hermes.TradingPlatform.Shared\Hermes.TradingPlatform.Shared.csproj" />
+    <ProjectReference Include="..\Hermes.InAppAssistant.Wpf\Hermes.InAppAssistant.Wpf.csproj" />
   </ItemGroup>
+
+  <!-- WPF MarkupCompilePass1 loads referenced control assemblies from bin/{Configuration}; build them first. -->
+  <Target Name="BuildInAppAssistantBeforeMarkupCompile"
+          BeforeTargets="MarkupCompilePass1"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <MSBuild Projects="..\Hermes.InAppAssistant.Wpf\Hermes.InAppAssistant.Wpf.csproj"
+             Properties="Configuration=$(Configuration);Platform=$(Platform)" />
+  </Target>
 
   <Target Name="CopyWpGalleryToolToWpfOut" AfterTargets="Build">
     <PropertyGroup>

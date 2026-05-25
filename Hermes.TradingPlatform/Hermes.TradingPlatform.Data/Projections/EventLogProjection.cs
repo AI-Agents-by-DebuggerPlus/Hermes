@@ -25,13 +25,8 @@ public sealed class EventLogProjection
 
         var entry = platformEvent switch
         {
-            MarketTickEvent tick => new PlatformLogEntry
-            {
-                Timestamp = tick.OccurredAt,
-                EventType = "Market",
-                Source = "MockFeed",
-                Message = $"{tick.Symbol} {tick.Price:N2}",
-            },
+            // Ticks update tickers/positions via MarketTickProjection; skip per-tick log (live Binance is high-frequency).
+            MarketTickEvent => null,
             OrderPlacedEvent placed => new PlatformLogEntry
             {
                 Timestamp = placed.OccurredAt,

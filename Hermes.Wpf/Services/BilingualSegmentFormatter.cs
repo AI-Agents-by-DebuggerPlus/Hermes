@@ -24,7 +24,10 @@ public static class BilingualSegmentFormatter
 
     private static readonly Regex CollapseSpaces = new(@"\s+", RegexOptions.Compiled);
 
-    /// <summary>True when content must be stored verbatim (flashcards JSON, skill JSON).</summary>
+    /// <summary>Collapses 4+ spaces; preserves intentional TTS pause "   ".</summary>
+    private static readonly Regex CollapseLongSpaces = new(@" {4,}", RegexOptions.Compiled);
+
+    /// <summary>True when content must be stored verbatim (flashcards, skill JSON, Android TTS lines).</summary>
     public static bool ShouldPublishAsRawJson(string? text)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -33,6 +36,11 @@ public static class BilingualSegmentFormatter
         }
 
         var t = text.Trim();
+        if (LooksLikeAndroidTtsSentenceLines(t))
+        {
+            return true;
+        }
+
         if (!t.StartsWith('{') || !t.EndsWith('}'))
         {
             return false;
@@ -43,12 +51,43 @@ public static class BilingualSegmentFormatter
             return true;
         }
 
-        if (HermesWpfSessionContextPayload.IsSessionPayload(t))
+        return LooksLikeBilingualPayload(t);
+    }
+
+    /// <summary>Normalize Android TTS: trim lines, drop empty.</summary>
+    public static string NormalizeAndroidTtsSentenceLines(string text)
+    {
+        var lines = text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return string.Join('\n', lines.Where(l => l.Length > 0));
+    }
+
+    private static bool LooksLikeAndroidTtsSentenceLines(string text)
+    {
+        var lines = text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (lines.Length == 0)
         {
-            return true;
+            return false;
         }
 
-        return LooksLikeBilingualPayload(t);
+        foreach (var line in lines)
+        {
+            if (!line.StartsWith('{') || !line.EndsWith('}'))
+            {
+                return false;
+            }
+
+            if (FlashcardTypeRegex.IsMatch(line) || SkillIntentRegex.IsMatch(line))
+            {
+                return false;
+            }
+
+            if (!line.Contains("\"ru\"", StringComparison.Ordinal) && !line.Contains("\"en\"", StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>Builds {"ru":"…","en":"…",…} with duplicate keys allowed (manual JSON).</summary>
@@ -59,12 +98,14 @@ public static class BilingualSegmentFormatter
             return "{}";
         }
 
+        var trimmed = plainText.Trim();
         if (ShouldPublishAsRawJson(plainText))
         {
-            return plainText.Trim();
+            return LooksLikeAndroidTtsSentenceLines(trimmed)
+                ? NormalizeAndroidTtsSentenceLines(trimmed)
+                : trimmed;
         }
 
-        var trimmed = plainText.Trim();
         var segments = CoalesceAdjacent(SegmentByScript(trimmed));
         segments = SanitizeVoiceSegments(segments);
 
@@ -132,9 +173,11 @@ public static class BilingualSegmentFormatter
             .Replace("“", string.Empty, StringComparison.Ordinal)
             .Replace("”", string.Empty, StringComparison.Ordinal)
             .Replace("•", ", ", StringComparison.Ordinal)
-            .Replace("·", ", ", StringComparison.Ordinal);
+            .Replace("·", ", ", StringComparison.Ordinal)
+            .Replace("—", " ", StringComparison.Ordinal)
+            .Replace("-", " ", StringComparison.Ordinal);
 
-        s = CollapseSpaces.Replace(s, " ").Trim();
+        s = CollapseLongSpaces.Replace(s, " ").Trim();
 
         // Trailing orphan punctuation after guillemet removal (e.g. "Запланировано:" → keep colon for natural pause)
         return s;
@@ -162,6 +205,78 @@ public static class BilingualSegmentFormatter
         }
 
         return merged;
+    }
+
+    /// <summary>Plain voice text from a single-language or ru/en JSON object (no "type" / skill keys).</summary>
+    public static string? TryExtractVoicePlainText(string? content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return null;
+        }
+
+        var t = content.Trim();
+        if (!t.StartsWith("{", StringComparison.Ordinal))
+        {
+            return t;
+        }
+
+        if (LooksLikeAndroidTtsSentenceLines(t))
+        {
+            var parts = new List<string>();
+            foreach (var line in t.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                var piece = TryExtractSingleObjectVoicePlainText(line);
+                if (!string.IsNullOrWhiteSpace(piece))
+                {
+                    parts.Add(piece);
+                }
+            }
+
+            return parts.Count > 0 ? string.Join(" ", parts) : null;
+        }
+
+        return TryExtractSingleObjectVoicePlainText(t);
+    }
+
+    private static string? TryExtractSingleObjectVoicePlainText(string t)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(t);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            if (doc.RootElement.TryGetProperty("type", out _))
+            {
+                return null;
+            }
+
+            var parts = new List<string>();
+            foreach (var prop in doc.RootElement.EnumerateObject())
+            {
+                if (prop.NameEquals("ru") || prop.NameEquals("en"))
+                {
+                    var v = prop.Value.GetString();
+                    if (!string.IsNullOrWhiteSpace(v))
+                    {
+                        parts.Add(v);
+                    }
+                }
+                else
+                {
+                    return null;
+                }
+            }
+
+            return parts.Count > 0 ? string.Join(" ", parts) : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static bool LooksLikeBilingualPayload(string json)
@@ -245,4 +360,4 @@ public static class BilingualSegmentFormatter
         ch is >= '\u0400' and <= '\u04FF'
         or >= '\u0500' and <= '\u052F';
 }
-
+

@@ -20,6 +20,14 @@ public sealed class TradeJournalFileWriter
         FilePath = filePath ?? Path.Combine(dir, "trade_journal.jsonl");
     }
 
+    public void Clear()
+    {
+        lock (Sync)
+        {
+            File.WriteAllText(FilePath, string.Empty, Utf8);
+        }
+    }
+
     public string FilePath { get; }
 
     public void Append(TradeJournalEntry entry)

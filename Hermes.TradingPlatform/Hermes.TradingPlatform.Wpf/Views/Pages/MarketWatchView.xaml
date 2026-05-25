@@ -2,12 +2,12 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <StackPanel>
-        <TextBlock Text="Market Watch · быстрые market Long/Short и закрытие позиции по строке"
+        <TextBlock Text="Market Watch · quick market Long/Short and row close"
                    Foreground="{StaticResource Brush.TextMuted}"
                    Margin="0,0,0,12" />
         <Border Style="{StaticResource PanelCardStyle}" Margin="0,0,0,8" Padding="12">
             <StackPanel Orientation="Horizontal">
-                <TextBlock Text="Qty для новых ордеров:" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+                <TextBlock Text="Qty for new orders:" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
                 <TextBox Width="100" Margin="8,0,0,0"
                          Text="{Binding TradeQuantityText, UpdateSourceTrigger=PropertyChanged}" />
             </StackPanel>

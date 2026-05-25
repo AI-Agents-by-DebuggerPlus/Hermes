@@ -1,0 +1,156 @@
+<UserControl x:Class="Hermes.TradingPlatform.Wpf.Views.Pages.AccountSettingsView"
+
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+
+             xmlns:ctrl="clr-namespace:Hermes.TradingPlatform.Wpf.Controls">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+
+        <StackPanel MaxWidth="640">
+
+            <TextBlock Text="Paper trading account"
+
+                       Style="{StaticResource SectionHeaderStyle}"
+
+                       FontSize="16"
+
+                       Margin="0,0,0,8" />
+
+            <TextBlock Text="Reset balance and leverage settings. Current account values are read-only."
+
+                       Foreground="{StaticResource Brush.TextMuted}"
+
+                       TextWrapping="Wrap"
+
+                       Margin="0,0,0,16" />
+
+
+
+            <Border Style="{StaticResource PanelCardStyle}" Margin="0,0,0,12">
+
+                <Grid>
+
+                    <Grid.ColumnDefinitions>
+
+                        <ColumnDefinition Width="200" />
+
+                        <ColumnDefinition Width="*" />
+
+                    </Grid.ColumnDefinitions>
+
+                    <Grid.RowDefinitions>
+
+                        <RowDefinition Height="Auto" />
+
+                        <RowDefinition Height="Auto" />
+
+                        <RowDefinition Height="Auto" />
+
+                        <RowDefinition Height="Auto" />
+
+                        <RowDefinition Height="Auto" />
+
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,8">
+
+                        <TextBlock Text="Current balance" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+
+                        <ctrl:HelpHintIcon HelpText="Баланс бумажного счёта сейчас" Margin="6,0,0,0" />
+
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding CurrentBalanceText}" FontSize="18" Margin="0,8" />
+
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8">
+
+                        <TextBlock Text="Current leverage" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+
+                        <ctrl:HelpHintIcon HelpText="Активное кредитное плечо счёта" Margin="6,0,0,0" />
+
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding CurrentLeverageText, StringFormat={}{0}x}" FontSize="18" Margin="0,8" />
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,8">
+
+                        <TextBlock Text="Reset balance" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+
+                        <ctrl:HelpHintIcon HelpText="Начальный баланс после сброса бумажного счёта" Margin="6,0,0,0" />
+
+                    </StackPanel>
+
+                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding InitialBalanceText, UpdateSourceTrigger=PropertyChanged}" Margin="0,8" />
+
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,8">
+
+                        <TextBlock Text="Leverage" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+
+                        <ctrl:HelpHintIcon HelpText="Плечо счёта в режиме «фиксированное»" Margin="6,0,0,0" />
+
+                    </StackPanel>
+
+                    <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding AccountLeverageText, UpdateSourceTrigger=PropertyChanged}" Margin="0,8" />
+
+                    <StackPanel Grid.Row="4" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,10,0,0">
+
+                        <RadioButton Content="Fixed" IsChecked="{Binding LeverageModeFixed}" Margin="0,0,4,0" />
+
+                        <ctrl:HelpHintIcon HelpText="Использовать указанное плечо" Margin="0,0,16,0" />
+
+                        <RadioButton Content="Maximum" IsChecked="{Binding LeverageModeMaximum}" Margin="0,0,4,0" />
+
+                        <ctrl:HelpHintIcon HelpText="Использовать макс. плечо из Risk Manager" />
+
+                    </StackPanel>
+
+                </Grid>
+
+            </Border>
+
+
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+
+                <Button Content="Save account settings"
+
+                        Command="{Binding SaveAccountSettingsCommand}"
+
+                        Style="{StaticResource SecondaryButtonStyle}"
+
+                        Padding="12,6"
+
+                        Margin="0,0,4,0" />
+
+                <ctrl:HelpHintIcon HelpText="Сохранить баланс сброса и режим плеча" Margin="0,0,8,0" />
+
+                <Button Content="Reset account"
+
+                        Command="{Binding ResetPaperAccountCommand}"
+
+                        Style="{StaticResource DangerButtonStyle}"
+
+                        Padding="12,6"
+
+                        Margin="0,0,4,0" />
+
+                <ctrl:HelpHintIcon HelpText="Удалить позиции, ордера и журнал; восстановить баланс" />
+
+            </StackPanel>
+
+
+
+            <Border Padding="12,10" Background="#1A2330" CornerRadius="6" BorderBrush="#2A3A4E" BorderThickness="1">
+
+                <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" Foreground="{StaticResource Brush.TextMuted}" />
+
+            </Border>
+
+        </StackPanel>
+
+    </ScrollViewer>
+
+</UserControl>
+

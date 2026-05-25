@@ -23,9 +23,12 @@ public sealed class RiskProfileFileStore
         var model = new RiskProfileFileModel
         {
             MaxDailyLossPercent = risk.MaxDailyLossPercent,
+            MaxRiskPerTradePercent = risk.MaxRiskPerTradePercent,
             MaxPositionSizeBtc = risk.MaxPositionSizeBtc,
             MaxLeverage = risk.MaxLeverage,
             MaxExposurePercent = risk.MaxExposurePercent,
+            DefaultTakeProfitRrMultiplier = risk.DefaultTakeProfitRrMultiplier,
+            AutoApplyDefaultSlTp = risk.AutoApplyDefaultSlTp,
             SafeMode = risk.SafeMode,
             AutoShutdown = risk.AutoShutdown,
             EmergencyHalt = risk.EmergencyHalt,
@@ -61,9 +64,14 @@ public sealed class RiskProfileFileStore
     private static void ApplyTo(RiskProfileFileModel file, RiskProfile risk)
     {
         risk.MaxDailyLossPercent = file.MaxDailyLossPercent;
+        risk.MaxRiskPerTradePercent = file.MaxRiskPerTradePercent > 0 ? file.MaxRiskPerTradePercent : 1m;
         risk.MaxPositionSizeBtc = file.MaxPositionSizeBtc;
         risk.MaxLeverage = file.MaxLeverage;
         risk.MaxExposurePercent = file.MaxExposurePercent;
+        risk.DefaultTakeProfitRrMultiplier = file.DefaultTakeProfitRrMultiplier > 0
+            ? file.DefaultTakeProfitRrMultiplier
+            : 2m;
+        risk.AutoApplyDefaultSlTp = file.AutoApplyDefaultSlTp;
         risk.SafeMode = file.SafeMode;
         risk.AutoShutdown = file.AutoShutdown;
         risk.EmergencyHalt = file.EmergencyHalt;
@@ -72,9 +80,12 @@ public sealed class RiskProfileFileStore
     private sealed class RiskProfileFileModel
     {
         public decimal MaxDailyLossPercent { get; set; } = 5m;
+        public decimal MaxRiskPerTradePercent { get; set; } = 1m;
         public decimal MaxPositionSizeBtc { get; set; } = 0.5m;
         public decimal MaxLeverage { get; set; } = 5m;
         public decimal MaxExposurePercent { get; set; } = 50m;
+        public decimal DefaultTakeProfitRrMultiplier { get; set; } = 2m;
+        public bool AutoApplyDefaultSlTp { get; set; } = true;
         public bool SafeMode { get; set; } = true;
         public bool AutoShutdown { get; set; } = true;
         public bool EmergencyHalt { get; set; }

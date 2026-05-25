@@ -4,9 +4,12 @@ namespace Hermes.TradingPlatform.Shared.Risk;
 public sealed class RiskProfileSettingsDto
 {
     public decimal MaxDailyLossPercent { get; init; }
+    public decimal MaxRiskPerTradePercent { get; init; }
     public decimal MaxPositionSizeBtc { get; init; }
     public decimal MaxLeverage { get; init; }
     public decimal MaxExposurePercent { get; init; }
+    public decimal DefaultTakeProfitRrMultiplier { get; init; } = 2m;
+    public bool AutoApplyDefaultSlTp { get; init; } = true;
     public bool SafeMode { get; init; }
     public bool AutoShutdown { get; init; }
     public bool EmergencyHalt { get; init; }

@@ -10,6 +10,8 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using Hermes.DesktopCapture.Models;
+using Hermes.InAppAssistant;
+using Hermes.InAppAssistant.Wpf;
 using Hermes.TradingPlatform.Shared.Bridge;
 using Hermes.Wpf.Commands;
 using Hermes.Wpf.Models;
@@ -56,6 +58,8 @@ public sealed class MainViewModel : BaseViewModel
     private readonly WslAgentMemoryService _wslAgentMemoryService;
     private readonly MemoryExtractorService _memoryExtractor = new();
     private MemoryDraft? _lastExperienceDraft;
+    private int _lastRoleMemoryCount;
+    private IReadOnlyList<string> _lastRoleMemoryTags = [];
     private readonly EnglishTutorVocabularyStore _englishTutorVocabulary = new();
     private readonly EnglishTutorObsidianExporter _englishTutorExporter;
     private Action? _saveExperienceOpener;
@@ -65,6 +69,7 @@ public sealed class MainViewModel : BaseViewModel
     private readonly DesktopScreenContextStore _desktopScreenContext = new();
     private readonly HermesGalleryPublisher _hermesGalleryPublisher;
     private readonly TradingPlatformBridgeService _tradingBridge;
+    private readonly TradingManualOrderHandler _tradingManualOrder;
 
     public HermesGalleryPublisher GalleryPublisher => _hermesGalleryPublisher;
     private readonly ReniWaterScriptService _reniWater;
@@ -74,6 +79,12 @@ public sealed class MainViewModel : BaseViewModel
     private readonly SkillGenerationService _skillGeneration;
     private readonly GeneratedSkillVaultSyncService _skillVaultSync;
     private readonly GeneratedSkillIndexService _skillIndex;
+    private readonly RoleAwareMemoryRouter _roleMemoryRouter;
+    private readonly RoleSkillIndex _roleSkillIndex;
+    private readonly RoleManager _roleManager;
+    private readonly RoleContextBlockService _roleContextBlockService;
+    private readonly RoleExperienceCapture _roleExperienceCapture;
+    private readonly TradingExperienceExporter _tradingExperienceExporter;
     private readonly GeneratedSkillTaskMatcher _skillTaskMatcher;
     public GeneratedSkillsViewModel GeneratedSkills { get; }
     private readonly DispatcherTimer _watchdogTimer;
@@ -119,8 +130,16 @@ public sealed class MainViewModel : BaseViewModel
     private string _flashcardStatusText = string.Empty;
     private bool _flashcardDotPulse;
     private bool _pendingTradingModeSwitch;
+    private string? _pendingTradingModeOriginalPayload;
+    private bool _skipTradingModeGateOnce;
     private string? _lastPublishedSessionFingerprint;
+    private readonly SemaphoreSlim _sessionPublishLock = new(1, 1);
     private string _chatModeStatusText = string.Empty;
+    private bool _startupModeNoticePending = true;
+    private bool _suppressRoleChangeModeNotice;
+    private bool _startupSupabaseNotificationSent;
+    private readonly AppAssistantService _appAssistantService;
+    private readonly WpfInAppAssistantContextProvider _assistantContextProvider;
 
     private static readonly Regex HermesStreamLikelyToolActivity = new(
         @"tool_calls?|tool_use|""name""\s*:\s*""|run_terminal|execute_command|function_call|Writing file|Edited file|Applying patch|pwsh|powershell|bash\s+-lc|"
@@ -147,6 +166,14 @@ public sealed class MainViewModel : BaseViewModel
         _settingsService = settingsService;
         Settings = settings;
         _externalBrain = externalBrain;
+        _roleMemoryRouter = new RoleAwareMemoryRouter();
+        _externalBrain.SetRoleRouter(_roleMemoryRouter);
+        _roleSkillIndex = new RoleSkillIndex(_logService);
+        _roleManager = new RoleManager(_logService, () => Settings, _roleMemoryRouter, _roleSkillIndex);
+        _roleContextBlockService = new RoleContextBlockService(() => Settings);
+        _roleExperienceCapture = new RoleExperienceCapture(_logService, () => Settings);
+        _tradingExperienceExporter = new TradingExperienceExporter(_logService, () => Settings, () => _externalBrain);
+        _roleManager.RoleChanged += (_, e) => OnAgentRoleChanged(e);
         _wslAgentMemorySync = new WslAgentMemorySyncService(_logService);
         _platformKnowledgeSync = new HermesPlatformKnowledgeSyncService(_logService);
         _wslAgentMemoryService = new WslAgentMemoryService();
@@ -162,6 +189,8 @@ public sealed class MainViewModel : BaseViewModel
         _desktopVisionSkill = new DesktopVisionSkill(_hermesService, logService, _projectService, () => Settings);
         _hermesGalleryPublisher = new HermesGalleryPublisher(logService, () => Settings);
         _tradingBridge = new TradingPlatformBridgeService(logService, () => Settings);
+        _tradingManualOrder = new TradingManualOrderHandler(_tradingBridge, logService);
+        _tradingExperienceExporter.AttachToBridge(_tradingBridge);
         _reniWater = new ReniWaterScriptService(logService, () => Settings);
         _reniWater.OutputReceived += line => AppendTerminal($"[reni-water] {line}");
         _reniWaterSchedule = new ReniWaterScheduleSkill(
@@ -172,7 +201,7 @@ public sealed class MainViewModel : BaseViewModel
         var skillSandbox = new SkillSandboxService(_logService, _generatedSkillRunner);
         _skillVaultSync = new GeneratedSkillVaultSyncService(_logService);
         _skillIndex = new GeneratedSkillIndexService(_logService);
-        _skillTaskMatcher = new GeneratedSkillTaskMatcher(_logService);
+        _skillTaskMatcher = new GeneratedSkillTaskMatcher(_logService, _roleSkillIndex);
         _generatedSkillCatalog = new GeneratedSkillCatalogService(() => Settings);
         _skillGeneration = new SkillGenerationService(
             _logService,
@@ -183,6 +212,18 @@ public sealed class MainViewModel : BaseViewModel
         _chatFontSize = ClampChatFontForUi(Settings.ChatFontSize);
         Settings.ChatFontSize = _chatFontSize;
         Chat = new ChatViewModel();
+        var assistantContext = new WpfInAppAssistantContextProvider(BuildInAppAssistantLiveContext);
+        _assistantContextProvider = assistantContext;
+        _appAssistantService = new AppAssistantService(logger: new WpfAppAssistantLogger(_logService));
+        InAppAssistant = new MiniAssistantViewModel(
+            _appAssistantService,
+            () => new AppAssistantOptions
+            {
+                ApplicationId = AppAssistantKnowledge.HermesWpfId,
+                OpenRouterApiKey = Settings.InAppAssistantOpenRouterApiKey,
+                Model = Settings.InAppAssistantOpenRouterModel,
+            },
+            assistantContext);
         Projects = new ProjectViewModel();
         GeneratedSkills = new GeneratedSkillsViewModel(
             _generatedSkillCatalog,
@@ -202,6 +243,9 @@ public sealed class MainViewModel : BaseViewModel
             });
         _generatedSkillCatalog.CatalogChanged += OnGeneratedSkillsCatalogChanged;
         _generatedSkillCatalog.Reload();
+        VaultInitializer.EnsureLayout(_externalBrain.ResolveEffectiveMemoryPath());
+        _ = _roleSkillIndex.LoadAsync();
+        _roleSkillIndex.Rebuild(_generatedSkillCatalog.Skills);
         Projects.PropertyChanged += async (_, args) =>
         {
             if (args.PropertyName != nameof(ProjectViewModel.SelectedProject))
@@ -273,6 +317,9 @@ public sealed class MainViewModel : BaseViewModel
         _flashcardSkill.StatusChanged += FlashcardSkill_OnStatusChanged;
         _flashcardSkill.DelayTick += FlashcardSkill_OnDelayTick;
         StopFlashcardsCommand = new RelayCommand(_ => StopFlashcardsInternal(), _ => _flashcardSkill.Status != FlashcardStatus.Idle);
+
+        _roleManager.LoadCurrentRoleFromSettings();
+        ApplyAgentRoleToLegacySettings(_roleManager.CurrentRole);
 
         SubmitReniWaterCommand = new RelayCommand(
             async _ => await RunReniWaterSubmitUiAsync(),
@@ -462,6 +509,26 @@ public sealed class MainViewModel : BaseViewModel
     public bool IsEnglishTutorStatusVisible =>
         EnglishTutorModeEnabled && !TradingModeEnabled && _flashcardSkill.Status == FlashcardStatus.Idle;
 
+    public IEnumerable<AgentRole> AvailableAgentRoles => RoleManager.AllRoles;
+
+    public AgentRole CurrentAgentRole
+    {
+        get => _roleManager.CurrentRole;
+        set
+        {
+            if (_roleManager.CurrentRole == value)
+            {
+                return;
+            }
+
+            _roleManager.SwitchRole(value);
+        }
+    }
+
+    public string CurrentAgentRoleDisplay => RoleManager.DisplayName(_roleManager.CurrentRole);
+
+    public string CurrentAgentRoleColor => RoleManager.ColorHex(_roleManager.CurrentRole);
+
     /// <summary>Persisted режим трейдинга; «трейдинг»/«trading» — вход, «режим агента» — выход.</summary>
     public bool TradingModeEnabled
     {
@@ -474,6 +541,11 @@ public sealed class MainViewModel : BaseViewModel
             }
 
             Settings.TradingModeEnabled = value;
+            if (value)
+            {
+                Settings.AssistantModeEnabled = false;
+            }
+
             if (value && _tradingBridge.IsIntegrationEnabled)
             {
                 _tradingBridge.EnsureTerminalRunning(force: true);
@@ -485,7 +557,6 @@ public sealed class MainViewModel : BaseViewModel
             RaisePropertyChanged(nameof(IsTradingModeStatusVisible));
             RaisePropertyChanged(nameof(IsEnglishTutorStatusVisible));
             RefreshChatModeStatusUi();
-            _ = PublishSessionContextToSupabaseIfChangedAsync("trading-mode");
         }
     }
 
@@ -496,6 +567,40 @@ public sealed class MainViewModel : BaseViewModel
 
     public bool IsTradingModeStatusVisible =>
         TradingModeEnabled && _flashcardSkill.Status == FlashcardStatus.Idle;
+
+    /// <summary>Main chat routes to OpenRouter assistant instead of WSL hermes.</summary>
+    public bool AssistantModeEnabled
+    {
+        get => Settings.AssistantModeEnabled;
+        private set
+        {
+            if (Settings.AssistantModeEnabled == value)
+            {
+                return;
+            }
+
+            Settings.AssistantModeEnabled = value;
+            if (value)
+            {
+                Settings.TradingModeEnabled = false;
+                Settings.EnglishTutorModeEnabled = false;
+                _flashcardSkill.Stop();
+            }
+
+            RaisePropertyChanged(nameof(AssistantModeEnabled));
+            RaisePropertyChanged(nameof(AssistantModeStatusRibbonText));
+            RaisePropertyChanged(nameof(IsAssistantModeStatusVisible));
+            RefreshChatModeStatusUi();
+        }
+    }
+
+    public string AssistantModeStatusRibbonText =>
+        AssistantModeEnabled
+            ? "🤖 Режим ассистента · OpenRouter · «режим агента» — Hermes WSL"
+            : string.Empty;
+
+    public bool IsAssistantModeStatusVisible =>
+        AssistantModeEnabled && _flashcardSkill.Status == FlashcardStatus.Idle;
 
     public string ChatModeStatusText
     {
@@ -611,6 +716,19 @@ public sealed class MainViewModel : BaseViewModel
             blocks.Add(externalBrainContextBlock.Trim());
         }
 
+        if (_roleContextBlockService.IsEnabled && _roleManager.CurrentRole != AgentRole.Universal)
+        {
+            var roleBlock = _roleContextBlockService.BuildRoleContextBlock(
+                _roleManager.CurrentRole,
+                _roleManager.CurrentSession,
+                _lastRoleMemoryCount,
+                _lastRoleMemoryTags);
+            if (!string.IsNullOrWhiteSpace(roleBlock))
+            {
+                blocks.Add(roleBlock);
+            }
+        }
+
         if (englishTutor.ExitedThisTurn)
         {
             blocks.Add(EnglishTutorPromptDefaults.OutboundExitNudge);
@@ -657,6 +775,10 @@ public sealed class MainViewModel : BaseViewModel
         if (Settings.SupabaseRelayEnabled)
         {
             blocks.Add(FlashcardRelayInstructions.OutboundBlockRu);
+            if (!Settings.EnglishTutorModeEnabled && !Settings.TradingModeEnabled)
+            {
+                blocks.Add(AndroidTtsSupabaseInstructions.OutboundBlockRu);
+            }
         }
 
         if (Settings.SkillGenerationEnabled)
@@ -730,8 +852,52 @@ public sealed class MainViewModel : BaseViewModel
         RaisePropertyChanged(nameof(AgentSkills));
         GeneratedSkills.Refresh();
         _skillTaskMatcher.Rebuild(_generatedSkillCatalog.Skills);
+        _roleSkillIndex.Rebuild(_generatedSkillCatalog.Skills);
         _skillIndex.WriteIndex(Settings, _generatedSkillCatalog.Skills);
         _skillVaultSync.SyncAll(_externalBrain, _generatedSkillCatalog.Skills);
+    }
+
+    private void OnAgentRoleChanged(RoleChangedEventArgs e)
+    {
+        ApplyAgentRoleToLegacySettings(e.Current);
+        if (e.Current == AgentRole.Trader && _tradingBridge.IsIntegrationEnabled)
+        {
+            _tradingBridge.EnsureTerminalRunning(force: true);
+            _logService.LogInfo("[role-manager] Trader — auto-launch terminal");
+        }
+
+        if (!_suppressRoleChangeModeNotice && Projects.SelectedProject is { Name: var projectName })
+        {
+            PostModeStatusNotice(projectName);
+        }
+
+        _suppressRoleChangeModeNotice = false;
+
+        _ = _roleManager.SaveCurrentRoleAsync();
+        _ = PublishSessionContextToSupabaseIfChangedAsync("role-changed");
+    }
+
+    private void ApplyAgentRoleToLegacySettings(AgentRole role)
+    {
+        Settings.TradingModeEnabled = role == AgentRole.Trader;
+        Settings.EnglishTutorModeEnabled = role == AgentRole.EnglishTutor;
+        if (role is AgentRole.Trader or AgentRole.EnglishTutor)
+        {
+            Settings.AssistantModeEnabled = false;
+        }
+
+        _roleMemoryRouter.CurrentRole = role;
+        RaisePropertyChanged(nameof(TradingModeEnabled));
+        RaisePropertyChanged(nameof(EnglishTutorModeEnabled));
+        RaisePropertyChanged(nameof(AssistantModeEnabled));
+        RaisePropertyChanged(nameof(TradingModeStatusRibbonText));
+        RaisePropertyChanged(nameof(IsTradingModeStatusVisible));
+        RaisePropertyChanged(nameof(EnglishTutorStatusRibbonText));
+        RaisePropertyChanged(nameof(IsEnglishTutorStatusVisible));
+        RaisePropertyChanged(nameof(CurrentAgentRole));
+        RaisePropertyChanged(nameof(CurrentAgentRoleDisplay));
+        RaisePropertyChanged(nameof(CurrentAgentRoleColor));
+        RefreshChatModeStatusUi();
     }
 
     public void ReloadGeneratedSkillsCatalog()
@@ -890,6 +1056,8 @@ public sealed class MainViewModel : BaseViewModel
     }
 
     public ChatViewModel Chat { get; }
+
+    public MiniAssistantViewModel InAppAssistant { get; }
 
     public event Action? ChatScrollToBottomRequested;
 
@@ -1072,7 +1240,11 @@ public sealed class MainViewModel : BaseViewModel
             _logService.LogInfo("[trading-bridge] auto-launch on chat open (trading mode)");
         }
 
-        await PublishSessionContextToSupabaseIfChangedAsync("chat-opened").ConfigureAwait(true);
+        if (_startupModeNoticePending && Projects.SelectedProject is { Name: var projectName })
+        {
+            _startupModeNoticePending = false;
+            PostModeStatusNotice(projectName);
+        }
     }
 
     private void LaunchTradingPlatformManual()
@@ -1095,11 +1267,46 @@ public sealed class MainViewModel : BaseViewModel
 
     private void RefreshChatModeStatusUi()
     {
+        if (_flashcardSkill is null)
+        {
+            return;
+        }
+
         ChatModeStatusText = HermesChatModeResolver.BuildChatStatusLine(
             Projects.SelectedProject?.Name,
             Settings,
             _flashcardSkill.Status);
         RaisePropertyChanged(nameof(IsChatModeStatusVisible));
+    }
+
+    private string BuildInAppAssistantLiveContext()
+    {
+        var project = Projects.SelectedProject?.Name ?? "(none)";
+        var modeId = HermesChatModeResolver.ResolveModeId(Settings, _flashcardSkill.Status);
+        var modeRu = HermesChatModeResolver.ResolveModeDisplayRu(modeId);
+        var role = RoleManager.DisplayName(_roleManager.CurrentRole);
+        var conn = ConnectionStatusMessage;
+        var supabase = Settings.SupabaseRelayEnabled ? "on" : "off";
+        var agentPaused = Settings.HermesAgentPaused ? "paused" : "active";
+        var tradingBridge = Settings.TradingPlatformIntegrationEnabled
+            ? (_tradingBridge.IsTerminalAlive() ? "terminal alive" : "terminal not running")
+            : "disabled";
+        var flashcards = _flashcardSkill.Status.ToString();
+
+        return $"""
+            Application: Hermes Command Center (Hermes.Wpf)
+            Selected project: {project}
+            Chat mode: {modeRu} ({modeId})
+            Assistant mode (main chat OpenRouter): {(Settings.AssistantModeEnabled ? "on" : "off")}
+            Agent role: {role}
+            Hermes WSL connection: {conn}
+            Main agent chat: {agentPaused}
+            Supabase relay: {supabase}
+            Flashcards skill: {flashcards}
+            Trading platform bridge: {tradingBridge}
+            Active UI: main window tabs (Терминал | Память WSL | Навыки); full agent chat in separate Chat window
+            Status line: {ChatModeStatusText}
+            """;
     }
 
     private string BuildSessionContextFingerprint()
@@ -1116,40 +1323,48 @@ public sealed class MainViewModel : BaseViewModel
             return;
         }
 
-        var fingerprint = BuildSessionContextFingerprint();
-        if (string.Equals(_lastPublishedSessionFingerprint, fingerprint, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        await EnsureSupabaseRelayReadyForPublishAsync().ConfigureAwait(true);
-        if (_supabaseRelay is not { IsConnected: true })
-        {
-            return;
-        }
-
-        var project = Projects.SelectedProject?.Name;
-        if (string.IsNullOrWhiteSpace(project))
-        {
-            return;
-        }
-
-        var modeId = HermesChatModeResolver.ResolveModeId(Settings, _flashcardSkill.Status);
-        var json = HermesWpfSessionContextPayload.BuildJson(project, modeId);
-        var label = CanonicalHermesSenderName();
-
+        await _sessionPublishLock.WaitAsync().ConfigureAwait(true);
         try
         {
-            await _supabaseRelay.InsertAssistantRowAsync(label, json, CancellationToken.None, logPublish: false)
-                .ConfigureAwait(true);
-            _supabaseEchoTracker.RegisterAfterSuccessfulPublish(label, json);
-            _lastPublishedSessionFingerprint = fingerprint;
-            _logService.LogInfo(
-                $"[supabase] session context ({reason}): project={project}, mode={modeId}");
+            var fingerprint = BuildSessionContextFingerprint();
+            if (string.Equals(_lastPublishedSessionFingerprint, fingerprint, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            await EnsureSupabaseRelayReadyForPublishAsync().ConfigureAwait(true);
+            if (_supabaseRelay is not { IsConnected: true })
+            {
+                return;
+            }
+
+            var project = Projects.SelectedProject?.Name;
+            if (string.IsNullOrWhiteSpace(project))
+            {
+                return;
+            }
+
+            var modeId = HermesChatModeResolver.ResolveModeId(Settings, _flashcardSkill.Status);
+            var content = HermesWpfSessionContextPayload.BuildSupabaseContent(project, modeId);
+            var label = CanonicalHermesSenderName();
+
+            try
+            {
+                await _supabaseRelay.InsertAssistantRowAsync(label, content, CancellationToken.None, logPublish: false)
+                    .ConfigureAwait(true);
+                _supabaseEchoTracker.RegisterAfterSuccessfulPublish(label, content);
+                _lastPublishedSessionFingerprint = fingerprint;
+                _logService.LogInfo(
+                    $"[supabase] session voice ({reason}): project={project}, mode={modeId}");
+            }
+            catch (Exception ex)
+            {
+                _logService.LogWarn($"[supabase] session voice publish failed: {ex.Message}");
+            }
         }
-        catch (Exception ex)
+        finally
         {
-            _logService.LogWarn($"[supabase] session context publish failed: {ex.Message}");
+            _sessionPublishLock.Release();
         }
     }
 
@@ -1486,6 +1701,19 @@ public sealed class MainViewModel : BaseViewModel
 
         var project = Projects.SelectedProject;
 
+        if (TryHandleServerModeCommandLocal(agentUserPayload, project.Name))
+        {
+            if (prependUserBubble)
+            {
+                var bubbleText = uiUserBubbleLine ?? agentUserPayload;
+                Chat.Messages.Add(new ChatMessage { Role = "User", Text = bubbleText });
+                _chatLogService.AppendMessage(project.Name, "User", bubbleText);
+                await PublishUserTurnToSupabaseIfPossibleAsync(bubbleText);
+            }
+
+            return;
+        }
+
         if (Settings.HermesAgentPaused)
         {
             if (prependUserBubble)
@@ -1550,6 +1778,22 @@ public sealed class MainViewModel : BaseViewModel
                 return;
             }
 
+            // Trading mode: manual orders / close-position must run BEFORE desktop vision,
+            // otherwise "Открой лонг по биткоину" gets routed to screen capture.
+            var payloadEarly = agentUserPayload ?? string.Empty;
+            if (Settings.TradingModeEnabled)
+            {
+                if (await TryHandleManualOrderLocalAsync(payloadEarly, project.Name).ConfigureAwait(true))
+                {
+                    return;
+                }
+
+                if (await TryHandleClosePositionLocalAsync(payloadEarly, project.Name).ConfigureAwait(true))
+                {
+                    return;
+                }
+            }
+
             if (await TryHandleDesktopScreenCaptureLocalAsync(agentUserPayload, project.Name).ConfigureAwait(true))
             {
                 return;
@@ -1570,7 +1814,6 @@ public sealed class MainViewModel : BaseViewModel
                 return;
             }
 
-            var payloadEarly = agentUserPayload ?? string.Empty;
             if (TryHandleBareModeSwitchLocal(payloadEarly, project.Name))
             {
                 return;
@@ -1586,9 +1829,25 @@ public sealed class MainViewModel : BaseViewModel
                 return;
             }
 
+            if (await TryHandleManualOrderLocalAsync(payloadEarly, project.Name).ConfigureAwait(true))
+            {
+                return;
+            }
+
             if (await TryHandleClosePositionLocalAsync(payloadEarly, project.Name).ConfigureAwait(true))
             {
                 return;
+            }
+
+            if (Settings.AssistantModeEnabled)
+            {
+                await ExecuteOpenRouterAssistantTurnAsync(project, agentUserPayload).ConfigureAwait(true);
+                return;
+            }
+
+            if (_roleManager.TrySwitchRoleFromMessage(payloadEarly))
+            {
+                _logService.LogInfo($"[role-manager] switched from user message → {_roleManager.CurrentRole}");
             }
 
             string? brainBlock = null;
@@ -1596,12 +1855,20 @@ public sealed class MainViewModel : BaseViewModel
             {
                 try
                 {
-                    brainBlock = await _externalBrain
-                        .BuildContextAsync(agentUserPayload, Settings.ExternalBrainMaxContextItems)
+                    var (block, items) = await _externalBrain
+                        .BuildContextDetailedAsync(agentUserPayload, Settings.ExternalBrainMaxContextItems)
                         .ConfigureAwait(true);
+                    brainBlock = block;
+                    _lastRoleMemoryCount = items.Count;
+                    _lastRoleMemoryTags = items
+                        .SelectMany(static m => m.Tags)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .Take(12)
+                        .ToList();
                     if (!string.IsNullOrWhiteSpace(brainBlock))
                     {
-                        _logService.LogInfo($"[external-brain] outbound context chars={brainBlock.Length}");
+                        _logService.LogInfo(
+                            $"[external-brain] outbound context chars={brainBlock.Length} role={_roleManager.CurrentRole} items={items.Count}");
                     }
                 }
                 catch (Exception ex)
@@ -1663,8 +1930,8 @@ public sealed class MainViewModel : BaseViewModel
             TradingTurnHints tradingHints;
             if (tradingDisableRequested)
             {
-                _pendingTradingModeSwitch = false;
-                TradingModeEnabled = false;
+                ClearPendingTradingModeGate();
+                _roleManager.SwitchRole(AgentRole.Universal);
                 tradingHints = new TradingTurnHints(exitedThisTurn: true, enteredThisTurn: false);
                 _logService.LogInfo("[trading-mode] режим агента — трейдинг выключен");
                 _ = PersistSettingsQuietAsync();
@@ -1672,8 +1939,8 @@ public sealed class MainViewModel : BaseViewModel
             else if (tradingEnableRequested && !tradingWasEnabled)
             {
                 EnsureTutorDisabledForTrading("trading-enable");
-                _pendingTradingModeSwitch = false;
-                TradingModeEnabled = true;
+                ClearPendingTradingModeGate();
+                _roleManager.SwitchRole(AgentRole.Trader);
                 tradingHints = new TradingTurnHints(exitedThisTurn: false, enteredThisTurn: true);
                 _logService.LogInfo("[trading-mode] режим трейдинга включён");
                 _ = PersistSettingsQuietAsync();
@@ -1696,6 +1963,7 @@ public sealed class MainViewModel : BaseViewModel
             {
                 taskMatches = _skillTaskMatcher.Rank(
                     payload,
+                    _roleManager.CurrentRole,
                     Settings.SkillResolveMaxSuggestions,
                     Settings.SkillResolveMinScore);
             }
@@ -1750,6 +2018,8 @@ public sealed class MainViewModel : BaseViewModel
                 if (skill is not null)
                 {
                     var run = await _generatedSkillRunner.RunAsync(skill).ConfigureAwait(true);
+                    _roleSkillIndex.RecordUsage(runSkillId, _roleManager.CurrentRole);
+                    _roleManager.RecordTurn(payload, runSkillId);
                     displayResponse = SkillCrystallizeIntentParser.UserFacingRunLine(runSkillId, run.Ok, run.Detail);
                 }
                 else
@@ -1830,6 +2100,16 @@ public sealed class MainViewModel : BaseViewModel
 
             Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = displayResponse });
             _lastExperienceDraft = _memoryExtractor.ExtractExperience(payload, displayResponse);
+            _roleManager.RecordTurn(payload);
+            var vaultPath = _externalBrain.ResolveEffectiveMemoryPath();
+            if (_lastExperienceDraft is not null
+                && await _roleExperienceCapture
+                    .TryCaptureAsync(_lastExperienceDraft, _roleManager.CurrentRole, vaultPath)
+                    .ConfigureAwait(true))
+            {
+                _externalBrain.RestartWatcherAndReload("role-capture");
+            }
+
             _chatLogService.AppendMessage(project.Name, "Hermes", displayResponse);
             SyncWslAgentMemoryToVault("after-chat");
             SyncPlatformKnowledgeToVault("after-chat");
@@ -2522,7 +2802,7 @@ public sealed class MainViewModel : BaseViewModel
             return;
         }
 
-        EnglishTutorModeEnabled = false;
+        SetEnglishTutorModeEnabledQuiet(false);
         _logService.LogInfo($"[english-tutor] авто-выход из режима (flashcards: {reasonTag})");
         _ = PersistSettingsQuietAsync();
     }
@@ -2534,11 +2814,24 @@ public sealed class MainViewModel : BaseViewModel
             return;
         }
 
-        EnglishTutorModeEnabled = false;
+        SetEnglishTutorModeEnabledQuiet(false);
         _logService.LogInfo($"[english-tutor] авто-выход (trading-mode: {reasonTag})");
         _ = PersistSettingsQuietAsync();
+    }
+
+    /// <summary>Updates tutor flag without Supabase session publish (caller publishes final mode).</summary>
+    private void SetEnglishTutorModeEnabledQuiet(bool value)
+    {
+        if (Settings.EnglishTutorModeEnabled == value)
+        {
+            return;
+        }
+
+        Settings.EnglishTutorModeEnabled = value;
+        RaisePropertyChanged(nameof(EnglishTutorModeEnabled));
         RaisePropertyChanged(nameof(EnglishTutorStatusRibbonText));
         RaisePropertyChanged(nameof(IsEnglishTutorStatusVisible));
+        RefreshChatModeStatusUi();
     }
 
     private void EnsureTradingDisabledForTutor(string reasonTag)
@@ -2548,8 +2841,12 @@ public sealed class MainViewModel : BaseViewModel
             return;
         }
 
-        _pendingTradingModeSwitch = false;
-        TradingModeEnabled = false;
+        ClearPendingTradingModeGate();
+        if (_roleManager.CurrentRole == AgentRole.Trader)
+        {
+            _roleManager.SwitchRole(AgentRole.Universal);
+        }
+
         _logService.LogInfo($"[trading-mode] авто-выход (english-tutor: {reasonTag})");
         _ = PersistSettingsQuietAsync();
     }
@@ -2600,6 +2897,35 @@ public sealed class MainViewModel : BaseViewModel
         return true;
     }
 
+    private void ClearPendingTradingModeGate()
+    {
+        _pendingTradingModeSwitch = false;
+        _pendingTradingModeOriginalPayload = null;
+    }
+
+    private string? TakePendingTradingModeOriginalPayload()
+    {
+        var original = _pendingTradingModeOriginalPayload;
+        _pendingTradingModeOriginalPayload = null;
+        return original;
+    }
+
+    private async Task ContinueDeferredTurnAfterTradingGateAsync(string originalPayload, bool skipTradingGate)
+    {
+        if (string.IsNullOrWhiteSpace(originalPayload))
+        {
+            return;
+        }
+
+        if (skipTradingGate)
+        {
+            _skipTradingModeGateOnce = true;
+        }
+
+        _logService.LogInfo($"[trading-mode] продолжение отложенной команды (chars={originalPayload.Length})");
+        await ExecuteHermesUserTurnAsync(prependUserBubble: false, agentUserPayload: originalPayload).ConfigureAwait(true);
+    }
+
     private bool TryHandleTradingModeGateLocal(string payload, string projectName)
     {
         if (string.IsNullOrWhiteSpace(payload))
@@ -2607,38 +2933,52 @@ public sealed class MainViewModel : BaseViewModel
             return false;
         }
 
+        if (_skipTradingModeGateOnce)
+        {
+            _skipTradingModeGateOnce = false;
+            return false;
+        }
+
         if (_pendingTradingModeSwitch)
         {
             if (TradingModeTriggers.MatchesConfirmNo(payload))
             {
-                _pendingTradingModeSwitch = false;
+                var deferred = TakePendingTradingModeOriginalPayload();
+                ClearPendingTradingModeGate();
                 PostTradingModeGateReply(
                     projectName,
                     "Остаёмся в режиме агента. Торговые команды — после «трейдинг» или «trading».");
+                if (!string.IsNullOrWhiteSpace(deferred))
+                {
+                    _ = ContinueDeferredTurnAfterTradingGateAsync(deferred, skipTradingGate: true);
+                }
+
                 return true;
             }
 
             if (TradingModeTriggers.MatchesConfirmYes(payload))
             {
                 EnsureTutorDisabledForTrading("confirm-yes");
-                _pendingTradingModeSwitch = false;
-                TradingModeEnabled = true;
+                var deferred = TakePendingTradingModeOriginalPayload();
+                ClearPendingTradingModeGate();
+                _roleManager.SwitchRole(AgentRole.Trader);
                 _ = PersistSettingsQuietAsync();
                 _logService.LogInfo("[trading-mode] подтверждён переход в режим трейдинга");
 
-                if (IsBareTradingConfirmMessage(payload))
-                {
-                    _tradingBridge.EnsureTerminalRunning(force: true);
-                    PostTradingModeGateReply(projectName, HermesModeAcknowledgments.TradingModeActivated);
-                    RefreshChatModeStatusUi();
-                    _ = PublishSessionContextToSupabaseIfChangedAsync("confirm-trading-mode");
-                    return true;
-                }
-
                 _tradingBridge.EnsureTerminalRunning(force: true);
                 RefreshChatModeStatusUi();
-                _ = PublishSessionContextToSupabaseIfChangedAsync("confirm-trading-mode");
-                return false;
+
+                if (IsBareTradingConfirmMessage(payload))
+                {
+                    PostTradingModeGateReply(projectName, HermesModeAcknowledgments.TradingModeActivated);
+                }
+
+                if (!string.IsNullOrWhiteSpace(deferred))
+                {
+                    _ = ContinueDeferredTurnAfterTradingGateAsync(deferred, skipTradingGate: false);
+                }
+
+                return true;
             }
         }
 
@@ -2647,6 +2987,7 @@ public sealed class MainViewModel : BaseViewModel
             && TradingTaskDetector.IsTradingRelated(payload))
         {
             _pendingTradingModeSwitch = true;
+            _pendingTradingModeOriginalPayload = payload.Trim();
             PostTradingModeGateReply(projectName, TradingModePromptDefaults.SwitchPromptUserBubble);
             _logService.LogInfo("[trading-mode] запрос подтверждения переключения");
             return true;
@@ -2664,6 +3005,44 @@ public sealed class MainViewModel : BaseViewModel
     private void PostTradingModeGateReply(string projectName, string text) =>
         PostLocalHermesReply(projectName, text);
 
+    private bool TryHandleServerModeCommandLocal(string payload, string projectName)
+    {
+        if (!ServerModeCommandParser.TryParse(payload, out var mode))
+        {
+            return false;
+        }
+
+        if (ServerModeCommandParser.IsAssistantMode(mode))
+        {
+            _logService.LogInfo($"[assistant-mode] server mode command parsed from: {payload.Trim()}");
+            ApplyAssistantModeSwitch(projectName, $"[assistant-mode] server JSON mode={mode}");
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool ApplyAssistantModeSwitch(string projectName, string logLine)
+    {
+        ClearPendingTradingModeGate();
+        var roleChanged = _roleManager.CurrentRole != AgentRole.Universal;
+        if (roleChanged)
+        {
+            _suppressRoleChangeModeNotice = true;
+        }
+
+        AssistantModeEnabled = true;
+        if (roleChanged)
+        {
+            _roleManager.SwitchRole(AgentRole.Universal);
+        }
+
+        _ = PersistSettingsQuietAsync();
+        PostModeStatusNotice(projectName);
+        _logService.LogInfo(logLine);
+        return true;
+    }
+
     private bool TryHandleBareModeSwitchLocal(string payload, string projectName)
     {
         if (string.IsNullOrWhiteSpace(payload))
@@ -2671,41 +3050,164 @@ public sealed class MainViewModel : BaseViewModel
             return false;
         }
 
+        if (AssistantModeTriggers.IsBareEnableCommand(payload))
+        {
+            ApplyAssistantModeSwitch(projectName, "[assistant-mode] bare switch → assistant mode (OpenRouter)");
+            return true;
+        }
+
         if (TradingModeTriggers.IsBareAgentModeCommand(payload))
         {
-            _pendingTradingModeSwitch = false;
-            if (Settings.TradingModeEnabled)
+            ClearPendingTradingModeGate();
+            AssistantModeEnabled = false;
+            if (_roleManager.CurrentRole == AgentRole.Trader)
             {
-                TradingModeEnabled = false;
+                _roleManager.SwitchRole(AgentRole.Universal);
                 _ = PersistSettingsQuietAsync();
             }
 
-            PostLocalHermesReply(projectName, HermesModeAcknowledgments.AgentModeActivated);
-            RefreshChatModeStatusUi();
-            _ = PublishSessionContextToSupabaseIfChangedAsync("bare-agent-mode");
+            PostModeStatusNotice(projectName);
             _logService.LogInfo("[trading-mode] bare switch → agent mode (local ack)");
             return true;
         }
 
         if (TradingModeTriggers.IsBareEnableCommand(payload))
         {
-            _pendingTradingModeSwitch = false;
+            var deferred = TakePendingTradingModeOriginalPayload();
+            ClearPendingTradingModeGate();
+            AssistantModeEnabled = false;
             EnsureTutorDisabledForTrading("bare-enable");
-            if (!Settings.TradingModeEnabled)
+            if (_roleManager.CurrentRole != AgentRole.Trader)
             {
-                TradingModeEnabled = true;
+                _roleManager.SwitchRole(AgentRole.Trader);
                 _ = PersistSettingsQuietAsync();
             }
 
             _tradingBridge.EnsureTerminalRunning(force: true);
-            PostLocalHermesReply(projectName, HermesModeAcknowledgments.TradingModeActivated);
+            PostModeStatusNotice(projectName);
             RefreshChatModeStatusUi();
-            _ = PublishSessionContextToSupabaseIfChangedAsync("bare-trading-mode");
             _logService.LogInfo("[trading-mode] bare switch → trading mode (local ack)");
+            if (!string.IsNullOrWhiteSpace(deferred))
+            {
+                _ = ContinueDeferredTurnAfterTradingGateAsync(deferred, skipTradingGate: false);
+            }
+
             return true;
         }
 
         return false;
+    }
+
+    private void PostModeStatusNotice(string projectName)
+    {
+        RefreshChatModeStatusUi();
+        PostLocalHermesReply(projectName, ChatModeStatusText, publishToSupabase: false);
+        _ = PublishSessionContextToSupabaseIfChangedAsync("mode-notice");
+    }
+
+    private async Task PublishAppStartupNotificationAsync(string reason)
+    {
+        if (_startupSupabaseNotificationSent || !Settings.SupabaseRelayEnabled)
+        {
+            return;
+        }
+
+        await _sessionPublishLock.WaitAsync().ConfigureAwait(true);
+        try
+        {
+            if (_startupSupabaseNotificationSent)
+            {
+                return;
+            }
+
+            await EnsureSupabaseRelayReadyForPublishAsync().ConfigureAwait(true);
+            if (_supabaseRelay is not { IsConnected: true })
+            {
+                return;
+            }
+
+            var asm = Assembly.GetExecutingAssembly();
+            var version = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+                          ?? asm.GetName().Version?.ToString()
+                          ?? "?";
+            var json = AppLifecycleSupabasePayload.BuildStartupJson("hermes_wpf", version);
+            var voice = AppLifecycleSupabasePayload.BuildSupabaseContent("Hermes Command Center");
+            var label = CanonicalHermesSenderName();
+
+            await _supabaseRelay.InsertAssistantRowAsync(label, json, CancellationToken.None, logPublish: false)
+                .ConfigureAwait(true);
+            _supabaseEchoTracker.RegisterAfterSuccessfulPublish(label, json);
+            await _supabaseRelay.InsertAssistantRowAsync(label, voice, CancellationToken.None, logPublish: false)
+                .ConfigureAwait(true);
+            _supabaseEchoTracker.RegisterAfterSuccessfulPublish(label, voice);
+            _startupSupabaseNotificationSent = true;
+            _logService.LogInfo($"[supabase] app startup notification ({reason}): hermes_wpf v{version}");
+        }
+        catch (Exception ex)
+        {
+            _logService.LogWarn($"[supabase] app startup notification failed: {ex.Message}");
+        }
+        finally
+        {
+            _sessionPublishLock.Release();
+        }
+    }
+
+    private async Task ExecuteOpenRouterAssistantTurnAsync(HermesProject project, string userMessage)
+    {
+        if (string.IsNullOrWhiteSpace(Settings.InAppAssistantOpenRouterApiKey))
+        {
+            PostLocalHermesReply(project.Name, "Укажите OpenRouter API key в Settings → ИИ-помощник.");
+            return;
+        }
+
+        var options = new AppAssistantOptions
+        {
+            ApplicationId = AppAssistantKnowledge.HermesWpfId,
+            OpenRouterApiKey = Settings.InAppAssistantOpenRouterApiKey,
+            Model = Settings.InAppAssistantOpenRouterModel,
+        };
+
+        var history = Chat.Messages
+            .Where(m => m.Role is "User" or "Hermes")
+            .TakeLast(24)
+            .Select(m => new AssistantChatTurn(
+                m.Role.Equals("User", StringComparison.OrdinalIgnoreCase) ? "user" : "assistant",
+                m.Text))
+            .ToList();
+
+        try
+        {
+            var reply = await _appAssistantService
+                .AskAsync(options, _assistantContextProvider, history, userMessage)
+                .ConfigureAwait(true);
+            PostLocalHermesReply(project.Name, reply);
+        }
+        catch (Exception ex)
+        {
+            PostLocalHermesReply(project.Name, $"OpenRouter: {ex.Message}");
+            _logService.LogError($"[openrouter-assistant] main chat: {ex.Message}");
+        }
+    }
+
+    private async Task<bool> TryHandleManualOrderLocalAsync(string payload, string projectName) =>
+        await _tradingManualOrder.TryHandleAsync(
+            payload,
+            projectName,
+            Settings.TradingModeEnabled,
+            PostLocalHermesReplyAsync,
+            AppendTradingSystemLogAsync).ConfigureAwait(true);
+
+    private Task PostLocalHermesReplyAsync(string projectName, string text)
+    {
+        PostLocalHermesReply(projectName, text);
+        return Task.CompletedTask;
+    }
+
+    private Task AppendTradingSystemLogAsync(string projectName, string text)
+    {
+        _chatLogService.AppendMessage(projectName, "System", text);
+        return Task.CompletedTask;
     }
 
     private async Task<bool> TryHandleClosePositionLocalAsync(string payload, string projectName)
@@ -2753,11 +3255,15 @@ public sealed class MainViewModel : BaseViewModel
         return true;
     }
 
-    private void PostLocalHermesReply(string projectName, string text)
+    private void PostLocalHermesReply(string projectName, string text, bool publishToSupabase = true)
     {
-        Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = text });
+        DispatchToUi(() => Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = text }));
         _chatLogService.AppendMessage(projectName, "Hermes", text);
-        _ = PublishAssistantTurnToSupabaseIfPossibleAsync(text);
+        if (publishToSupabase)
+        {
+            _ = PublishAssistantTurnToSupabaseIfPossibleAsync(text);
+        }
+
         _ = TrySaveHistoryAfterTurnAsync(projectName);
     }
 
@@ -2996,6 +3502,7 @@ public sealed class MainViewModel : BaseViewModel
             }
 
             RaiseSupabaseConnectionUi();
+            await PublishAppStartupNotificationAsync("relay-connected").ConfigureAwait(true);
             await PublishSessionContextToSupabaseIfChangedAsync("relay-connected").ConfigureAwait(true);
         }
         catch (Exception ex)

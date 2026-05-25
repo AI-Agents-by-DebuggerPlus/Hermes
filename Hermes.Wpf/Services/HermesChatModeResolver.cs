@@ -7,15 +7,26 @@ namespace Hermes.Wpf.Services;
 public static class HermesChatModeResolver
 {
     public const string ModeAgent = "agent";
+    public const string ModeAssistant = "assistant";
     public const string ModeTrading = "trading";
     public const string ModeEnglishTutor = "english_tutor";
     public const string ModeFlashcards = "flashcards";
 
-    public static string ResolveModeId(HermesSettings settings, FlashcardStatus flashcardStatus)
+    public static string ResolveModeId(HermesSettings? settings, FlashcardStatus flashcardStatus)
     {
+        if (settings is null)
+        {
+            return ModeAgent;
+        }
+
         if (flashcardStatus != FlashcardStatus.Idle)
         {
             return ModeFlashcards;
+        }
+
+        if (settings.AssistantModeEnabled)
+        {
+            return ModeAssistant;
         }
 
         if (settings.TradingModeEnabled)
@@ -35,12 +46,13 @@ public static class HermesChatModeResolver
         modeId switch
         {
             ModeTrading => "трейдинг",
+            ModeAssistant => "ассистент",
             ModeEnglishTutor => "репетитор EN",
             ModeFlashcards => "карточки",
             _ => "агент",
         };
 
-    public static string BuildChatStatusLine(string? projectName, HermesSettings settings, FlashcardStatus flashcardStatus)
+    public static string BuildChatStatusLine(string? projectName, HermesSettings? settings, FlashcardStatus flashcardStatus)
     {
         var project = string.IsNullOrWhiteSpace(projectName) ? "—" : projectName.Trim();
         var modeId = ResolveModeId(settings, flashcardStatus);

@@ -445,6 +445,67 @@ public sealed class VirtualExchangeEngine : IVirtualExchange, IDisposable
 
         }
 
+
+
+        TryAttachDefaultSlTp(filledOrder, fillPrice, journalKind);
+
+    }
+
+
+
+    private void TryAttachDefaultSlTp(Order filledOrder, decimal fillPrice, string journalKind)
+    {
+        if (filledOrder.ReduceOnly || journalKind != "Open")
+        {
+            return;
+        }
+
+        var snapshot = _store.Snapshot;
+        var risk = snapshot.Risk;
+        if (!risk.AutoApplyDefaultSlTp)
+        {
+            return;
+        }
+
+        var balance = snapshot.Account.Balance;
+        var riskPct = risk.MaxRiskPerTradePercent;
+        var tpMult = risk.DefaultTakeProfitRrMultiplier;
+        if (balance <= 0 || riskPct <= 0 || tpMult <= 0 || filledOrder.Quantity <= 0)
+        {
+            return;
+        }
+
+        var riskAmount = balance * (riskPct / 100m);
+        var slDistance = riskAmount / filledOrder.Quantity;
+        if (slDistance <= 0)
+        {
+            return;
+        }
+
+        var isLong = filledOrder.Side == OrderSide.Buy;
+        var slPrice = isLong ? fillPrice - slDistance : fillPrice + slDistance;
+        var tpPrice = isLong ? fillPrice + slDistance * tpMult : fillPrice - slDistance * tpMult;
+        if (slPrice <= 0 || tpPrice <= 0)
+        {
+            return;
+        }
+
+        var exitSide = isLong ? OrderSide.Sell : OrderSide.Buy;
+        var qty = filledOrder.Quantity;
+
+        var sl = PlaceOrder(filledOrder.Symbol, OrderType.Stop, exitSide, qty, slPrice, reduceOnly: true);
+        var tp = PlaceOrder(filledOrder.Symbol, OrderType.Limit, exitSide, qty, tpPrice, reduceOnly: true);
+
+        _bus.Publish(new PlatformLogEvent(new PlatformLogEntry
+        {
+            Timestamp = DateTimeOffset.UtcNow,
+            EventType = "AutoSlTp",
+            Source = "VirtualExchange",
+            Message =
+                $"Auto SL/TP for {filledOrder.Id} ({filledOrder.Symbol} {filledOrder.Side} qty={qty} @ {fillPrice:N2}): "
+                + $"SL {sl.Id} @ {slPrice:N2} ({riskPct:N2}% risk = {slDistance:N2}); "
+                + $"TP {tp.Id} @ {tpPrice:N2} (× {tpMult:N1})",
+        }));
     }
 
 

@@ -14,6 +14,8 @@ public sealed class TradingPlatformBridgeService
     private readonly LogService _log;
     private readonly Func<HermesSettings> _settings;
 
+    public event Action<TradingPlatformSnapshotFile>? SnapshotUpdated;
+
     public TradingPlatformBridgeService(LogService log, Func<HermesSettings> settings)
     {
         _log = log;
@@ -43,9 +45,15 @@ public sealed class TradingPlatformBridgeService
 
         try
         {
-            return JsonSerializer.Deserialize<TradingPlatformSnapshotFile>(
+            var snap = JsonSerializer.Deserialize<TradingPlatformSnapshotFile>(
                 File.ReadAllText(TradingBridgePaths.SnapshotFile),
                 JsonOptions);
+            if (snap is not null)
+            {
+                SnapshotUpdated?.Invoke(snap);
+            }
+
+            return snap;
         }
         catch (Exception ex)
         {

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text;
+using Hermes.TradingPlatform.Shared.Infrastructure;
 
 namespace Hermes.Wpf.Services;
 
@@ -23,6 +24,12 @@ public sealed class LogService
             $"=== Session started {DateTime.Now:O} ==={Environment.NewLine}",
             SessionFileEncoding);
         PruneOldSessionLogs(HermesLogPaths.GetProjectDirectory(HermesLogPaths.AppFolderName));
+        var pruned = PruneAllWpfSessionLogs();
+        if (pruned > 0)
+        {
+            LogInfo(
+                $"[logs] pruned {pruned} old session/chat file(s); keeping latest {SessionLogPruner.DefaultKeepLatestSessions} per folder.");
+        }
     }
 
     public string SessionStamp { get; }
@@ -99,30 +106,14 @@ public sealed class LogService
                 projectFolder == HermesLogPaths.AppFolderName ? null : projectFolder),
             $"hermes_session_{SessionStamp}.log");
 
-    private static void PruneOldSessionLogs(string projectDirectory, int keepLatest = 15)
-    {
-        try
-        {
-            var logs = new DirectoryInfo(projectDirectory)
-                .GetFiles("hermes_session_*.log", SearchOption.TopDirectoryOnly)
-                .OrderByDescending(f => f.LastWriteTimeUtc)
-                .ToList();
+    private static void PruneOldSessionLogs(string projectDirectory) =>
+        SessionLogPruner.PruneDirectory(projectDirectory, "hermes_session_*.log");
 
-            foreach (var old in logs.Skip(keepLatest))
-            {
-                try
-                {
-                    old.Delete();
-                }
-                catch
-                {
-                    // ignore locked files
-                }
-            }
-        }
-        catch
-        {
-            // non-fatal
-        }
+    private static int PruneAllWpfSessionLogs()
+    {
+        var wpfRoot = HermesLogsPaths.GetAppDirectory(HermesLogsPaths.AppHermesWpf);
+        return SessionLogPruner.PruneAppTree(
+            wpfRoot,
+            ["hermes_session_*.log", "chat_*.log"]);
     }
 }

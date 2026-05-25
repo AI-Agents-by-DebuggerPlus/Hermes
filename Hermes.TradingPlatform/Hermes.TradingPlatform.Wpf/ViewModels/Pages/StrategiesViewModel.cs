@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Linq;
 using Hermes.TradingPlatform.Wpf.Commands;
 using Hermes.TradingPlatform.Wpf.Services;
 
@@ -17,10 +18,7 @@ public sealed class StrategiesViewModel : TradingPageViewModel
         {
             if (p is StrategyCardItemViewModel card)
             {
-                var next = !card.IsEnabled;
-                card.IsEnabled = next;
-                card.Status = next ? "Running" : "Idle";
-                _host.SetStrategyEnabled(card.Id, next);
+                card.IsEnabled = !card.IsEnabled;
             }
         });
 
@@ -30,20 +28,57 @@ public sealed class StrategiesViewModel : TradingPageViewModel
     public ObservableCollection<StrategyCardItemViewModel> Strategies { get; } = [];
     public RelayCommand ToggleStrategyCommand { get; }
 
+    private void OnStrategyEnabledChangedByUser(StrategyCardItemViewModel card, bool enabled)
+    {
+        _host.SetStrategyEnabled(card.Id, enabled);
+    }
+
     protected override void Refresh()
     {
-        Strategies.Clear();
-        foreach (var s in ReadModel.GetStrategies())
+        var dtos = ReadModel.GetStrategies();
+        var dtoIds = dtos.Select(d => d.Id).ToHashSet();
+
+        for (var i = Strategies.Count - 1; i >= 0; i--)
         {
-            Strategies.Add(new StrategyCardItemViewModel
+            if (!dtoIds.Contains(Strategies[i].Id))
             {
-                Id = s.Id,
-                Name = s.Name,
-                Description = s.Description,
-                RiskProfile = s.RiskProfile,
-                Status = s.Status,
-                IsEnabled = s.IsEnabled,
-            });
+                Strategies.RemoveAt(i);
+            }
+        }
+
+        foreach (var s in dtos)
+        {
+            var card = Strategies.FirstOrDefault(x => x.Id == s.Id);
+            if (card is null)
+            {
+                card = new StrategyCardItemViewModel
+                {
+                    Id = s.Id,
+                    Name = s.Name,
+                    Description = s.Description,
+                    RiskProfile = s.RiskProfile,
+                    Status = s.Status,
+                };
+                card.SyncingFromModel = true;
+                card.IsEnabled = s.IsEnabled;
+                card.SyncingFromModel = false;
+                card.IsEnabledChangedByUser += OnStrategyEnabledChangedByUser;
+                Strategies.Add(card);
+                continue;
+            }
+
+            card.SyncingFromModel = true;
+            if (card.Status != s.Status)
+            {
+                card.Status = s.Status;
+            }
+
+            if (card.IsEnabled != s.IsEnabled)
+            {
+                card.IsEnabled = s.IsEnabled;
+            }
+
+            card.SyncingFromModel = false;
         }
     }
 }

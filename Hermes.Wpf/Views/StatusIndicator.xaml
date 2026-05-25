@@ -7,6 +7,7 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" MinWidth="120" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
             <!-- Hermes -->
@@ -95,8 +96,25 @@
                 </TextBlock>
             </Grid>
 
-            <!-- Supabase -->
+            <!-- Role switcher -->
             <StackPanel Grid.Column="2"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal"
+                        Margin="0,0,12,0">
+                <TextBlock VerticalAlignment="Center"
+                           Margin="0,0,6,0"
+                           FontSize="11"
+                           Foreground="{StaticResource MutedTextBrush}"
+                           Text="Role" />
+                <ComboBox Width="160"
+                          VerticalAlignment="Center"
+                          ItemsSource="{Binding AvailableAgentRoles}"
+                          SelectedItem="{Binding CurrentAgentRole}"
+                          ToolTip="Active agent role (memory + skills routing)" />
+            </StackPanel>
+
+            <!-- Supabase -->
+            <StackPanel Grid.Column="3"
                         VerticalAlignment="Center"
                         Orientation="Horizontal">
                 <TextBlock VerticalAlignment="Center"

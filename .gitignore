@@ -365,6 +365,7 @@ FodyWeavers.xsd
 # Reni water automation (local secrets + venv)
 scripts/reni_water/.venv/
 scripts/reni_water/reni_water.env
-Docs/Credentials/
+# Credentials (API keys, tokens, local secrets)
+**/Credentials/
 # Local water utility state (outside repo is fine too)
 d:/Documents/Utilities/water/pending_ack.json

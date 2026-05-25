@@ -232,6 +232,7 @@ public sealed class GeneratedSkillCatalogService
                 OutboundPromptBlock = ReadString(root, "outboundPromptBlock"),
                 TestCommand = ReadString(root, "testCommand"),
                 SourceTurn = ReadString(root, "sourceTurn"),
+                Roles = ReadRoles(root),
                 DirectoryPath = directory,
             };
         }
@@ -243,6 +244,26 @@ public sealed class GeneratedSkillCatalogService
 
     private static string ReadString(JsonElement root, string name) =>
         root.TryGetProperty(name, out var el) ? (el.GetString() ?? string.Empty).Trim() : string.Empty;
+
+    private static List<AgentRole> ReadRoles(JsonElement root)
+    {
+        if (!root.TryGetProperty("roles", out var el) || el.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        var list = new List<AgentRole>();
+        foreach (var item in el.EnumerateArray())
+        {
+            var s = (item.GetString() ?? string.Empty).Trim();
+            if (Enum.TryParse<AgentRole>(s, ignoreCase: true, out var role))
+            {
+                list.Add(role);
+            }
+        }
+
+        return list;
+    }
 
     private static List<string> ReadStringList(JsonElement root, string name)
     {

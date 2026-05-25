@@ -1,3 +1,5 @@
+using Hermes.InAppAssistant;
+using Hermes.InAppAssistant.Wpf;
 using Hermes.TradingPlatform.Shared.Mock;
 using Hermes.TradingPlatform.Wpf.Commands;
 using Hermes.TradingPlatform.Wpf.Navigation;
@@ -24,6 +26,21 @@ public sealed class MainViewModel : BaseViewModel, IDisposable
         _host.Start();
         var readModel = _host.ReadModel;
 
+        var assistantContext = new TradingInAppAssistantContextProvider(() => this);
+        InAppAssistant = new MiniAssistantViewModel(
+            new AppAssistantService(logger: new TradingAppAssistantLogger()),
+            () =>
+            {
+                var s = _host.PlatformSettingsStore.Load();
+                return new AppAssistantOptions
+                {
+                    ApplicationId = AppAssistantKnowledge.TradingPlatformId,
+                    OpenRouterApiKey = s.InAppAssistantOpenRouterApiKey,
+                    Model = s.InAppAssistantOpenRouterModel,
+                };
+            },
+            assistantContext);
+
         _pages = new Dictionary<NavigationPage, BaseViewModel>
         {
             [NavigationPage.Dashboard] = new DashboardViewModel(readModel),
@@ -34,8 +51,10 @@ public sealed class MainViewModel : BaseViewModel, IDisposable
             [NavigationPage.MarketWatch] = new MarketWatchViewModel(readModel, _host.Exchange),
             [NavigationPage.Replay] = new ReplayViewModel(),
             [NavigationPage.Journal] = new JournalViewModel(readModel),
-            [NavigationPage.Logs] = new LogsViewModel(readModel),
+            [NavigationPage.Logs] = new LogsViewModel(readModel, _host),
             [NavigationPage.Hermes] = new HermesViewModel(readModel),
+            [NavigationPage.AccountSettings] = new AccountSettingsViewModel(_host),
+            [NavigationPage.Assistant] = new AssistantViewModel(_host, InAppAssistant),
             [NavigationPage.Settings] = new SettingsViewModel(_host),
         };
 
@@ -49,25 +68,34 @@ public sealed class MainViewModel : BaseViewModel, IDisposable
 
         NavItems =
         [
-            new NavItemViewModel(NavigationPage.Dashboard, "Dashboard", "⌂"),
-            new NavItemViewModel(NavigationPage.Positions, "Positions", "◎"),
-            new NavItemViewModel(NavigationPage.Orders, "Orders", "⇄"),
-            new NavItemViewModel(NavigationPage.Strategies, "Strategies", "◈"),
-            new NavItemViewModel(NavigationPage.RiskManager, "Risk Manager", "⚠"),
-            new NavItemViewModel(NavigationPage.MarketWatch, "Market Watch", "◉"),
-            new NavItemViewModel(NavigationPage.Replay, "Replay", "▶"),
-            new NavItemViewModel(NavigationPage.Journal, "Journal", "📓"),
-            new NavItemViewModel(NavigationPage.Logs, "Logs", "☰"),
-            new NavItemViewModel(NavigationPage.Hermes, "Hermes", "✦"),
-            new NavItemViewModel(NavigationPage.Settings, "Settings", "⚙"),
+            new NavItemViewModel(NavigationPage.Dashboard, "Dashboard", "⌂", "Обзор счёта и статуса платформы"),
+            new NavItemViewModel(NavigationPage.Positions, "Positions", "◎", "Открытые позиции бумажного счёта"),
+            new NavItemViewModel(NavigationPage.Orders, "Orders", "⇄", "Активные и исполненные ордера"),
+            new NavItemViewModel(NavigationPage.Strategies, "Strategies", "◈", "Торговые стратегии и их состояние"),
+            new NavItemViewModel(NavigationPage.RiskManager, "Risk Manager", "⚠", "Лимиты риска, риск на сделку %, аварийная остановка"),
+            new NavItemViewModel(NavigationPage.MarketWatch, "Market Watch", "◉", "Котировки и быстрые действия по инструментам"),
+            new NavItemViewModel(NavigationPage.Replay, "Replay", "▶", "Воспроизведение исторических данных"),
+            new NavItemViewModel(NavigationPage.Journal, "Journal", "📓", "Журнал сделок"),
+            new NavItemViewModel(NavigationPage.Logs, "Logs", "☰", "Системные логи терминала"),
+            new NavItemViewModel(NavigationPage.Hermes, "Hermes", "✦", "Монитор оркестрации Hermes (не LLM-чат)"),
+            new NavItemViewModel(NavigationPage.AccountSettings, "Account", "$", "Баланс сброса, кредитное плечо, сброс paper-счёта"),
+            new NavItemViewModel(NavigationPage.Assistant, "Assistant", "◆", "OpenRouter: ключ, модель и чат с ИИ"),
+            new NavItemViewModel(NavigationPage.Settings, "Settings", "⚙", "Данные рынка, UI, интеграция Hermes"),
         ];
 
         NavigateCommand = new RelayCommand(p => Navigate(p is NavigationPage page ? page : NavigationPage.Dashboard));
         Navigate(NavigationPage.Dashboard);
+
+        SupabaseStartupNotifier.TryPublishOnStartup();
     }
+
+    public TradingPlatformHost Host => _host;
+
+    public MiniAssistantViewModel InAppAssistant { get; }
 
     public IReadOnlyList<NavItemViewModel> NavItems { get; }
 
+    private NavigationPage _activeNavPage = NavigationPage.Dashboard;
     private BaseViewModel? _currentPage;
 
     public BaseViewModel? CurrentPage
@@ -75,6 +103,10 @@ public sealed class MainViewModel : BaseViewModel, IDisposable
         get => _currentPage;
         private set => SetField(ref _currentPage, value);
     }
+
+    public bool IsAssistantTab => _activeNavPage == NavigationPage.Assistant;
+
+    public bool ShowFloatingAssistant => _activeNavPage != NavigationPage.Assistant;
 
     private string _pageTitle = "Dashboard";
 
@@ -137,11 +169,25 @@ public sealed class MainViewModel : BaseViewModel, IDisposable
             return;
         }
 
+        var leavingAssistant = _activeNavPage == NavigationPage.Assistant;
+        _activeNavPage = page;
         CurrentPage = vm;
         PageTitle = NavItems.First(n => n.Page == page).Title;
         foreach (var item in NavItems)
         {
             item.IsSelected = item.Page == page;
+        }
+
+        Raise(nameof(IsAssistantTab));
+        Raise(nameof(ShowFloatingAssistant));
+
+        if (page == NavigationPage.Assistant)
+        {
+            InAppAssistant.IsOpen = true;
+        }
+        else if (leavingAssistant)
+        {
+            InAppAssistant.IsOpen = false;
         }
     }
 

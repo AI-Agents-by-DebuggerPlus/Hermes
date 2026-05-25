@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:views="clr-namespace:Hermes.Wpf.Views"
+        xmlns:assistant="clr-namespace:Hermes.InAppAssistant.Wpf;assembly=Hermes.InAppAssistant.Wpf"
         mc:Ignorable="d"
         Title="Hermes Command Center"
         Height="700"
@@ -31,28 +32,33 @@
             <views:ProjectPanel Grid.Column="0" />
 
             <Grid Grid.Column="2">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="10" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="10" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
 
-                <WrapPanel Grid.Row="0" HorizontalAlignment="Right">
+                    <WrapPanel Grid.Row="0" HorizontalAlignment="Right">
                     <Button Width="90"
                             Margin="0,0,8,0"
                             Content="Setup"
+                            ToolTip="Мастер первоначальной настройки WSL и Hermes CLI"
                             Click="OpenSetupButton_OnClick" />
                     <Button Width="90"
                             Margin="0,0,8,0"
                             Content="Settings"
+                            ToolTip="Настройки приложения, Supabase, OpenRouter, Trading Platform"
                             Click="OpenSettingsButton_OnClick" />
                     <Button Width="90"
                             Margin="0,0,8,0"
                             Content="Help"
+                            ToolTip="Справка по Hermes Command Center"
                             Click="OpenHelpButton_OnClick" />
                     <Button Width="90"
                             Margin="0,0,8,0"
                             Content="Chat"
+                            ToolTip="Окно чата: агент (WSL), ассистент (OpenRouter), трейдинг, репетитор"
                             Click="OpenChatButton_OnClick" />
                     <CheckBox Margin="4,0,12,8"
                               VerticalAlignment="Center"
@@ -62,14 +68,17 @@
                     <Button Width="118"
                             Margin="0,0,8,8"
                             Content="Supabase test"
+                            ToolTip="Тестовое окно чата Supabase relay"
                             Click="OpenSupabaseTestChat_OnClick" />
                     <Button Width="100"
                             Margin="0,0,8,8"
                             Content="WordPress"
+                            ToolTip="Галерея WordPress — загрузка скриншотов"
                             Click="OpenWordPressGallery_OnClick" />
                     <Button Width="115"
                             Margin="0,0,8,8"
                             Content="External Brain"
+                            ToolTip="Внешняя память Obsidian и векторный поиск"
                             Click="OpenExternalBrain_OnClick" />
                     <Button Width="138"
                             Margin="0,0,8,8"
@@ -84,6 +93,7 @@
                     <Button Width="90"
                             Margin="0,0,8,8"
                             Content="Logs"
+                            ToolTip="Открыть папку логов Hermes"
                             Click="OpenLogsButton_OnClick" />
                     <Button Width="130"
                             Margin="0,0,8,8"
@@ -92,23 +102,27 @@
                             Command="{Binding LaunchTradingPlatformCommand}" />
                 </WrapPanel>
 
-                <TabControl Grid.Row="2"
-                            Padding="0,4,0,0"
-                            Style="{StaticResource HermesMainTabControlStyle}">
-                    <TabControl.Resources>
-                        <Style BasedOn="{StaticResource HermesAccentTabItemStyle}" TargetType="TabItem" />
-                    </TabControl.Resources>
-                    <TabItem Header="Терминал">
-                        <views:TerminalView Margin="0,8,0,0" />
-                    </TabItem>
-                    <TabItem Header="Память WSL">
-                        <views:WslMemoryView Margin="0,8,0,0"
-                                             DataContext="{Binding WslMemory}" />
-                    </TabItem>
-                    <TabItem Header="Навыки">
-                        <views:AgentSkillsView Margin="0,8,0,0" />
-                    </TabItem>
-                </TabControl>
+                    <TabControl Grid.Row="2"
+                                Padding="0,4,0,0"
+                                Style="{StaticResource HermesMainTabControlStyle}">
+                        <TabControl.Resources>
+                            <Style BasedOn="{StaticResource HermesAccentTabItemStyle}" TargetType="TabItem" />
+                        </TabControl.Resources>
+                        <TabItem Header="Терминал">
+                            <views:TerminalView Margin="0,8,0,0" />
+                        </TabItem>
+                        <TabItem Header="Память WSL">
+                            <views:WslMemoryView Margin="0,8,0,0"
+                                                 DataContext="{Binding WslMemory}" />
+                        </TabItem>
+                        <TabItem Header="Навыки">
+                            <views:AgentSkillsView Margin="0,8,0,0" />
+                        </TabItem>
+                    </TabControl>
+                </Grid>
+
+                <assistant:MiniAssistantPanel DataContext="{Binding InAppAssistant}"
+                                              Panel.ZIndex="20" />
             </Grid>
         </Grid>
     </Grid>

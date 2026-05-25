@@ -11,6 +11,9 @@
     <Version>0.1.0</Version>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Supabase" Version="1.1.1" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Hermes.TradingPlatform.Shared\Hermes.TradingPlatform.Shared.csproj" />
     <ProjectReference Include="..\Hermes.TradingPlatform.Core\Hermes.TradingPlatform.Core.csproj" />
     <ProjectReference Include="..\Hermes.TradingPlatform.Data\Hermes.TradingPlatform.Data.csproj" />
@@ -18,5 +21,13 @@
     <ProjectReference Include="..\Hermes.TradingPlatform.Risk\Hermes.TradingPlatform.Risk.csproj" />
     <ProjectReference Include="..\Hermes.TradingPlatform.Strategies\Hermes.TradingPlatform.Strategies.csproj" />
     <ProjectReference Include="..\Hermes.TradingPlatform.Orchestration\Hermes.TradingPlatform.Orchestration.csproj" />
+    <ProjectReference Include="..\..\Hermes.InAppAssistant.Wpf\Hermes.InAppAssistant.Wpf.csproj" />
   </ItemGroup>
+
+  <Target Name="BuildInAppAssistantBeforeMarkupCompile"
+          BeforeTargets="MarkupCompilePass1"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <MSBuild Projects="..\..\Hermes.InAppAssistant.Wpf\Hermes.InAppAssistant.Wpf.csproj"
+             Properties="Configuration=$(Configuration);Platform=$(Platform)" />
+  </Target>
 </Project>

@@ -12,5 +12,7 @@ public enum NavigationPage
     Journal,
     Logs,
     Hermes,
+    AccountSettings,
+    Assistant,
     Settings,
 }

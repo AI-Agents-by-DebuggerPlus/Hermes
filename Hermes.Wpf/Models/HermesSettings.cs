@@ -184,6 +184,9 @@ public sealed class HermesSettings
     /// <summary>When true, Hermes acts as trader-executor for Hermes Trading Platform (toggle: трейдинг / trading).</summary>
     public bool TradingModeEnabled { get; set; }
 
+    /// <summary>When true, main chat uses OpenRouter in-app assistant instead of WSL hermes.</summary>
+    public bool AssistantModeEnabled { get; set; }
+
     /// <summary>Folder with <c>run_submit.ps1</c> (Reni vodokanal). Empty = auto-detect from workspace / repo.</summary>
     public string ReniWaterScriptDirectory { get; set; } = @"D:\Programming\AI_Agents\Hermes\scripts\reni_water";
 
@@ -226,4 +229,31 @@ public sealed class HermesSettings
 
     /// <summary>Optional full path to Hermes.TradingPlatform.exe for auto-launch.</summary>
     public string TradingPlatformExePath { get; set; } = string.Empty;
+
+    /// <summary>Persisted active agent role (enum name).</summary>
+    public string PersistedAgentRole { get; set; } = nameof(AgentRole.Universal);
+
+    /// <summary>Inject ROLE CONTEXT block into outbound hermes chat.</summary>
+    public bool RoleContextBlockEnabled { get; set; } = true;
+
+    /// <summary>Auto-save high-importance MemoryDraft to role Knowledge folder.</summary>
+    public bool RoleAutoCapture { get; set; } = true;
+
+    public int RoleAutoCaptureMinImportance { get; set; } = 4;
+
+    public int RoleAutoCaptureMinLength { get; set; } = 150;
+
+    /// <summary>Export significant trading events to vault Knowledge/Trading/Episodes.</summary>
+    public bool TradingExperienceExportEnabled { get; set; } = true;
+
+    public double TradingExperiencePnlThreshold { get; set; } = 50.0;
+
+    /// <summary>Fractional drawdown from peak equity (0.05 = 5%).</summary>
+    public double TradingExperienceDrawdownThreshold { get; set; } = 0.05;
+
+    /// <summary>OpenRouter API key for in-app assistant (sk-or-v1-…).</summary>
+    public string InAppAssistantOpenRouterApiKey { get; set; } = string.Empty;
+
+    /// <summary>Model id for in-app assistant (e.g. openrouter/free or meta-llama/llama-3.2-3b-instruct:free).</summary>
+    public string InAppAssistantOpenRouterModel { get; set; } = "openrouter/free";
 }

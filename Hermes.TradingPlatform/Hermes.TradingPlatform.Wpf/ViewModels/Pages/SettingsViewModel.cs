@@ -10,14 +10,15 @@ namespace Hermes.TradingPlatform.Wpf.ViewModels.Pages;
 public sealed class SettingsViewModel : BaseViewModel
 {
     private readonly TradingPlatformHost _host;
+    private bool _marketDataUiReady;
 
     public SettingsViewModel(TradingPlatformHost host)
     {
         _host = host;
         MarketDataModes =
         [
-            PlatformSettingsFileStore.ToDisplayName(MarketDataSource.Mock),
             PlatformSettingsFileStore.ToDisplayName(MarketDataSource.BinanceFutures),
+            PlatformSettingsFileStore.ToDisplayName(MarketDataSource.Mock),
         ];
 
         ExchangeModes =
@@ -30,22 +31,46 @@ public sealed class SettingsViewModel : BaseViewModel
         ApiEndpoint = _host.MarketDataEndpoint;
         ExchangeMode = "Virtual (Paper)";
         HermesIntegrationEnabled = _host.HermesOrchestrationEnabled;
-        TradingSoundsEnabled = _host.PlatformSettingsStore.Load().TradingSoundsEnabled;
+        var platformSettings = _host.PlatformSettingsStore.Load();
+        TradingSoundsEnabled = platformSettings.TradingSoundsEnabled;
 
         ApplyMarketDataCommand = new RelayCommand(_ => ApplyMarketDataMode());
         _host.FeedStatusChanged += (_, _) => WpfThreading.RunOnUi(RefreshFeedStatus);
         RefreshFeedStatus();
+        SettingsHintText = "General platform settings. Account and assistant have their own menu tabs.";
+        _marketDataUiReady = true;
     }
 
-    public ObservableCollection<string> MarketDataModes { get; }
-    public ObservableCollection<string> ExchangeModes { get; }
+    private string _settingsHintText = string.Empty;
+
+    public string SettingsHintText
+    {
+        get => _settingsHintText;
+        private set => SetField(ref _settingsHintText, value);
+    }
+
+    private void SetHint(string text) => SettingsHintText = text;
+
+    public ObservableCollection<string> MarketDataModes { get; } = [];
+    public ObservableCollection<string> ExchangeModes { get; } = [];
 
     private string _marketDataMode = "";
 
     public string MarketDataMode
     {
         get => _marketDataMode;
-        set => SetField(ref _marketDataMode, value);
+        set
+        {
+            if (!SetField(ref _marketDataMode, value))
+            {
+                return;
+            }
+
+            if (_marketDataUiReady)
+            {
+                ApplyMarketDataMode();
+            }
+        }
     }
 
     private string _feedStatus = "";
@@ -80,14 +105,6 @@ public sealed class SettingsViewModel : BaseViewModel
         set => SetField(ref _theme, value);
     }
 
-    private string _defaultLeverageText = "3";
-
-    public string DefaultLeverageText
-    {
-        get => _defaultLeverageText;
-        set => SetField(ref _defaultLeverageText, value);
-    }
-
     private string _replayDataPath = "%AppData%\\HermesTrading\\Replay";
 
     public string ReplayDataPath
@@ -106,6 +123,7 @@ public sealed class SettingsViewModel : BaseViewModel
             if (SetField(ref _hermesIntegrationEnabled, value))
             {
                 _host.SetHermesOrchestrationEnabled(value);
+                SetHint(SettingsSaveFeedback.HermesOrchestration(value));
             }
         }
     }
@@ -135,6 +153,7 @@ public sealed class SettingsViewModel : BaseViewModel
         _host.SetMarketDataSource(source);
         ApiEndpoint = _host.MarketDataEndpoint;
         RefreshFeedStatus();
+        SetHint(SettingsSaveFeedback.MarketDataApplied(MarketDataMode, FeedStatus));
     }
 
     private void RefreshFeedStatus() =>

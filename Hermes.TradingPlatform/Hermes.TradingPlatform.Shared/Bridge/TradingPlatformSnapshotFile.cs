@@ -4,7 +4,7 @@ public sealed class TradingPlatformSnapshotFile
 {
     public DateTimeOffset TimestampUtc { get; init; }
     public bool TerminalRunning { get; init; }
-    public string MarketDataSource { get; init; } = "Mock";
+    public string MarketDataSource { get; init; } = "BinanceFutures";
     public string FeedStatus { get; init; } = "";
     public AccountSnapshot Account { get; init; } = new();
     public PnlSnapshot Pnl { get; init; } = new();

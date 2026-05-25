@@ -22,8 +22,11 @@ public sealed class TradingReadModel
 
     public PnlSummaryDto GetPnlSummary() => TradingUiMapper.ToDto(_store.Snapshot.Pnl);
 
-    public IReadOnlyList<PositionDto> GetOpenPositions() =>
-        _store.Snapshot.Positions.Select(TradingUiMapper.ToDto).ToList();
+    public IReadOnlyList<PositionDto> GetOpenPositions()
+    {
+        var snap = _store.Snapshot;
+        return snap.Positions.Select(p => TradingUiMapper.ToDto(p, snap.Orders)).ToList();
+    }
 
     public IReadOnlyList<OrderDto> GetActiveOrders() =>
         _store.Snapshot.Orders

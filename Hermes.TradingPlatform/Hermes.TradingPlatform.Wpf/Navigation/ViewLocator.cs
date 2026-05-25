@@ -20,6 +20,8 @@ public static class ViewLocator
         JournalViewModel => new JournalView(),
         LogsViewModel => new LogsView(),
         HermesViewModel => new HermesView(),
+        AccountSettingsViewModel => new AccountSettingsView(),
+        AssistantViewModel => new AssistantView(),
         SettingsViewModel => new SettingsView(),
         _ => null,
     };

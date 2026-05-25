@@ -26,6 +26,7 @@ public static class InitialTradingSeed
             Risk = new RiskProfile
             {
                 MaxDailyLossPercent = 5m,
+                MaxRiskPerTradePercent = 1m,
                 MaxPositionSizeBtc = 0.5m,
                 MaxLeverage = 5m,
                 MaxExposurePercent = 50m,
@@ -105,6 +106,62 @@ public static class InitialTradingSeed
             new PlatformLogEntry { Timestamp = DateTimeOffset.UtcNow.AddMinutes(-12), EventType = "Strategy", Source = "LiquiditySweep", Message = "Signal: no entry — spread too wide" },
             new PlatformLogEntry { Timestamp = DateTimeOffset.UtcNow.AddMinutes(-15), EventType = "System", Source = "Platform", Message = "Paper trading session started (Phase 2+3 backend)" },
         ]);
+
+        return state;
+    }
+
+    /// <summary>Empty paper account for reset (no positions, orders, or journal).</summary>
+    public static TradingPlatformState CreateClean(decimal balance = 100_000m, decimal leverage = 3m)
+    {
+        var state = new TradingPlatformState
+        {
+            Account = new TradingAccount
+            {
+                Balance = balance,
+                Equity = balance,
+                FreeMargin = balance,
+                UsedMargin = 0m,
+                Leverage = leverage,
+            },
+            Pnl = new PnlTracker(),
+            Risk = new RiskProfile
+            {
+                MaxDailyLossPercent = 5m,
+                MaxRiskPerTradePercent = 1m,
+                MaxPositionSizeBtc = 0.5m,
+                MaxLeverage = 5m,
+                MaxExposurePercent = 50m,
+                SafeMode = true,
+                AutoShutdown = true,
+                RiskLevel = RiskLevel.Low,
+            },
+            Hermes = new HermesState
+            {
+                State = HermesOrchestrationState.Monitoring,
+                Mode = "Orchestration / Paper",
+                CurrentReasoning = "Paper account reset — no open positions.",
+            },
+        };
+
+        state.Tickers.AddRange(
+        [
+            new MarketTicker { Symbol = "BTCUSDT", Price = 95_124.50m, ChangePercent24h = 2.34m, Volume24h = 28_400_000_000m, InWatchlist = true },
+            new MarketTicker { Symbol = "ETHUSDT", Price = 3_412.80m, ChangePercent24h = -0.85m, Volume24h = 12_100_000_000m, InWatchlist = true },
+            new MarketTicker { Symbol = "SOLUSDT", Price = 141.22m, ChangePercent24h = 4.12m, Volume24h = 2_800_000_000m, InWatchlist = true },
+        ]);
+
+        state.Strategies.AddRange(
+        [
+            new StrategyState { Id = "liq-sweep", Name = "Liquidity Sweep", Description = "Sweep highs/lows.", RiskProfileLabel = "Moderate", Status = StrategyRunStatus.Idle, IsEnabled = false },
+        ]);
+
+        state.Logs.Add(new PlatformLogEntry
+        {
+            Timestamp = DateTimeOffset.UtcNow,
+            EventType = "System",
+            Source = "Platform",
+            Message = $"Paper account reset. Balance={balance:N2}, leverage={leverage:F1}x",
+        });
 
         return state;
     }

@@ -18,5 +18,8 @@ public sealed class GeneratedSkillManifest
     public string TestCommand { get; init; } = string.Empty;
     public string SourceTurn { get; init; } = string.Empty;
 
+    /// <summary>Optional role filter; empty or Universal-only → available in all roles.</summary>
+    public List<AgentRole> Roles { get; init; } = [];
+
     public string DirectoryPath { get; init; } = string.Empty;
 }

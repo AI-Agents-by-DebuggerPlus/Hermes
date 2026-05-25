@@ -18,6 +18,8 @@ public sealed class SettingsService
         _settingsFilePath = Path.Combine(root, "settings.json");
     }
 
+    public string SettingsFilePath => _settingsFilePath;
+
     public async Task<HermesSettings> LoadAsync()
     {
         if (!File.Exists(_settingsFilePath))
@@ -77,7 +79,13 @@ public sealed class SettingsService
         }
 
         MigrateHermesGallerySettings(settings);
-        if (MigrateSupabaseFromDesktopVoiceChat(settings))
+        var migrated = MigrateSupabaseFromDesktopVoiceChat(settings);
+        if (MigrateInAppAssistantLegacyKeys(settings, raw))
+        {
+            migrated = true;
+        }
+
+        if (migrated)
         {
             await SaveAsync(settings);
         }
@@ -268,6 +276,70 @@ public sealed class SettingsService
         {
             return false;
         }
+    }
+
+    /// <summary>Migrates legacy assistant fields (OpenAI/Gemini) to OpenRouter.</summary>
+    private static bool MigrateInAppAssistantLegacyKeys(HermesSettings s, string rawJson)
+    {
+        if (!string.IsNullOrWhiteSpace(s.InAppAssistantOpenRouterApiKey))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(rawJson);
+            var root = doc.RootElement;
+            var key = ReadJsonString(root, "InAppAssistantOpenRouterApiKey");
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                key = ReadJsonString(root, "InAppAssistantGeminiApiKey");
+            }
+
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                key = ReadJsonString(root, "InAppAssistantOpenAiApiKey");
+            }
+
+            if (string.IsNullOrWhiteSpace(key) || !LooksLikeOpenRouterKey(key))
+            {
+                return false;
+            }
+
+            s.InAppAssistantOpenRouterApiKey = key;
+            var model = ReadJsonString(root, "InAppAssistantOpenRouterModel");
+            if (string.IsNullOrWhiteSpace(model))
+            {
+                model = ReadJsonString(root, "InAppAssistantGeminiModel");
+            }
+
+            if (string.IsNullOrWhiteSpace(model))
+            {
+                model = ReadJsonString(root, "InAppAssistantOpenAiModel");
+            }
+
+            s.InAppAssistantOpenRouterModel = MapLegacyAssistantModel(model);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool LooksLikeOpenRouterKey(string key) =>
+        key.TrimStart().StartsWith("sk-or-", StringComparison.OrdinalIgnoreCase);
+
+    private static string MapLegacyAssistantModel(string? model)
+    {
+        if (string.IsNullOrWhiteSpace(model)
+            || model.StartsWith("gpt-", StringComparison.OrdinalIgnoreCase)
+            || model.StartsWith("gemini-", StringComparison.OrdinalIgnoreCase))
+        {
+            return "openrouter/free";
+        }
+
+        return model.Trim();
     }
 
     private static string ReadJsonString(JsonElement root, string name) =>

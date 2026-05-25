@@ -1,14 +1,15 @@
 <UserControl x:Class="Hermes.TradingPlatform.Wpf.Views.Pages.OrdersView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctrl="clr-namespace:Hermes.TradingPlatform.Wpf.Controls">
     <StackPanel>
-        <TextBlock Text="Virtual exchange · размещение и отмена ордеров"
+        <TextBlock Text="Virtual exchange · place and cancel orders"
                    Foreground="{StaticResource Brush.TextMuted}"
                    Margin="0,0,0,12" />
 
         <Border Style="{StaticResource PanelCardStyle}" Margin="0,0,0,12">
             <StackPanel>
-                <TextBlock Text="Новый ордер" Style="{StaticResource SectionHeaderStyle}" FontSize="13" />
+                <TextBlock Text="New order" Style="{StaticResource SectionHeaderStyle}" FontSize="13" />
                 <Grid Margin="0,8,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="100" />
@@ -45,9 +46,11 @@
                     <StackPanel Grid.Row="0" Grid.Column="4" Grid.RowSpan="2" VerticalAlignment="Center">
                         <TextBlock Text="Qty" Foreground="{StaticResource Brush.TextMuted}" Margin="0,0,0,4" />
                         <TextBox Text="{Binding NewQuantityText, UpdateSourceTrigger=PropertyChanged}" Width="80" Margin="0,0,0,8" />
-                        <CheckBox Content="Reduce-only"
-                                  IsChecked="{Binding NewReduceOnly, Mode=TwoWay}"
-                                  Margin="0,0,0,8" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <CheckBox Content="Reduce-only"
+                                      IsChecked="{Binding NewReduceOnly, Mode=TwoWay}" />
+                            <ctrl:HelpHintIcon HelpText="Ордер только уменьшает позицию, не открывает новую" Margin="4,0,0,0" />
+                        </StackPanel>
                         <Button Content="Place order"
                                 Command="{Binding PlaceOrderCommand}"
                                 Style="{StaticResource SecondaryButtonStyle}"
@@ -63,6 +66,7 @@
                     <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="80" />
                     <DataGridTextColumn Header="Symbol" Binding="{Binding Symbol}" Width="*" />
                     <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="70" />
+                    <DataGridTextColumn Header="Purpose" Binding="{Binding Purpose}" Width="70" />
                     <DataGridTextColumn Header="Side" Binding="{Binding Side}" Width="60" />
                     <DataGridTextColumn Header="Price" Binding="{Binding Price, StringFormat=N2}" Width="90" />
                     <DataGridTextColumn Header="Qty" Binding="{Binding Quantity}" Width="70" />
@@ -70,12 +74,13 @@
                     <DataGridTemplateColumn Header="RO" Width="44">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <CheckBox IsChecked="{Binding ReduceOnly, Mode=OneWay}"
-                                          IsEnabled="False"
-                                          Focusable="False"
-                                          HorizontalAlignment="Center"
-                                          VerticalAlignment="Center"
-                                          ToolTip="Reduce-only" />
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <CheckBox IsChecked="{Binding ReduceOnly, Mode=OneWay}"
+                                              IsEnabled="False"
+                                              Focusable="False"
+                                              VerticalAlignment="Center" />
+                                    <ctrl:HelpHintIcon HelpText="Reduce-only: только сокращение позиции" Margin="2,0,0,0" />
+                                </StackPanel>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>

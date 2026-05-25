@@ -1,11 +1,13 @@
 <UserControl x:Class="Hermes.TradingPlatform.Wpf.Views.Pages.SettingsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctrl="clr-namespace:Hermes.TradingPlatform.Wpf.Controls">
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel MaxWidth="720">
-            <TextBlock Text="Platform settings · market data Phase 4"
+            <TextBlock Text="Platform settings · market data: Binance Futures USDT-M (public WebSocket) by default"
                        Foreground="{StaticResource Brush.TextMuted}"
                        FontSize="12"
+                       TextWrapping="Wrap"
                        Margin="0,0,0,16" />
 
             <!-- Market data -->
@@ -22,7 +24,10 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-                        <TextBlock Text="Source" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="Source" Foreground="{StaticResource Brush.TextMuted}" />
+                            <ctrl:HelpHintIcon HelpText="Mock — симуляция; Binance Futures — живые тики USDT-M" Margin="6,0,0,0" />
+                        </StackPanel>
                         <ComboBox Grid.Column="1"
                                   ItemsSource="{Binding MarketDataModes}"
                                   SelectedItem="{Binding MarketDataMode, Mode=TwoWay}" />
@@ -84,25 +89,12 @@
                         <TextBlock Text="Theme" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
                         <TextBox Grid.Column="1" Text="{Binding Theme, UpdateSourceTrigger=PropertyChanged}" />
                     </Grid>
-                    <CheckBox Margin="0,12,0,0"
-                              Content="Звуки сделок (как в MetaTrader)"
-                              IsChecked="{Binding TradingSoundsEnabled, Mode=TwoWay}"
-                              ToolTip="Системные звуки Windows при исполнении ордеров: открытие, закрытие, ошибка" />
-                </StackPanel>
-            </Border>
-
-            <!-- Risk -->
-            <Border Style="{StaticResource PanelCardStyle}" Margin="0,0,0,12">
-                <StackPanel>
-                    <TextBlock Text="Risk defaults" Style="{StaticResource SectionHeaderStyle}" FontSize="13" />
-                    <Grid Margin="0,4,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="180" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="Default leverage" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
-                        <TextBox Grid.Column="1" Text="{Binding DefaultLeverageText, UpdateSourceTrigger=PropertyChanged}" />
-                    </Grid>
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <CheckBox Content="Trade sounds (MetaTrader-style)"
+                                  IsChecked="{Binding TradingSoundsEnabled, Mode=TwoWay}" />
+                        <ctrl:HelpHintIcon HelpText="Системные звуки Windows при исполнении ордеров: открытие, закрытие, ошибка"
+                                           Margin="6,0,0,0" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
@@ -121,6 +113,18 @@
                 </StackPanel>
             </Border>
 
+            <Border Margin="0,0,0,12"
+                    Padding="12,10"
+                    Background="#1A2330"
+                    CornerRadius="6"
+                    BorderBrush="#2A3A4E"
+                    BorderThickness="1">
+                <TextBlock Text="{Binding SettingsHintText}"
+                           TextWrapping="Wrap"
+                           FontSize="12"
+                           Foreground="{StaticResource Brush.TextMuted}" />
+            </Border>
+
             <!-- Hermes -->
             <Border Style="{StaticResource PanelCardStyle}">
                 <StackPanel>
@@ -130,8 +134,12 @@
                                FontSize="11"
                                TextWrapping="Wrap"
                                Margin="0,0,0,12" />
-                    <CheckBox Content="Enable Hermes orchestration layer"
-                              IsChecked="{Binding HermesIntegrationEnabled, Mode=TwoWay}" />
+                    <StackPanel Orientation="Horizontal">
+                        <CheckBox Content="Enable Hermes orchestration layer"
+                                  IsChecked="{Binding HermesIntegrationEnabled, Mode=TwoWay}" />
+                        <ctrl:HelpHintIcon HelpText="Hermes наблюдает за сигналами стратегий; ордера не выставляет"
+                                           Margin="6,0,0,0" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
         </StackPanel>

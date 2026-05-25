@@ -1,11 +1,13 @@
 using System.Globalization;
 using Hermes.Wpf.Models;
+using Hermes.Wpf.Services;
 
 namespace Hermes.Wpf.ViewModels;
 
 public sealed class SettingsViewModel : BaseViewModel
 {
     private readonly HermesSettings _settings;
+    private readonly SettingsService? _settingsService;
     private string _wslDistro;
     private string _venvPath;
     private string _hermesCommand;
@@ -53,10 +55,15 @@ public sealed class SettingsViewModel : BaseViewModel
     private string _lastScreenshotBrowsePath = string.Empty;
     private bool _tradingPlatformIntegrationEnabled = true;
     private bool _tradingPlatformAutoLaunchTerminal;
+    private string _inAppAssistantOpenRouterApiKey = string.Empty;
+    private string _inAppAssistantOpenRouterModel = "openrouter/free";
+    private string _settingsStatusText =
+        "Изменения в полях применяются сразу; на диск — кнопка «Сохранить» или закрытие окна.";
 
-    public SettingsViewModel(HermesSettings settings)
+    public SettingsViewModel(HermesSettings settings, SettingsService? settingsService = null)
     {
         _settings = settings;
+        _settingsService = settingsService;
         _wslDistro = settings.WslDistro;
         _venvPath = settings.VenvPath;
         _hermesCommand = settings.HermesCommand;
@@ -110,6 +117,76 @@ public sealed class SettingsViewModel : BaseViewModel
         _desktopVisionUseAnnotatedImage = settings.DesktopVisionUseAnnotatedImage;
         _tradingPlatformIntegrationEnabled = settings.TradingPlatformIntegrationEnabled;
         _tradingPlatformAutoLaunchTerminal = settings.TradingPlatformAutoLaunchTerminal;
+        _inAppAssistantOpenRouterApiKey = settings.InAppAssistantOpenRouterApiKey ?? string.Empty;
+        _inAppAssistantOpenRouterModel = string.IsNullOrWhiteSpace(settings.InAppAssistantOpenRouterModel)
+            ? "openrouter/free"
+            : settings.InAppAssistantOpenRouterModel.Trim();
+        RefreshOpenRouterSectionHint(persisted: false);
+    }
+
+    public string SettingsStatusText
+    {
+        get => _settingsStatusText;
+        set => SetProperty(ref _settingsStatusText, value);
+    }
+
+    public string InAppAssistantOpenRouterApiKey
+    {
+        get => _inAppAssistantOpenRouterApiKey;
+        set
+        {
+            _settings.InAppAssistantOpenRouterApiKey = value ?? string.Empty;
+            if (SetProperty(ref _inAppAssistantOpenRouterApiKey, value ?? string.Empty))
+            {
+                RefreshOpenRouterSectionHint(persisted: false);
+            }
+        }
+    }
+
+    public string InAppAssistantOpenRouterModel
+    {
+        get => _inAppAssistantOpenRouterModel;
+        set
+        {
+            var m = string.IsNullOrWhiteSpace(value) ? "openrouter/free" : value.Trim();
+            _settings.InAppAssistantOpenRouterModel = m;
+            if (SetProperty(ref _inAppAssistantOpenRouterModel, m))
+            {
+                RefreshOpenRouterSectionHint(persisted: false);
+            }
+        }
+    }
+
+    public void RefreshOpenRouterSectionHint(bool persisted) =>
+        SettingsStatusText = SettingsSaveFeedback.OpenRouterSectionHint(_settings, persisted);
+
+    public void RefreshSupabaseSectionHint() =>
+        SettingsStatusText = SettingsSaveFeedback.SupabaseSectionHint(_settings);
+
+    public async Task SaveToDiskAsync()
+    {
+        CommitChatFontSize();
+        NormalizeExternalBrainMaxEditField();
+        NormalizeScreenshotMonitorIndexField();
+
+        if (_settingsService is null)
+        {
+            SettingsStatusText =
+                "Настройки в памяти обновлены. Файл settings.json будет записан при закрытии окна.";
+            return;
+        }
+
+        try
+        {
+            await _settingsService.SaveAsync(_settings).ConfigureAwait(true);
+            SettingsStatusText = SettingsSaveFeedback.FullSettingsSaved(
+                _settingsService.SettingsFilePath,
+                _settings);
+        }
+        catch (Exception ex)
+        {
+            SettingsStatusText = $"Ошибка сохранения: {ex.Message}";
+        }
     }
 
     private static int ClampPollInterval(int seconds)
@@ -285,7 +362,10 @@ public sealed class SettingsViewModel : BaseViewModel
         set
         {
             _settings.SupabaseRelayEnabled = value;
-            SetProperty(ref _supabaseRelayEnabled, value);
+            if (SetProperty(ref _supabaseRelayEnabled, value))
+            {
+                RefreshSupabaseSectionHint();
+            }
         }
     }
 
@@ -306,7 +386,10 @@ public sealed class SettingsViewModel : BaseViewModel
         {
             var v = value ?? string.Empty;
             _settings.SupabaseUrl = v;
-            SetProperty(ref _supabaseUrl, v);
+            if (SetProperty(ref _supabaseUrl, v))
+            {
+                RefreshSupabaseSectionHint();
+            }
         }
     }
 
@@ -317,7 +400,10 @@ public sealed class SettingsViewModel : BaseViewModel
         {
             var v = value ?? string.Empty;
             _settings.SupabaseAnonKey = v;
-            SetProperty(ref _supabaseAnonKey, v);
+            if (SetProperty(ref _supabaseAnonKey, v))
+            {
+                RefreshSupabaseSectionHint();
+            }
         }
     }
 

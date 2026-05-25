@@ -25,7 +25,7 @@ public partial class SettingsWindow : Window
         _settingsService = settingsService;
         _galleryPublisher = galleryPublisher;
         InitializeComponent();
-        DataContext = new SettingsViewModel(settings);
+        DataContext = new SettingsViewModel(settings, settingsService);
     }
 
     private void OpenWordPressGallery_OnClick(object sender, RoutedEventArgs e)
@@ -107,6 +107,42 @@ public partial class SettingsWindow : Window
         }
 
         return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+    }
+
+    private async void SaveButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        FlushPendingSettingsEdit();
+        if (DataContext is SettingsViewModel vm)
+        {
+            await vm.SaveToDiskAsync();
+        }
+    }
+
+    private async void SaveOpenRouterSection_OnClick(object sender, RoutedEventArgs e)
+    {
+        FlushPendingSettingsEdit();
+        if (DataContext is not SettingsViewModel vm)
+        {
+            return;
+        }
+
+        if (_settingsService is null)
+        {
+            vm.RefreshOpenRouterSectionHint(persisted: false);
+            vm.SettingsStatusText =
+                "Ключ OpenRouter будет записан при закрытии окна или «Сохранить» внизу.";
+            return;
+        }
+
+        try
+        {
+            await _settingsService.SaveAsync(_settings);
+            vm.RefreshOpenRouterSectionHint(persisted: true);
+        }
+        catch (Exception ex)
+        {
+            vm.SettingsStatusText = $"Ошибка сохранения OpenRouter: {ex.Message}";
+        }
     }
 
     private void CloseButton_OnClick(object sender, RoutedEventArgs e)

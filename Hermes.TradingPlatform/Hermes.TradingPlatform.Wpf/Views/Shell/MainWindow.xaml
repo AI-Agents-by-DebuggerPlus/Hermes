@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:Hermes.TradingPlatform.Wpf.Views.Shell"
         xmlns:ctrl="clr-namespace:Hermes.TradingPlatform.Wpf.Controls"
+        xmlns:assistant="clr-namespace:Hermes.InAppAssistant.Wpf;assembly=Hermes.InAppAssistant.Wpf"
         Title="Hermes Trading Platform"
         Width="1280"
         Height="800"
@@ -10,6 +11,9 @@
         MinHeight="640"
         Background="{StaticResource Brush.BgDeep}"
         WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+    </Window.Resources>
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="220" />
@@ -36,13 +40,18 @@
                             <Setter Property="Template">
                                 <Setter.Value>
                                     <ControlTemplate TargetType="ListBoxItem">
-                                        <Button Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                CommandParameter="{Binding Page}"
-                                                Background="Transparent"
-                                                BorderThickness="0"
-                                                Padding="12,10"
-                                                HorizontalContentAlignment="Left"
-                                                Cursor="Hand">
+                                        <DockPanel LastChildFill="True">
+                                            <ctrl:HelpHintIcon DockPanel.Dock="Right"
+                                                               HelpText="{Binding ToolTipRu}"
+                                                               Margin="0,0,12,0"
+                                                               VerticalAlignment="Center" />
+                                            <Button Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding Page}"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    Padding="12,10"
+                                                    HorizontalContentAlignment="Left"
+                                                    Cursor="Hand">
                                             <Button.Style>
                                                 <Style TargetType="Button">
                                                     <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
@@ -69,7 +78,8 @@
                                                     </Setter>
                                                 </Style>
                                             </Button.Style>
-                                        </Button>
+                                            </Button>
+                                        </DockPanel>
                                     </ControlTemplate>
                                 </Setter.Value>
                             </Setter>
@@ -106,9 +116,40 @@
             <ctrl:AccountSummaryStrip Grid.Row="1" DataContext="{Binding}" />
 
             <!-- Content -->
-            <shell:PageContentPresenter Grid.Row="2"
-                                        PageViewModel="{Binding CurrentPage}"
-                                        Margin="20" />
+            <Grid Grid.Row="2" Margin="20">
+                <shell:PageContentPresenter PageViewModel="{Binding CurrentPage}">
+                    <shell:PageContentPresenter.Style>
+                        <Style TargetType="shell:PageContentPresenter">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsAssistantTab}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </shell:PageContentPresenter.Style>
+                </shell:PageContentPresenter>
+
+                <Grid Visibility="{Binding IsAssistantTab, Converter={StaticResource BoolToVisibility}}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" MinHeight="280" />
+                    </Grid.RowDefinitions>
+                    <shell:PageContentPresenter Grid.Row="0" PageViewModel="{Binding CurrentPage}" />
+                    <assistant:MiniAssistantPanel Grid.Row="1"
+                                                  DataContext="{Binding InAppAssistant}"
+                                                  Embedded="True"
+                                                  HorizontalAlignment="Stretch"
+                                                  VerticalAlignment="Stretch" />
+                </Grid>
+
+                <assistant:MiniAssistantPanel DataContext="{Binding InAppAssistant}"
+                                              Embedded="False"
+                                              Panel.ZIndex="40"
+                                              VerticalAlignment="Bottom"
+                                              HorizontalAlignment="Right"
+                                              Visibility="{Binding ShowFloatingAssistant, Converter={StaticResource BoolToVisibility}}" />
+            </Grid>
         </Grid>
     </Grid>
 </Window>

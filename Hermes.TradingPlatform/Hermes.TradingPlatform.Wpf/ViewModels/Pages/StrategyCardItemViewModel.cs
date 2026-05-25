@@ -16,9 +16,25 @@ public sealed class StrategyCardItemViewModel : BaseViewModel
 
     private bool _isEnabled;
 
+    /// <summary>True while <see cref="Refresh"/> applies server state (do not push to host).</summary>
+    internal bool SyncingFromModel { get; set; }
+
+    public event Action<StrategyCardItemViewModel, bool>? IsEnabledChangedByUser;
+
     public bool IsEnabled
     {
         get => _isEnabled;
-        set => SetField(ref _isEnabled, value);
+        set
+        {
+            if (!SetField(ref _isEnabled, value))
+            {
+                return;
+            }
+
+            if (!SyncingFromModel)
+            {
+                IsEnabledChangedByUser?.Invoke(this, value);
+            }
+        }
     }
 }

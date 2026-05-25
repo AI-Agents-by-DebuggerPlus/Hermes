@@ -90,7 +90,7 @@ public sealed class MarketWatchViewModel : TradingPageViewModel
 
         if (!ManualTradeNotifier.TryParseQuantity(TradeQuantityText, out var quantity))
         {
-            ManualTradeNotifier.ReportWarning("Укажите Qty в панели выше.");
+            ManualTradeNotifier.ReportWarning("Enter Qty in the panel above.");
             return;
         }
 
@@ -107,6 +107,6 @@ public sealed class MarketWatchViewModel : TradingPageViewModel
         }
 
         var order = _exchange.ClosePosition(item.Symbol);
-        ManualTradeNotifier.ReportOrder(order, $"Закрыть {item.Symbol}");
+        ManualTradeNotifier.ReportOrder(order, $"Close {item.Symbol}");
     }
 }

@@ -106,14 +106,14 @@ public sealed class PositionsViewModel : TradingPageViewModel
     {
         if (!ManualTradeNotifier.TryParseQuantity(TradeQuantityText, out var quantity))
         {
-            ManualTradeNotifier.ReportWarning("Укажите корректное количество.");
+            ManualTradeNotifier.ReportWarning("Enter a valid quantity.");
             return;
         }
 
         var price = ManualTradeNotifier.ResolveMarketPrice(ReadModel, TradeSymbol);
         if (price <= 0)
         {
-            ManualTradeNotifier.ReportWarning("Нет цены по символу — дождитесь тика market data.");
+            ManualTradeNotifier.ReportWarning("No price for symbol — wait for a market data tick.");
             return;
         }
 
@@ -124,7 +124,7 @@ public sealed class PositionsViewModel : TradingPageViewModel
     private void CloseOne(string symbol)
     {
         var order = _exchange.ClosePosition(symbol);
-        ManualTradeNotifier.ReportOrder(order, "Закрыть позицию");
+        ManualTradeNotifier.ReportOrder(order, "Close position");
     }
 
     private void CloseAll()
@@ -133,12 +133,12 @@ public sealed class PositionsViewModel : TradingPageViewModel
         foreach (var symbol in symbols)
         {
             var order = _exchange.ClosePosition(symbol);
-            ManualTradeNotifier.ReportOrder(order, $"Закрыть все · {symbol}");
+            ManualTradeNotifier.ReportOrder(order, $"Close all · {symbol}");
         }
 
         if (symbols.Count > 0)
         {
-            ManualTradeNotifier.ReportInfo($"Закрытие {symbols.Count} позиций отправлено в журнал.");
+            ManualTradeNotifier.ReportInfo($"Closing {symbols.Count} positions submitted to journal.");
         }
     }
 }

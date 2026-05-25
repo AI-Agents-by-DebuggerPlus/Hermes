@@ -4,5 +4,8 @@
   <Project Path="Hermes.DesktopCapture/Hermes.DesktopCapture.csproj" />
   <Project Path="Hermes.DesktopInteraction/Hermes.DesktopInteraction.csproj" />
   <Project Path="Hermes.MouseBridge/Hermes.MouseBridge.csproj" />
+  <Project Path="Hermes.InAppAssistant/Hermes.InAppAssistant.csproj" />
+  <Project Path="Hermes.InAppAssistant.Wpf/Hermes.InAppAssistant.Wpf.csproj" />
+  <Project Path="Hermes.TradingPlatform/Hermes.TradingPlatform.Shared/Hermes.TradingPlatform.Shared.csproj" />
   <Project Path="Hermes.Wpf/Hermes.Wpf.csproj" />
 </Solution>

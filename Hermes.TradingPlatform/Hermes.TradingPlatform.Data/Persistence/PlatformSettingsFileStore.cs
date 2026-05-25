@@ -23,13 +23,23 @@ public sealed class PlatformSettingsFileStore
     {
         if (!File.Exists(FilePath))
         {
-            return new PlatformSettingsDto();
+            return TryImportOpenRouterFromHermesWpf(new PlatformSettingsDto());
         }
 
         try
         {
-            return JsonSerializer.Deserialize<PlatformSettingsDto>(File.ReadAllText(FilePath), JsonOptions)
-                   ?? new PlatformSettingsDto();
+            var raw = File.ReadAllText(FilePath);
+            var dto = JsonSerializer.Deserialize<PlatformSettingsDto>(raw, JsonOptions)
+                      ?? new PlatformSettingsDto();
+            var marketDataBefore = dto.MarketDataSource;
+            dto = MigrateInAppAssistantLegacy(dto, raw);
+            dto = MigrateMarketDataToBinanceFutures(dto);
+            if (!string.Equals(marketDataBefore, dto.MarketDataSource, StringComparison.OrdinalIgnoreCase))
+            {
+                Save(dto);
+            }
+
+            return TryImportOpenRouterFromHermesWpf(dto);
         }
         catch
         {
@@ -57,4 +67,120 @@ public sealed class PlatformSettingsFileStore
         MarketDataSource.BinanceFutures => "BinanceFutures",
         _ => "Mock",
     };
+
+    /// <summary>Upgrade legacy default Mock → live Binance USDT-M ticker stream.</summary>
+    private static PlatformSettingsDto MigrateMarketDataToBinanceFutures(PlatformSettingsDto dto)
+    {
+        if (string.Equals(dto.MarketDataSource, "Mock", StringComparison.OrdinalIgnoreCase))
+        {
+            dto.MarketDataSource = "BinanceFutures";
+        }
+
+        return dto;
+    }
+
+    private static PlatformSettingsDto MigrateInAppAssistantLegacy(PlatformSettingsDto dto, string rawJson)
+    {
+        if (!string.IsNullOrWhiteSpace(dto.InAppAssistantOpenRouterApiKey))
+        {
+            return dto;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(rawJson);
+            var root = doc.RootElement;
+
+            var key = ReadJsonString(root, "InAppAssistantOpenRouterApiKey");
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                key = ReadJsonString(root, "InAppAssistantGeminiApiKey");
+            }
+
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                key = ReadJsonString(root, "InAppAssistantOpenAiApiKey");
+            }
+
+            if (string.IsNullOrWhiteSpace(key) || !LooksLikeOpenRouterKey(key))
+            {
+                return dto;
+            }
+
+            dto.InAppAssistantOpenRouterApiKey = key;
+            var model = ReadJsonString(root, "InAppAssistantOpenRouterModel");
+            if (string.IsNullOrWhiteSpace(model))
+            {
+                model = ReadJsonString(root, "InAppAssistantGeminiModel");
+            }
+
+            if (string.IsNullOrWhiteSpace(model))
+            {
+                model = ReadJsonString(root, "InAppAssistantOpenAiModel");
+            }
+
+            dto.InAppAssistantOpenRouterModel = MapLegacyAssistantModel(model);
+            return dto;
+        }
+        catch
+        {
+            return dto;
+        }
+    }
+
+    private static string ReadJsonString(JsonElement root, string name) =>
+        root.TryGetProperty(name, out var el) ? (el.GetString() ?? string.Empty).Trim() : string.Empty;
+
+    private static bool LooksLikeOpenRouterKey(string key) =>
+        key.TrimStart().StartsWith("sk-or-", StringComparison.OrdinalIgnoreCase);
+
+    private static string MapLegacyAssistantModel(string? model)
+    {
+        if (string.IsNullOrWhiteSpace(model)
+            || model.StartsWith("gpt-", StringComparison.OrdinalIgnoreCase)
+            || model.StartsWith("gemini-", StringComparison.OrdinalIgnoreCase))
+        {
+            return "openrouter/free";
+        }
+
+        return model.Trim();
+    }
+
+    private static PlatformSettingsDto TryImportOpenRouterFromHermesWpf(PlatformSettingsDto dto)
+    {
+        if (!string.IsNullOrWhiteSpace(dto.InAppAssistantOpenRouterApiKey))
+        {
+            return dto;
+        }
+
+        try
+        {
+            var path = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "HermesWpf",
+                "settings.json");
+            if (!File.Exists(path))
+            {
+                return dto;
+            }
+
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+            var root = doc.RootElement;
+            var key = ReadJsonString(root, "InAppAssistantOpenRouterApiKey");
+            if (string.IsNullOrWhiteSpace(key) || !LooksLikeOpenRouterKey(key))
+            {
+                return dto;
+            }
+
+            dto.InAppAssistantOpenRouterApiKey = key;
+            var model = ReadJsonString(root, "InAppAssistantOpenRouterModel");
+            dto.InAppAssistantOpenRouterModel = MapLegacyAssistantModel(model);
+        }
+        catch
+        {
+            // ignore
+        }
+
+        return dto;
+    }
 }

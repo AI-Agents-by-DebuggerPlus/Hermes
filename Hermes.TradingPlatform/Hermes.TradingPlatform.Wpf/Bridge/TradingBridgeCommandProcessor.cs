@@ -71,6 +71,7 @@ public sealed class TradingBridgeCommandProcessor : IDisposable
             "cancel_order" => ExecuteCancel(cmd),
             "enable_strategy" or "set_strategy" => ExecuteStrategy(cmd),
             "emergency_stop" => ExecuteEmergencyStop(cmd),
+            "reset_account" => ExecuteResetAccount(cmd),
             _ => new TradingPlatformCommandResultFile
             {
                 CommandId = cmd.Id,
@@ -195,6 +196,17 @@ public sealed class TradingBridgeCommandProcessor : IDisposable
             CommandId = cmd.Id,
             Success = true,
             Message = "Emergency halt activated",
+        };
+    }
+
+    private TradingPlatformCommandResultFile ExecuteResetAccount(TradingPlatformCommand cmd)
+    {
+        _host.ResetPaperAccount();
+        return new TradingPlatformCommandResultFile
+        {
+            CommandId = cmd.Id,
+            Success = true,
+            Message = "Paper account reset to initial state",
         };
     }
 

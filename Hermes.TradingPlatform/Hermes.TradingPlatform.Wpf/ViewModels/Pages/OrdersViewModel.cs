@@ -32,7 +32,7 @@ public sealed class OrdersViewModel : TradingPageViewModel
                 {
                     var ok = _exchange.TryCancelOrder(order.Id);
                     MessageBox.Show(
-                        ok ? $"Ордер {order.Id} отменён." : $"Не удалось отменить {order.Id}.",
+                        ok ? $"Order {order.Id} cancelled." : $"Failed to cancel {order.Id}.",
                         "Orders",
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
@@ -46,7 +46,7 @@ public sealed class OrdersViewModel : TradingPageViewModel
                 if (p is OrderDto order)
                 {
                     MessageBox.Show(
-                        $"Изменение ордера {order.Id} не реализовано. Отмените и создайте новый.",
+                        $"Order {order.Id} modification is not implemented. Cancel and place a new order.",
                         "Orders",
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
@@ -178,7 +178,7 @@ public sealed class OrdersViewModel : TradingPageViewModel
     {
         if (!decimal.TryParse(NewQuantityText, NumberStyles.Any, CultureInfo.InvariantCulture, out var quantity) || quantity <= 0)
         {
-            ManualTradeNotifier.ReportWarning("Укажите корректное количество.");
+            ManualTradeNotifier.ReportWarning("Enter a valid quantity.");
             return;
         }
 
@@ -187,7 +187,7 @@ public sealed class OrdersViewModel : TradingPageViewModel
         {
             if (!decimal.TryParse(NewPriceText, NumberStyles.Any, CultureInfo.InvariantCulture, out price) || price <= 0)
             {
-                ManualTradeNotifier.ReportWarning("Укажите корректную цену.");
+                ManualTradeNotifier.ReportWarning("Enter a valid price.");
                 return;
             }
         }
@@ -199,18 +199,18 @@ public sealed class OrdersViewModel : TradingPageViewModel
 
         if (!Enum.TryParse<OrderType>(NewOrderType, ignoreCase: true, out var orderType))
         {
-            ManualTradeNotifier.ReportWarning("Неизвестный тип ордера.");
+            ManualTradeNotifier.ReportWarning("Unknown order type.");
             return;
         }
 
         if (!Enum.TryParse<OrderSide>(NewSide, ignoreCase: true, out var side))
         {
-            ManualTradeNotifier.ReportWarning("Неизвестная сторона.");
+            ManualTradeNotifier.ReportWarning("Unknown side.");
             return;
         }
 
         var order = _exchange.PlaceOrder(NewSymbol, orderType, side, quantity, price, NewReduceOnly);
         var status = order.Status.ToString();
-        ManualTradeNotifier.ReportOrder(order, "Новый ордер");
+        ManualTradeNotifier.ReportOrder(order, "New order");
     }
 }

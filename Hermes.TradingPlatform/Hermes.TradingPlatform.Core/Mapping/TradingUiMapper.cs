@@ -12,6 +12,7 @@ public static class TradingUiMapper
         Equity = account.Equity,
         FreeMargin = account.FreeMargin,
         UsedMargin = account.UsedMargin,
+        Leverage = account.Leverage,
     };
 
     public static PnlSummaryDto ToDto(PnlTracker pnl) => new()
@@ -22,36 +23,79 @@ public static class TradingUiMapper
         AllTime = pnl.AllTime,
     };
 
-    public static PositionDto ToDto(Position position) => new()
-    {
-        Symbol = position.Symbol,
-        Side = position.Side == PositionSide.Long ? "Long" : "Short",
-        Size = position.Size,
-        EntryPrice = position.EntryPrice,
-        MarkPrice = position.MarkPrice,
-        UnrealizedPnl = position.UnrealizedPnl,
-        RealizedPnl = position.RealizedPnl,
-        LiquidationPrice = position.LiquidationPrice,
-    };
+    public static PositionDto ToDto(Position position) => ToDto(position, []);
 
-    public static OrderDto ToDto(Order order) => new()
+    public static PositionDto ToDto(Position position, IReadOnlyList<Order> orders)
     {
-        Id = order.Id,
-        Symbol = order.Symbol,
-        Type = order.Type.ToString(),
-        Side = order.Side == OrderSide.Buy ? "Buy" : "Sell",
-        Price = order.Price,
-        Quantity = order.Quantity,
-        Status = order.Status.ToString(),
-        ReduceOnly = order.ReduceOnly,
-    };
+        var exitSide = position.Side == PositionSide.Long ? OrderSide.Sell : OrderSide.Buy;
+        decimal? sl = null;
+        decimal? tp = null;
+        foreach (var o in orders)
+        {
+            if (o.Status != OrderStatus.Open || !o.ReduceOnly || o.Side != exitSide || o.Symbol != position.Symbol)
+            {
+                continue;
+            }
+
+            if (o.Type == OrderType.Stop && sl is null)
+            {
+                sl = o.TriggerPrice ?? o.Price;
+            }
+            else if (o.Type == OrderType.Limit && tp is null)
+            {
+                tp = o.Price;
+            }
+        }
+
+        return new PositionDto
+        {
+            Symbol = position.Symbol,
+            Side = position.Side == PositionSide.Long ? "Long" : "Short",
+            Size = position.Size,
+            EntryPrice = position.EntryPrice,
+            MarkPrice = position.MarkPrice,
+            UnrealizedPnl = position.UnrealizedPnl,
+            RealizedPnl = position.RealizedPnl,
+            LiquidationPrice = position.LiquidationPrice,
+            StopLossPrice = sl,
+            TakeProfitPrice = tp,
+        };
+    }
+
+    public static OrderDto ToDto(Order order)
+    {
+        var purpose = order.ReduceOnly
+            ? order.Type switch
+            {
+                OrderType.Stop => "SL",
+                OrderType.Limit => "TP",
+                _ => "Reduce",
+            }
+            : "Entry";
+
+        return new OrderDto
+        {
+            Id = order.Id,
+            Symbol = order.Symbol,
+            Type = order.Type.ToString(),
+            Side = order.Side == OrderSide.Buy ? "Buy" : "Sell",
+            Price = order.Price,
+            Quantity = order.Quantity,
+            Status = order.Status.ToString(),
+            ReduceOnly = order.ReduceOnly,
+            Purpose = purpose,
+        };
+    }
 
     public static RiskProfileSettingsDto ToSettingsDto(RiskProfile risk) => new()
     {
         MaxDailyLossPercent = risk.MaxDailyLossPercent,
+        MaxRiskPerTradePercent = risk.MaxRiskPerTradePercent,
         MaxPositionSizeBtc = risk.MaxPositionSizeBtc,
         MaxLeverage = risk.MaxLeverage,
         MaxExposurePercent = risk.MaxExposurePercent,
+        DefaultTakeProfitRrMultiplier = risk.DefaultTakeProfitRrMultiplier,
+        AutoApplyDefaultSlTp = risk.AutoApplyDefaultSlTp,
         SafeMode = risk.SafeMode,
         AutoShutdown = risk.AutoShutdown,
         EmergencyHalt = risk.EmergencyHalt,

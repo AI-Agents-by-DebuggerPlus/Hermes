@@ -6,6 +6,7 @@ public sealed class AccountSummaryDto
     public decimal Equity { get; init; }
     public decimal FreeMargin { get; init; }
     public decimal UsedMargin { get; init; }
+    public decimal Leverage { get; init; }
 }
 
 public sealed class PnlSummaryDto
@@ -26,6 +27,8 @@ public sealed class PositionDto
     public decimal UnrealizedPnl { get; init; }
     public decimal RealizedPnl { get; init; }
     public decimal? LiquidationPrice { get; init; }
+    public decimal? StopLossPrice { get; init; }
+    public decimal? TakeProfitPrice { get; init; }
 }
 
 public sealed class OrderDto
@@ -38,6 +41,9 @@ public sealed class OrderDto
     public decimal Quantity { get; init; }
     public required string Status { get; init; }
     public bool ReduceOnly { get; init; }
+
+    /// <summary>"Entry", "SL" (reduce-only Stop), "TP" (reduce-only Limit), or "Reduce".</summary>
+    public string Purpose { get; init; } = "Entry";
 }
 
 public sealed class RiskStatusDto

@@ -77,9 +77,12 @@ public sealed class RiskManagerViewModel : TradingPageViewModel
         EmergencyHalt ? "EMERGENCY HALT ACTIVE" : "";
 
     private string _maxDailyLossPercentText = "5";
+    private string _maxRiskPerTradePercentText = "1";
     private string _maxPositionSizeBtcText = "0.5";
     private string _maxLeverageText = "5";
     private string _maxExposurePercentText = "50";
+    private string _defaultTakeProfitRrMultiplierText = "2";
+    private bool _autoApplyDefaultSlTp = true;
     private bool _safeMode = true;
     private bool _autoShutdown = true;
 
@@ -89,6 +92,18 @@ public sealed class RiskManagerViewModel : TradingPageViewModel
         set
         {
             if (SetField(ref _maxDailyLossPercentText, value))
+            {
+                PersistEditableSettings();
+            }
+        }
+    }
+
+    public string MaxRiskPerTradePercentText
+    {
+        get => _maxRiskPerTradePercentText;
+        set
+        {
+            if (SetField(ref _maxRiskPerTradePercentText, value))
             {
                 PersistEditableSettings();
             }
@@ -125,6 +140,30 @@ public sealed class RiskManagerViewModel : TradingPageViewModel
         set
         {
             if (SetField(ref _maxExposurePercentText, value))
+            {
+                PersistEditableSettings();
+            }
+        }
+    }
+
+    public string DefaultTakeProfitRrMultiplierText
+    {
+        get => _defaultTakeProfitRrMultiplierText;
+        set
+        {
+            if (SetField(ref _defaultTakeProfitRrMultiplierText, value))
+            {
+                PersistEditableSettings();
+            }
+        }
+    }
+
+    public bool AutoApplyDefaultSlTp
+    {
+        get => _autoApplyDefaultSlTp;
+        set
+        {
+            if (SetField(ref _autoApplyDefaultSlTp, value))
             {
                 PersistEditableSettings();
             }
@@ -182,9 +221,12 @@ public sealed class RiskManagerViewModel : TradingPageViewModel
         var s = ReadModel.GetRiskSettings();
         _suppressPersist = true;
         MaxDailyLossPercentText = s.MaxDailyLossPercent.ToString(CultureInfo.InvariantCulture);
+        MaxRiskPerTradePercentText = s.MaxRiskPerTradePercent.ToString(CultureInfo.InvariantCulture);
         MaxPositionSizeBtcText = s.MaxPositionSizeBtc.ToString(CultureInfo.InvariantCulture);
         MaxLeverageText = s.MaxLeverage.ToString(CultureInfo.InvariantCulture);
         MaxExposurePercentText = s.MaxExposurePercent.ToString(CultureInfo.InvariantCulture);
+        DefaultTakeProfitRrMultiplierText = s.DefaultTakeProfitRrMultiplier.ToString(CultureInfo.InvariantCulture);
+        AutoApplyDefaultSlTp = s.AutoApplyDefaultSlTp;
         SafeMode = s.SafeMode;
         AutoShutdown = s.AutoShutdown;
         EmergencyHalt = s.EmergencyHalt;
@@ -210,9 +252,11 @@ public sealed class RiskManagerViewModel : TradingPageViewModel
     {
         settings = new RiskProfileSettingsDto();
         if (!decimal.TryParse(MaxDailyLossPercentText, NumberStyles.Any, CultureInfo.InvariantCulture, out var maxDailyLoss) ||
+            !decimal.TryParse(MaxRiskPerTradePercentText, NumberStyles.Any, CultureInfo.InvariantCulture, out var maxRiskTrade) ||
             !decimal.TryParse(MaxPositionSizeBtcText, NumberStyles.Any, CultureInfo.InvariantCulture, out var maxBtc) ||
             !decimal.TryParse(MaxLeverageText, NumberStyles.Any, CultureInfo.InvariantCulture, out var maxLev) ||
-            !decimal.TryParse(MaxExposurePercentText, NumberStyles.Any, CultureInfo.InvariantCulture, out var maxExp))
+            !decimal.TryParse(MaxExposurePercentText, NumberStyles.Any, CultureInfo.InvariantCulture, out var maxExp) ||
+            !decimal.TryParse(DefaultTakeProfitRrMultiplierText, NumberStyles.Any, CultureInfo.InvariantCulture, out var tpMult))
         {
             return false;
         }
@@ -220,9 +264,12 @@ public sealed class RiskManagerViewModel : TradingPageViewModel
         settings = new RiskProfileSettingsDto
         {
             MaxDailyLossPercent = maxDailyLoss,
+            MaxRiskPerTradePercent = maxRiskTrade,
             MaxPositionSizeBtc = maxBtc,
             MaxLeverage = maxLev,
             MaxExposurePercent = maxExp,
+            DefaultTakeProfitRrMultiplier = tpMult > 0 ? tpMult : 2m,
+            AutoApplyDefaultSlTp = AutoApplyDefaultSlTp,
             SafeMode = SafeMode,
             AutoShutdown = AutoShutdown,
             EmergencyHalt = EmergencyHalt,

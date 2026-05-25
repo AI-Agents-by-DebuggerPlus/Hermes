@@ -16,6 +16,7 @@ public sealed class TradingPlatformFileLogger
     private TradingPlatformFileLogger()
     {
         var dir = HermesLogsPaths.GetAppDirectory(HermesLogsPaths.AppTradingPlatform);
+        SessionLogPruner.PruneDirectory(dir, "trading_session_*.log");
         var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
         _sessionPath = Path.Combine(dir, $"trading_session_{stamp}.log");
         WriteLine($"=== Hermes.TradingPlatform session {DateTime.Now:O} ===");
@@ -30,9 +31,13 @@ public sealed class TradingPlatformFileLogger
 
     public void Warn(string message) => Write("WARN", message);
 
+    public void Error(string message) => Write("ERROR", message);
+
     public void Bridge(string message) => Write("BRIDGE", message);
 
     public void Exchange(string message) => Write("EXCH", message);
+
+    public void Assistant(string message) => Write("ASST", message);
 
     private void Write(string level, string message)
     {
