@@ -113,6 +113,34 @@
                 </StackPanel>
             </Border>
 
+            <!-- Persistence -->
+            <Border Style="{StaticResource PanelCardStyle}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="Persistence" Style="{StaticResource SectionHeaderStyle}" FontSize="13" />
+                    <TextBlock Text="Trade journal backend. Switching takes effect after restart."
+                               Foreground="{StaticResource Brush.TextMuted}"
+                               FontSize="11"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,8" />
+                    <Grid Margin="0,4,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="Journal provider" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="1"
+                                  ItemsSource="{Binding JournalProviders}"
+                                  SelectedItem="{Binding JournalProvider, Mode=TwoWay}" />
+                        <TextBlock Grid.Row="1" Text="Active location" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" Margin="0,8,0,0" />
+                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding JournalLocation, Mode=OneWay}" IsReadOnly="True" Margin="0,8,0,0" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
             <Border Margin="0,0,0,12"
                     Padding="12,10"
                     Background="#1A2330"

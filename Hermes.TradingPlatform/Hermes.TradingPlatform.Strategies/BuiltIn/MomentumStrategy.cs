@@ -8,9 +8,37 @@ namespace Hermes.TradingPlatform.Strategies.BuiltIn;
 public sealed class MomentumStrategy : ITradingStrategy
 {
     private readonly StrategyCooldown _cooldown = new(TimeSpan.FromSeconds(45));
+    private decimal _quantity = 0.01m;
+    private decimal _changeThreshold = 0.6m;
 
     public string Id => "momentum";
     public string Name => "Momentum";
+
+    public StrategyParameters DefaultParameters => new()
+    {
+        StrategyId = Id,
+        Quantity = 0.01m,
+        ChangeThresholdPercent = 0.6m,
+        CooldownSeconds = 45,
+    };
+
+    public void ApplyParameters(StrategyParameters parameters)
+    {
+        if (parameters.Quantity > 0)
+        {
+            _quantity = parameters.Quantity;
+        }
+
+        if (parameters.ChangeThresholdPercent > 0)
+        {
+            _changeThreshold = parameters.ChangeThresholdPercent;
+        }
+
+        if (parameters.CooldownSeconds > 0)
+        {
+            _cooldown.Interval = TimeSpan.FromSeconds(parameters.CooldownSeconds);
+        }
+    }
 
     public StrategySignal? Evaluate(MarketTickEvent tick, TradingPlatformState state)
     {
@@ -19,7 +47,7 @@ public sealed class MomentumStrategy : ITradingStrategy
             return null;
         }
 
-        if (tick.ChangePercent24h is not > 0.6m)
+        if (tick.ChangePercent24h is not { } change || change <= _changeThreshold)
         {
             return null;
         }
@@ -29,9 +57,9 @@ public sealed class MomentumStrategy : ITradingStrategy
             Symbol = tick.Symbol,
             Side = OrderSide.Buy,
             OrderType = OrderType.Market,
-            Quantity = 0.01m,
+            Quantity = _quantity,
             Price = tick.Price,
-            Reason = $"24h change {tick.ChangePercent24h:F2}% > 0.6% — momentum long",
+            Reason = $"24h change {change:F2}% > {_changeThreshold:F2}% — momentum long",
         };
     }
 

@@ -8,9 +8,37 @@ namespace Hermes.TradingPlatform.Strategies.BuiltIn;
 public sealed class MeanReversionStrategy : ITradingStrategy
 {
     private readonly StrategyCooldown _cooldown = new(TimeSpan.FromSeconds(60));
+    private decimal _quantity = 0.05m;
+    private decimal _changeThreshold = 0.8m;
 
     public string Id => "mean-rev";
     public string Name => "Mean Reversion";
+
+    public StrategyParameters DefaultParameters => new()
+    {
+        StrategyId = Id,
+        Quantity = 0.05m,
+        ChangeThresholdPercent = 0.8m,
+        CooldownSeconds = 60,
+    };
+
+    public void ApplyParameters(StrategyParameters parameters)
+    {
+        if (parameters.Quantity > 0)
+        {
+            _quantity = parameters.Quantity;
+        }
+
+        if (parameters.ChangeThresholdPercent > 0)
+        {
+            _changeThreshold = parameters.ChangeThresholdPercent;
+        }
+
+        if (parameters.CooldownSeconds > 0)
+        {
+            _cooldown.Interval = TimeSpan.FromSeconds(parameters.CooldownSeconds);
+        }
+    }
 
     public StrategySignal? Evaluate(MarketTickEvent tick, TradingPlatformState state)
     {
@@ -19,29 +47,34 @@ public sealed class MeanReversionStrategy : ITradingStrategy
             return null;
         }
 
-        if (tick.ChangePercent24h is < -0.8m)
+        if (tick.ChangePercent24h is not { } change)
+        {
+            return null;
+        }
+
+        if (change < -_changeThreshold)
         {
             return new StrategySignal
             {
                 Symbol = tick.Symbol,
                 Side = OrderSide.Buy,
                 OrderType = OrderType.Market,
-                Quantity = 0.05m,
+                Quantity = _quantity,
                 Price = tick.Price,
-                Reason = $"24h {tick.ChangePercent24h:F2}% — fade down (long)",
+                Reason = $"24h {change:F2}% — fade down (long)",
             };
         }
 
-        if (tick.ChangePercent24h is > 0.8m)
+        if (change > _changeThreshold)
         {
             return new StrategySignal
             {
                 Symbol = tick.Symbol,
                 Side = OrderSide.Sell,
                 OrderType = OrderType.Market,
-                Quantity = 0.05m,
+                Quantity = _quantity,
                 Price = tick.Price,
-                Reason = $"24h +{tick.ChangePercent24h:F2}% — fade up (short)",
+                Reason = $"24h +{change:F2}% — fade up (short)",
             };
         }
 

@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Windows;
 using Hermes.TradingPlatform.Wpf.Commands;
 using Hermes.TradingPlatform.Wpf.Services;
+using Hermes.TradingPlatform.Wpf.Views.Dialogs;
 
 namespace Hermes.TradingPlatform.Wpf.ViewModels.Pages;
 
@@ -22,11 +24,30 @@ public sealed class StrategiesViewModel : TradingPageViewModel
             }
         });
 
+        ConfigureStrategyCommand = new RelayCommand(p =>
+        {
+            if (p is not StrategyCardItemViewModel card)
+            {
+                return;
+            }
+
+            var current = _host.GetStrategyParameters(card.Id);
+            var dialog = new StrategyParametersDialog(card.Id, card.Name, current)
+            {
+                Owner = Application.Current?.MainWindow,
+            };
+            if (dialog.ShowDialog() == true && dialog.Result is not null)
+            {
+                _host.UpdateStrategyParameters(dialog.Result);
+            }
+        });
+
         Refresh();
     }
 
     public ObservableCollection<StrategyCardItemViewModel> Strategies { get; } = [];
     public RelayCommand ToggleStrategyCommand { get; }
+    public RelayCommand ConfigureStrategyCommand { get; }
 
     private void OnStrategyEnabledChangedByUser(StrategyCardItemViewModel card, bool enabled)
     {

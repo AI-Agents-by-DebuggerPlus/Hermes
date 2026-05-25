@@ -228,39 +228,91 @@ public sealed class BinanceFuturesMarketDataFeed : IMarketDataFeed
                 _diagnosticLog($"[binance] heartbeat: framesSeen={framesSeen}");
             }
 
-            if (!BinanceFuturesStreamParser.TryParseTickerMessage(json, out var ticker))
+            if (!BinanceFuturesStreamParser.TryParseMessage(json, out var message))
             {
                 continue;
             }
 
-            var spread = ticker.LastPrice * 0.0001m;
-            decimal? change = ticker.ChangePercent24h != 0m ? ticker.ChangePercent24h : null;
-            decimal? volume = ticker.QuoteVolume24h != 0m ? ticker.QuoteVolume24h : null;
-            _bus.Publish(new MarketTickEvent(
-                ticker.Symbol,
-                ticker.LastPrice,
-                ticker.LastPrice - spread,
-                ticker.LastPrice + spread,
-                change,
-                volume));
-
-            if (_diagnosticLog is not null && _firstTickLogged.Add(ticker.Symbol))
+            switch (message)
             {
-                _diagnosticLog($"[binance] first tick {ticker.Symbol} @ {ticker.LastPrice} ({ticker.ChangePercent24h:+0.00;-0.00}% 24h)");
+                case BinanceTickerStreamMessage tickerMsg:
+                {
+                    var ticker = tickerMsg.Update;
+                    var spread = ticker.LastPrice * 0.0001m;
+                    decimal? change = ticker.ChangePercent24h != 0m ? ticker.ChangePercent24h : null;
+                    decimal? volume = ticker.QuoteVolume24h != 0m ? ticker.QuoteVolume24h : null;
+                    _bus.Publish(new MarketTickEvent(
+                        ticker.Symbol,
+                        ticker.LastPrice,
+                        ticker.LastPrice - spread,
+                        ticker.LastPrice + spread,
+                        change,
+                        volume));
+
+                    if (_diagnosticLog is not null && _firstTickLogged.Add(ticker.Symbol))
+                    {
+                        _diagnosticLog($"[binance] first tick {ticker.Symbol} @ {ticker.LastPrice} ({ticker.ChangePercent24h:+0.00;-0.00}% 24h)");
+                    }
+                    break;
+                }
+                case BinanceAggTradeStreamMessage aggTrade:
+                {
+                    var side = aggTrade.AggressorBuy ? OrderSide.Buy : OrderSide.Sell;
+                    _bus.Publish(new MarketTradeEvent(
+                        aggTrade.Symbol,
+                        aggTrade.Price,
+                        aggTrade.Quantity,
+                        side,
+                        aggTrade.TradeId,
+                        aggTrade.TradeTime));
+
+                    // Aggregated trades also serve as a fast price source between
+                    // bookTicker frames – publish a synthetic tick so VirtualExchangeEngine
+                    // and projections can react with sub-second latency.
+                    var spread = aggTrade.Price * 0.0001m;
+                    _bus.Publish(new MarketTickEvent(
+                        aggTrade.Symbol,
+                        aggTrade.Price,
+                        aggTrade.Price - spread,
+                        aggTrade.Price + spread));
+                    break;
+                }
+                case BinanceKlineStreamMessage kline:
+                {
+                    _bus.Publish(new MarketKlineEvent(
+                        kline.Symbol,
+                        kline.Interval,
+                        kline.OpenTime,
+                        kline.CloseTime,
+                        kline.Open,
+                        kline.High,
+                        kline.Low,
+                        kline.Close,
+                        kline.Volume,
+                        kline.QuoteVolume,
+                        kline.TradeCount,
+                        kline.IsClosed));
+                    break;
+                }
             }
         }
     }
 
     private async Task SendSubscribeAsync(ClientWebSocket socket, CancellationToken cancellationToken)
     {
-        // Subscribe to bookTicker (per-update bid/ask) + ticker (1s 24h stats).
-        // bookTicker is event-driven and most reliable for live price; ticker adds 24h percent change.
-        var streamNames = new List<string>(_symbols.Count * 2);
+        // Streams per symbol:
+        //   bookTicker  – per-update best bid/ask (lowest-latency price source)
+        //   ticker      – 1s rolling 24h stats (price + change% + 24h volume)
+        //   aggTrade    – aggregated trades (real fills, drives MarketTradeEvent for tape)
+        //   kline_1m    – 1-minute candles (drives MarketKlineEvent for charts/Replay)
+        var streamNames = new List<string>(_symbols.Count * 4);
         foreach (var symbol in _symbols)
         {
             var lower = symbol.ToLowerInvariant();
             streamNames.Add($"{lower}@bookTicker");
             streamNames.Add($"{lower}@ticker");
+            streamNames.Add($"{lower}@aggTrade");
+            streamNames.Add($"{lower}@kline_1m");
         }
 
         var streams = string.Join(",", streamNames.Select(s => $"\"{s}\""));

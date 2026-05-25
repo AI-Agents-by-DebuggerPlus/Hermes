@@ -6,6 +6,10 @@ public sealed class InMemoryEventBus : IEventBus
     private readonly Dictionary<Type, List<Delegate>> _typedHandlers = new();
     private readonly List<Action<IPlatformEvent>> _globalHandlers = [];
 
+    /// <summary>Optional sink for handler errors. Defaults to writing to Trace; never null after construction.</summary>
+    public Action<Exception, string> OnHandlerError { get; set; } =
+        (ex, ctx) => System.Diagnostics.Trace.WriteLine($"[EventBus] handler error in {ctx}: {ex}");
+
     public void Subscribe<T>(Action<T> handler) where T : class, IPlatformEvent
     {
         lock (_sync)
@@ -41,14 +45,30 @@ public sealed class InMemoryEventBus : IEventBus
             global = _globalHandlers.ToArray();
         }
 
+        // Subscribers are isolated: a throwing handler must not break the publisher
+        // or block sibling subscribers from receiving the event.
         foreach (var handler in typed)
         {
-            handler(platformEvent);
+            try
+            {
+                handler(platformEvent);
+            }
+            catch (Exception ex)
+            {
+                OnHandlerError(ex, $"typed<{typeof(T).Name}>");
+            }
         }
 
         foreach (var handler in global)
         {
-            handler(platformEvent);
+            try
+            {
+                handler(platformEvent);
+            }
+            catch (Exception ex)
+            {
+                OnHandlerError(ex, $"global<{typeof(T).Name}>");
+            }
         }
     }
 }

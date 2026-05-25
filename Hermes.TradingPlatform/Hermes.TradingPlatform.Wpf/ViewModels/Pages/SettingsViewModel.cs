@@ -33,6 +33,11 @@ public sealed class SettingsViewModel : BaseViewModel
         HermesIntegrationEnabled = _host.HermesOrchestrationEnabled;
         var platformSettings = _host.PlatformSettingsStore.Load();
         TradingSoundsEnabled = platformSettings.TradingSoundsEnabled;
+        JournalProviders = ["Json (jsonl file)", "Sqlite (db file)"];
+        _journalProvider = string.Equals(platformSettings.JournalProvider, "Sqlite", StringComparison.OrdinalIgnoreCase)
+            ? JournalProviders[1]
+            : JournalProviders[0];
+        JournalLocation = _host.JournalLocation;
 
         ApplyMarketDataCommand = new RelayCommand(_ => ApplyMarketDataMode());
         _host.FeedStatusChanged += (_, _) => WpfThreading.RunOnUi(RefreshFeedStatus);
@@ -140,6 +145,34 @@ public sealed class SettingsViewModel : BaseViewModel
                 _host.SetTradingSoundsEnabled(value);
             }
         }
+    }
+
+    public IReadOnlyList<string> JournalProviders { get; private set; } = [];
+
+    private string _journalProvider = "";
+
+    public string JournalProvider
+    {
+        get => _journalProvider;
+        set
+        {
+            if (!SetField(ref _journalProvider, value))
+            {
+                return;
+            }
+
+            var provider = value.StartsWith("Sqlite", StringComparison.OrdinalIgnoreCase) ? "Sqlite" : "Json";
+            _host.SetJournalProvider(provider);
+            SetHint($"Journal provider set to {provider}. Restart the app to switch storage backend.");
+        }
+    }
+
+    private string _journalLocation = "";
+
+    public string JournalLocation
+    {
+        get => _journalLocation;
+        private set => SetField(ref _journalLocation, value);
     }
 
     public RelayCommand ApplyMarketDataCommand { get; }

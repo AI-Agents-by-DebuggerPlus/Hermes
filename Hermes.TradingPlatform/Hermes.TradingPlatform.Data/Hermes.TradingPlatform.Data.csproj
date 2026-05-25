@@ -6,6 +6,9 @@
     <RootNamespace>Hermes.TradingPlatform.Data</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.10" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Hermes.TradingPlatform.Core\Hermes.TradingPlatform.Core.csproj" />
     <ProjectReference Include="..\Hermes.TradingPlatform.Shared\Hermes.TradingPlatform.Shared.csproj" />
   </ItemGroup>

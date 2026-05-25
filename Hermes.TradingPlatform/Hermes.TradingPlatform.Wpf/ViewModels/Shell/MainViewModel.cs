@@ -1,6 +1,7 @@
 using Hermes.InAppAssistant;
 using Hermes.InAppAssistant.Wpf;
 using Hermes.TradingPlatform.Shared.Mock;
+using Hermes.TradingPlatform.Wpf.Bridge;
 using Hermes.TradingPlatform.Wpf.Commands;
 using Hermes.TradingPlatform.Wpf.Navigation;
 using Hermes.TradingPlatform.Wpf.Services;
@@ -11,18 +12,34 @@ namespace Hermes.TradingPlatform.Wpf.ViewModels.Shell;
 
 public sealed class MainViewModel : BaseViewModel, IDisposable
 {
-    private readonly TradingPlatformHost _host = new();
-    private readonly Bridge.TradingBridgePublisher _bridgePublisher;
-    private readonly Bridge.TradingBridgeCommandProcessor _bridgeCommands;
+    private readonly TradingPlatformHost _host;
+    private readonly TradingBridgePublisher _bridgePublisher;
+    private readonly TradingBridgeCommandProcessor _bridgeCommands;
     private readonly Dictionary<NavigationPage, BaseViewModel> _pages;
 
-    public MainViewModel()
+    public MainViewModel(
+        TradingPlatformHost host,
+        TradingBridgePublisher bridgePublisher,
+        TradingBridgeCommandProcessor bridgeCommands,
+        DashboardViewModel dashboard,
+        PositionsViewModel positions,
+        OrdersViewModel orders,
+        StrategiesViewModel strategies,
+        RiskManagerViewModel riskManager,
+        MarketWatchViewModel marketWatch,
+        ReplayViewModel replay,
+        JournalViewModel journal,
+        LogsViewModel logs,
+        HermesViewModel hermes,
+        AccountSettingsViewModel accountSettings,
+        SettingsViewModel settings)
     {
+        _host = host;
         TradingPlatformFileLogger.Instance.Info($"log file: {TradingPlatformFileLogger.Instance.SessionPath}");
         TradingPlatformFileLogger.Instance.Info($"session state: {_host.SessionStateStore.FilePath}");
-        TradingPlatformFileLogger.Instance.Info($"trade journal: {_host.JournalFileWriter.FilePath}");
-        _bridgePublisher = new Bridge.TradingBridgePublisher(_host);
-        _bridgeCommands = new Bridge.TradingBridgeCommandProcessor(_host);
+        TradingPlatformFileLogger.Instance.Info($"trade journal: {_host.JournalLocation}");
+        _bridgePublisher = bridgePublisher;
+        _bridgeCommands = bridgeCommands;
         _host.Start();
         var readModel = _host.ReadModel;
 
@@ -41,21 +58,23 @@ public sealed class MainViewModel : BaseViewModel, IDisposable
             },
             assistantContext);
 
+        var assistantPage = new AssistantViewModel(_host, InAppAssistant);
+
         _pages = new Dictionary<NavigationPage, BaseViewModel>
         {
-            [NavigationPage.Dashboard] = new DashboardViewModel(readModel),
-            [NavigationPage.Positions] = new PositionsViewModel(readModel, _host.Exchange),
-            [NavigationPage.Orders] = new OrdersViewModel(readModel, _host.Exchange),
-            [NavigationPage.Strategies] = new StrategiesViewModel(readModel, _host),
-            [NavigationPage.RiskManager] = new RiskManagerViewModel(readModel, _host),
-            [NavigationPage.MarketWatch] = new MarketWatchViewModel(readModel, _host.Exchange),
-            [NavigationPage.Replay] = new ReplayViewModel(),
-            [NavigationPage.Journal] = new JournalViewModel(readModel),
-            [NavigationPage.Logs] = new LogsViewModel(readModel, _host),
-            [NavigationPage.Hermes] = new HermesViewModel(readModel),
-            [NavigationPage.AccountSettings] = new AccountSettingsViewModel(_host),
-            [NavigationPage.Assistant] = new AssistantViewModel(_host, InAppAssistant),
-            [NavigationPage.Settings] = new SettingsViewModel(_host),
+            [NavigationPage.Dashboard] = dashboard,
+            [NavigationPage.Positions] = positions,
+            [NavigationPage.Orders] = orders,
+            [NavigationPage.Strategies] = strategies,
+            [NavigationPage.RiskManager] = riskManager,
+            [NavigationPage.MarketWatch] = marketWatch,
+            [NavigationPage.Replay] = replay,
+            [NavigationPage.Journal] = journal,
+            [NavigationPage.Logs] = logs,
+            [NavigationPage.Hermes] = hermes,
+            [NavigationPage.AccountSettings] = accountSettings,
+            [NavigationPage.Assistant] = assistantPage,
+            [NavigationPage.Settings] = settings,
         };
 
         _host.FeedStatusChanged += (_, _) => WpfThreading.RunOnUi(UpdateConnectionStatus);

@@ -6,6 +6,7 @@ using Hermes.TradingPlatform.Core.Domain;
 using Hermes.TradingPlatform.Shared.Mock;
 using Hermes.TradingPlatform.Wpf.Commands;
 using Hermes.TradingPlatform.Wpf.Services;
+using Hermes.TradingPlatform.Wpf.Views.Dialogs;
 
 namespace Hermes.TradingPlatform.Wpf.ViewModels.Pages;
 
@@ -43,16 +44,37 @@ public sealed class OrdersViewModel : TradingPageViewModel
         ModifyOrderCommand = new RelayCommand(
             p =>
             {
-                if (p is OrderDto order)
+                if (p is not OrderDto order)
                 {
-                    MessageBox.Show(
-                        $"Order {order.Id} modification is not implemented. Cancel and place a new order.",
-                        "Orders",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
+                    return;
                 }
+
+                var dialog = new ModifyOrderDialog(order)
+                {
+                    Owner = Application.Current?.MainWindow,
+                };
+
+                if (dialog.ShowDialog() != true)
+                {
+                    return;
+                }
+
+                var replacement = _exchange.ModifyOrder(order.Id, dialog.NewPrice, dialog.NewQuantity, dialog.NewTrigger);
+                if (replacement is null)
+                {
+                    ManualTradeNotifier.ReportWarning($"Order {order.Id}: cannot modify (already filled/cancelled or invalid).");
+                    return;
+                }
+
+                if (replacement.Status == OrderStatus.Rejected)
+                {
+                    ManualTradeNotifier.ReportWarning($"Order {order.Id}: replacement rejected by risk gate.");
+                    return;
+                }
+
+                ManualTradeNotifier.ReportOrder(replacement, $"Modified {order.Id} → {replacement.Id}");
             },
-            p => p is OrderDto { Status: "Open" });
+            p => p is OrderDto { Status: "Open", Type: not "Market" });
 
         NewOrderType = "Market";
         NewSide = "Buy";

@@ -29,6 +29,10 @@
                                     Command="{Binding DataContext.ToggleStrategyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                     CommandParameter="{Binding}" />
                             <ctrl:HelpHintIcon HelpText="То же, что чекбокс Enabled: переключить стратегию" Margin="6,0,0,0" />
+                            <Button Content="Configure" Style="{StaticResource SecondaryButtonStyle}" Margin="8,0,0,0"
+                                    Command="{Binding DataContext.ConfigureStrategyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{Binding}" />
+                            <ctrl:HelpHintIcon HelpText="Изменить размер позиции, порог и кулдаун стратегии" Margin="6,0,0,0" />
                         </StackPanel>
                     </StackPanel>
                 </Border>

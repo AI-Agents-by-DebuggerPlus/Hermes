@@ -19,4 +19,7 @@ public sealed class PlatformSettingsDto
 
     /// <summary>Fixed or Maximum (uses risk max leverage).</summary>
     public string LeverageMode { get; set; } = "Fixed";
+
+    /// <summary>Backend used for the trade journal: "Json" (JSONL file) or "Sqlite".</summary>
+    public string JournalProvider { get; set; } = "Json";
 }

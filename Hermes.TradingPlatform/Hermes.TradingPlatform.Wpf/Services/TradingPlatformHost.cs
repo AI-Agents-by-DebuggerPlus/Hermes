@@ -8,6 +8,8 @@ using Hermes.TradingPlatform.Data;
 
 using Hermes.TradingPlatform.Data.Persistence;
 
+using Hermes.TradingPlatform.Data.Persistence.Sql;
+
 using Hermes.TradingPlatform.Data.Projections;
 
 using Hermes.TradingPlatform.Data.Seed;
@@ -36,13 +38,15 @@ public sealed class TradingPlatformHost : IDisposable
     private IMarketDataFeed? _activeFeed;
     private TradingStatePersistence? _persistence;
     private TradingSoundService? _sounds;
+    private RiskCircuitBreaker? _circuitBreaker;
+    private readonly Dictionary<string, ITradingStrategy> _strategiesById =
+        new(StringComparer.OrdinalIgnoreCase);
 
     public TradingPlatformHost()
     {
         EventBus = new InMemoryEventBus();
         StateStore = new TradingStateStore();
         SessionStateStore = new TradingSessionStateFileStore();
-        JournalFileWriter = new TradeJournalFileWriter();
 
         TradingPlatformState loadedState;
         var sessionRestored = SessionStateStore.TryLoad(out loadedState, out var orderSeq);
@@ -62,6 +66,8 @@ public sealed class TradingPlatformHost : IDisposable
         HermesOrchestrationEnabled = settingsDto.HermesOrchestrationEnabled;
         ApplyAccountLeverageFromSettings(settingsDto);
 
+        JournalStore = CreateJournalStore(settingsDto.JournalProvider);
+
         RiskValidator = new RiskValidator();
         Exchange = new VirtualExchangeEngine(StateStore, EventBus, RiskValidator);
 
@@ -72,10 +78,11 @@ public sealed class TradingPlatformHost : IDisposable
 
         _ = new MarketTickProjection(StateStore, EventBus);
         _ = new EventLogProjection(StateStore, EventBus);
-        _ = new TradeJournalProjection(StateStore, EventBus, JournalFileWriter);
+        _ = new TradeJournalProjection(StateStore, EventBus, JournalStore);
 
         _persistence = new TradingStatePersistence(StateStore, EventBus, SessionStateStore, () => Exchange.NextOrderSequence);
         _sounds = new TradingSoundService(EventBus, () => PlatformSettingsStore.Load().TradingSoundsEnabled);
+        _circuitBreaker = new RiskCircuitBreaker(StateStore, EventBus);
 
         if (sessionRestored)
         {
@@ -93,18 +100,73 @@ public sealed class TradingPlatformHost : IDisposable
 
         ReadModel = new TradingReadModel(StateStore);
 
-        StrategyRunner = new StrategyRunner(
-            EventBus,
-            StateStore,
-            Exchange,
-            [
-                new LiquiditySweepStrategy(),
-                new MomentumStrategy(),
-                new MeanReversionStrategy(),
-            ]);
+        StrategyParametersStore = new StrategyParametersFileStore();
+        var strategies = new ITradingStrategy[]
+        {
+            new LiquiditySweepStrategy(),
+            new MomentumStrategy(),
+            new MeanReversionStrategy(),
+        };
+
+        foreach (var strategy in strategies)
+        {
+            _strategiesById[strategy.Id] = strategy;
+        }
+
+        ApplyPersistedStrategyParameters();
+
+        StrategyRunner = new StrategyRunner(EventBus, StateStore, Exchange, strategies);
 
         HermesOrchestrator = new HermesOrchestrationService(EventBus, StateStore);
         HermesOrchestrator.SetEnabled(HermesOrchestrationEnabled);
+    }
+
+    public StrategyParametersFileStore StrategyParametersStore { get; private set; } = null!;
+
+    public StrategyParameters GetStrategyParameters(string strategyId)
+    {
+        var saved = StrategyParametersStore.LoadAll();
+        if (saved.TryGetValue(strategyId, out var stored))
+        {
+            return stored;
+        }
+
+        return _strategiesById.TryGetValue(strategyId, out var strategy)
+            ? strategy.DefaultParameters
+            : new StrategyParameters { StrategyId = strategyId, Quantity = 0.01m, ChangeThresholdPercent = 0.5m, CooldownSeconds = 60 };
+    }
+
+    public void UpdateStrategyParameters(StrategyParameters parameters)
+    {
+        if (!_strategiesById.TryGetValue(parameters.StrategyId, out var strategy))
+        {
+            return;
+        }
+
+        strategy.ApplyParameters(parameters);
+        StrategyParametersStore.Save(parameters);
+
+        EventBus.Publish(new PlatformLogEvent(new PlatformLogEntry
+        {
+            Timestamp = DateTimeOffset.UtcNow,
+            EventType = "Strategy",
+            Source = "Parameters",
+            Message =
+                $"Updated {parameters.StrategyId}: qty={parameters.Quantity}, "
+                + $"threshold={parameters.ChangeThresholdPercent}%, cooldown={parameters.CooldownSeconds}s",
+        }));
+    }
+
+    private void ApplyPersistedStrategyParameters()
+    {
+        var saved = StrategyParametersStore.LoadAll();
+        foreach (var strategy in _strategiesById.Values)
+        {
+            var parameters = saved.TryGetValue(strategy.Id, out var stored)
+                ? stored
+                : strategy.DefaultParameters;
+            strategy.ApplyParameters(parameters);
+        }
     }
 
     public IEventBus EventBus { get; }
@@ -128,7 +190,18 @@ public sealed class TradingPlatformHost : IDisposable
 
     public TradingSessionStateFileStore SessionStateStore { get; }
 
-    public TradeJournalFileWriter JournalFileWriter { get; }
+    /// <summary>Active journal backend (JSON or SQLite). Configurable via Settings.JournalProvider.</summary>
+    public IJournalStore JournalStore { get; }
+
+    /// <summary>Backwards-compatible alias for the file path of the active journal store.</summary>
+    public string JournalLocation => JournalStore.Location;
+
+    private static IJournalStore CreateJournalStore(string provider)
+    {
+        return string.Equals(provider, "Sqlite", StringComparison.OrdinalIgnoreCase)
+            ? new SqliteJournalStore()
+            : new TradeJournalFileWriter();
+    }
 
     public MarketDataSource MarketDataSource { get; private set; }
 
@@ -223,6 +296,9 @@ public sealed class TradingPlatformHost : IDisposable
 
         RiskProfileStore.Save(StateStore.Snapshot.Risk);
 
+        // Risk.MaxLeverage acts as a ceiling for Account.Leverage; recompute the
+        // effective working leverage so UI / RiskValidator stay in sync.
+        ApplyAccountLeverageFromSettings(PlatformSettingsStore.Load());
     }
 
 
@@ -378,6 +454,22 @@ public sealed class TradingPlatformHost : IDisposable
         PlatformSettingsStore.Save(CopySettings(current, s => s.TradingSoundsEnabled = enabled));
     }
 
+    /// <summary>Persist the journal provider choice. Takes effect on next platform start.</summary>
+    public void SetJournalProvider(string provider)
+    {
+        var normalised = string.Equals(provider, "Sqlite", StringComparison.OrdinalIgnoreCase) ? "Sqlite" : "Json";
+        var current = PlatformSettingsStore.Load();
+        PlatformSettingsStore.Save(CopySettings(current, s => s.JournalProvider = normalised));
+
+        EventBus.Publish(new PlatformLogEvent(new PlatformLogEntry
+        {
+            Timestamp = DateTimeOffset.UtcNow,
+            EventType = "System",
+            Source = "Persistence",
+            Message = $"Journal provider set to {normalised} (effective on restart).",
+        }));
+    }
+
     public void SetInAppAssistantSettings(string apiKey, string model)
     {
         var current = PlatformSettingsStore.Load();
@@ -408,7 +500,7 @@ public sealed class TradingPlatformHost : IDisposable
 
         StateStore.Initialize(clean);
         Exchange.RestoreOrderSequence(1000);
-        JournalFileWriter.Clear();
+        JournalStore.Clear();
         SessionStateStore.Save(StateStore.Snapshot, Exchange.NextOrderSequence);
 
         EventBus.Publish(new PlatformLogEvent(new PlatformLogEntry
@@ -428,12 +520,20 @@ public sealed class TradingPlatformHost : IDisposable
 
     private decimal ResolveEffectiveLeverage(PlatformSettingsDto settings)
     {
-        if (string.Equals(settings.LeverageMode, "Maximum", StringComparison.OrdinalIgnoreCase))
+        var maxAllowed = StateStore.Snapshot.Risk.MaxLeverage;
+        if (maxAllowed <= 0)
         {
-            return StateStore.Snapshot.Risk.MaxLeverage;
+            maxAllowed = 1m;
         }
 
-        return settings.AccountLeverage > 0 ? settings.AccountLeverage : 3m;
+        if (string.Equals(settings.LeverageMode, "Maximum", StringComparison.OrdinalIgnoreCase))
+        {
+            return maxAllowed;
+        }
+
+        var fixedLeverage = settings.AccountLeverage > 0 ? settings.AccountLeverage : 3m;
+        // Hard-cap at Risk.MaxLeverage so Account.Leverage never exceeds the risk ceiling.
+        return Math.Min(fixedLeverage, maxAllowed);
     }
 
     private static PlatformSettingsDto CopySettings(
@@ -452,6 +552,7 @@ public sealed class TradingPlatformHost : IDisposable
             InitialAccountBalance = current.InitialAccountBalance,
             AccountLeverage = current.AccountLeverage,
             LeverageMode = string.IsNullOrWhiteSpace(current.LeverageMode) ? "Fixed" : current.LeverageMode,
+            JournalProvider = string.IsNullOrWhiteSpace(current.JournalProvider) ? "Json" : current.JournalProvider,
         };
         mutate?.Invoke(copy);
         return copy;

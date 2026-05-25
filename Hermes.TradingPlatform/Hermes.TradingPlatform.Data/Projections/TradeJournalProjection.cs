@@ -10,13 +10,13 @@ public sealed class TradeJournalProjection
     private const int MaxJournalEntries = 500;
     private readonly ITradingStateStore _store;
     private readonly IEventBus _bus;
-    private readonly TradeJournalFileWriter _fileWriter;
+    private readonly IJournalStore _journalStore;
 
-    public TradeJournalProjection(ITradingStateStore store, IEventBus bus, TradeJournalFileWriter? fileWriter = null)
+    public TradeJournalProjection(ITradingStateStore store, IEventBus bus, IJournalStore? journalStore = null)
     {
         _store = store;
         _bus = bus;
-        _fileWriter = fileWriter ?? new TradeJournalFileWriter();
+        _journalStore = journalStore ?? new TradeJournalFileWriter();
         _bus.Subscribe<OrderFilledEvent>(OnOrderFilled);
     }
 
@@ -48,6 +48,6 @@ public sealed class TradeJournalProjection
             }
         });
 
-        _fileWriter.Append(entry);
+        _journalStore.Append(entry);
     }
 }

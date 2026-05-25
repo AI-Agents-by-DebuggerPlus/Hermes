@@ -163,6 +163,68 @@ public sealed class VirtualExchangeEngine : IVirtualExchange, IDisposable
     public void RestoreOrderSequence(int nextSequence) =>
         Interlocked.Exchange(ref _orderSequence, Math.Max(nextSequence, 1003));
 
+    public Order? ModifyOrder(string orderId, decimal newPrice, decimal newQuantity, decimal? newTrigger)
+    {
+        // Modify is implemented as cancel-and-replace. The new order is re-validated by the
+        // risk gate, so all caps (leverage, exposure, daily loss) apply to the modification.
+        var snapshot = _store.Snapshot;
+        var existing = snapshot.Orders.FirstOrDefault(o =>
+            o.Id == orderId && o.Status == OrderStatus.Open);
+        if (existing is null)
+        {
+            return null;
+        }
+
+        if (existing.Type == OrderType.Market)
+        {
+            // Market orders fill immediately; nothing to modify.
+            return null;
+        }
+
+        if (newQuantity <= 0 || newPrice <= 0)
+        {
+            return null;
+        }
+
+        if (!TryCancelOrder(orderId))
+        {
+            return null;
+        }
+
+        _bus.Publish(new PlatformLogEvent(new PlatformLogEntry
+        {
+            Timestamp = DateTimeOffset.UtcNow,
+            EventType = "Order",
+            Source = "VirtualExchange",
+            Message =
+                $"Modify {orderId}: {existing.Type} {existing.Side} {existing.Quantity}@{existing.Price:N4} → "
+                + $"{newQuantity}@{newPrice:N4}"
+                + (newTrigger.HasValue ? $" trigger={newTrigger.Value:N4}" : string.Empty),
+        }));
+
+        var replacement = PlaceOrder(
+            existing.Symbol,
+            existing.Type,
+            existing.Side,
+            newQuantity,
+            newPrice,
+            existing.ReduceOnly);
+
+        if (newTrigger.HasValue && replacement.Status != OrderStatus.Rejected)
+        {
+            _store.Mutate(s =>
+            {
+                var fresh = s.Orders.FirstOrDefault(o => o.Id == replacement.Id);
+                if (fresh is not null)
+                {
+                    fresh.TriggerPrice = newTrigger;
+                }
+            });
+        }
+
+        return replacement;
+    }
+
     public bool TryCancelOrder(string orderId)
 
     {

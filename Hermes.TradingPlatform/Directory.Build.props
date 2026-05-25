@@ -1,0 +1,23 @@
+<Project>
+
+  <!--
+    Solution-wide build defaults for the Hermes Trading Platform.
+    Individual projects override TargetFramework where needed (Wpf uses net8.0-windows).
+  -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <NeutralLanguage>en-US</NeutralLanguage>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <Company>Hermes</Company>
+    <Product>Hermes Trading Platform</Product>
+    <Version>0.6.0</Version>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+  </PropertyGroup>
+
+</Project>

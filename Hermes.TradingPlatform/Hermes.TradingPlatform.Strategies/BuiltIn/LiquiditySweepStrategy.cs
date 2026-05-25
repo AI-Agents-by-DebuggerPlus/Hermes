@@ -4,13 +4,41 @@ using Hermes.TradingPlatform.Core.Events;
 
 namespace Hermes.TradingPlatform.Strategies.BuiltIn;
 
-/// <summary>Placeholder sweep logic: limit near market on SOL when |24h| elevated (paper MVP).</summary>
+/// <summary>Liquidity sweep: limit near market on SOL when |24h| elevated (paper MVP).</summary>
 public sealed class LiquiditySweepStrategy : ITradingStrategy
 {
     private readonly StrategyCooldown _cooldown = new(TimeSpan.FromSeconds(90));
+    private decimal _quantity = 5m;
+    private decimal _changeThreshold = 2m;
 
     public string Id => "liq-sweep";
     public string Name => "Liquidity Sweep";
+
+    public StrategyParameters DefaultParameters => new()
+    {
+        StrategyId = Id,
+        Quantity = 5m,
+        ChangeThresholdPercent = 2m,
+        CooldownSeconds = 90,
+    };
+
+    public void ApplyParameters(StrategyParameters parameters)
+    {
+        if (parameters.Quantity > 0)
+        {
+            _quantity = parameters.Quantity;
+        }
+
+        if (parameters.ChangeThresholdPercent > 0)
+        {
+            _changeThreshold = parameters.ChangeThresholdPercent;
+        }
+
+        if (parameters.CooldownSeconds > 0)
+        {
+            _cooldown.Interval = TimeSpan.FromSeconds(parameters.CooldownSeconds);
+        }
+    }
 
     public StrategySignal? Evaluate(MarketTickEvent tick, TradingPlatformState state)
     {
@@ -19,12 +47,12 @@ public sealed class LiquiditySweepStrategy : ITradingStrategy
             return null;
         }
 
-        if (tick.ChangePercent24h is not (>= 2m or <= -2m))
+        if (tick.ChangePercent24h is not { } change || Math.Abs(change) < _changeThreshold)
         {
             return null;
         }
 
-        var side = tick.ChangePercent24h > 0 ? OrderSide.Sell : OrderSide.Buy;
+        var side = change > 0 ? OrderSide.Sell : OrderSide.Buy;
         var limitPrice = side == OrderSide.Buy
             ? tick.Price * 0.998m
             : tick.Price * 1.002m;
@@ -34,9 +62,9 @@ public sealed class LiquiditySweepStrategy : ITradingStrategy
             Symbol = tick.Symbol,
             Side = side,
             OrderType = OrderType.Limit,
-            Quantity = 5m,
+            Quantity = _quantity,
             Price = limitPrice,
-            Reason = $"|24h| {tick.ChangePercent24h:F2}% — sweep limit {side}",
+            Reason = $"|24h| {change:F2}% — sweep limit {side}",
             AutoExecute = true,
         };
     }
