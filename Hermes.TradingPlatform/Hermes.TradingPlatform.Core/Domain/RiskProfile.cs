@@ -1,3 +1,16 @@
+// AUDIT 2026-05-25 (TradingExperienceExporter):
+//   Source of truth for risk configuration AND live risk metrics.
+//   Persistence: RiskProfileFileStore (%LocalAppData%/HermesTrading/risk_profile.json).
+//   Bridge exposure (TradingPlatformSnapshotFile.RiskSnapshot):
+//     - SURFACES:    RiskLevel, DailyDrawdownPercent, ExposurePercent, SafeMode, EmergencyHalt, MaxLeverage
+//     - DOES NOT:    MaxDailyLossPercent, MaxRiskPerTradePercent, MaxPositionSizeBtc, MaxExposurePercent,
+//                    DefaultTakeProfitRrMultiplier, AutoApplyDefaultSlTp, AutoShutdown
+//   Implication for TradingExperienceExporter:
+//     EmergencyHalt going false→true is observable through the bridge (snapshot.Risk.EmergencyHalt) and is a primary trigger
+//     for TradeEventKind.EmergencyStop. DailyDrawdownPercent crossing TradingExperienceDrawdownThreshold (default 5 %)
+//     should also fire EmergencyStop / drawdown experience capture.
+//     Threshold changes (AutoApplyDefaultSlTp toggle, multipliers) are NOT detectable from snapshot — would require RiskProfileFileStore polling.
+
 namespace Hermes.TradingPlatform.Core.Domain;
 
 public sealed class RiskProfile

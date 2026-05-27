@@ -8,4 +8,5 @@ public enum AgentRole
     Trader,
     EnglishTutor,
     PersonalManager,
+    Biohacker,
 }

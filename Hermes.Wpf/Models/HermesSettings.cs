@@ -243,6 +243,12 @@ public sealed class HermesSettings
 
     public int RoleAutoCaptureMinLength { get; set; } = 150;
 
+    /// <summary>Enable Biohacker role end-to-end (state service, intent handler, persona prompt).</summary>
+    public bool BiohackerEnabled { get; set; } = true;
+
+    /// <summary>Run SupplementStockTracker.RunDailyCheckIfNeededAsync at application startup.</summary>
+    public bool BiohackerStockCheckOnStartup { get; set; } = true;
+
     /// <summary>Export significant trading events to vault Knowledge/Trading/Episodes.</summary>
     public bool TradingExperienceExportEnabled { get; set; } = true;
 

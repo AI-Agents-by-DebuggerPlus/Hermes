@@ -2,6 +2,17 @@ using System.Text;
 using System.Text.Json;
 using Hermes.TradingPlatform.Core.Domain;
 
+// AUDIT 2026-05-25 (TradingExperienceExporter):
+//   Source of truth for per-fill economic events (Open/Add/Reduce/Close + Fee + RealizedPnl + Balance trajectory).
+//   File: %LocalAppData%/HermesTrading/trade_journal.jsonl (append-only, line-delimited JSON).
+//   Lifecycle:
+//     - Append called on every fill from VirtualExchangeEngine.FillOrder (via TradeJournalProjection).
+//     - LoadAll used by ReplayViewModel / JournalViewModel.
+//     - Clear called only when paper account is reset (Account settings page).
+//   Bridge exposure: NONE. trade_journal.jsonl is NOT mirrored into snapshot.json.
+//   Hermes.Wpf cannot subscribe to journal entries directly; it only sees aggregate Pnl / Balance / Positions in the bridge snapshot.
+//   For External Brain ingestion, an exporter must either (a) poll this file or (b) diff snapshot.Pnl / snapshot.Account between updates.
+
 namespace Hermes.TradingPlatform.Data.Persistence;
 
 /// <summary>Append-only backup of journal entries under %LocalAppData%/HermesTrading/trade_journal.jsonl.</summary>

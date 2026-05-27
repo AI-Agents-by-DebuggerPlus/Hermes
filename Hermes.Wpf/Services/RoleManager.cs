@@ -21,6 +21,14 @@ public sealed class RoleManager
         ["productivity"] = AgentRole.PersonalManager,
         ["эффективность"] = AgentRole.PersonalManager,
         ["задачи"] = AgentRole.PersonalManager,
+        ["biohacker"] = AgentRole.Biohacker,
+        ["biohacking"] = AgentRole.Biohacker,
+        ["биохакер"] = AgentRole.Biohacker,
+        ["биохакинг"] = AgentRole.Biohacker,
+        ["здоровье"] = AgentRole.Biohacker,
+        ["бады"] = AgentRole.Biohacker,
+        ["ноотропы"] = AgentRole.Biohacker,
+        ["самочувствие"] = AgentRole.Biohacker,
         ["universal"] = AgentRole.Universal,
         ["общий"] = AgentRole.Universal,
         ["режим агента"] = AgentRole.Universal,
@@ -150,6 +158,7 @@ public sealed class RoleManager
             AgentRole.Developer => "Developer",
             AgentRole.EnglishTutor => "English Tutor",
             AgentRole.PersonalManager => "Personal Manager",
+            AgentRole.Biohacker => "Biohacker",
             _ => "Universal",
         };
 
@@ -160,6 +169,7 @@ public sealed class RoleManager
             AgentRole.Trader => "#4CAF50",
             AgentRole.EnglishTutor => "#FF9800",
             AgentRole.PersonalManager => "#9C27B0",
+            AgentRole.Biohacker => "#00BCD4",
             _ => "#808080",
         };
 }

@@ -104,6 +104,7 @@ public sealed class RoleExperienceCapture
             AgentRole.Developer => "development",
             AgentRole.EnglishTutor => "english",
             AgentRole.PersonalManager => "productivity",
+            AgentRole.Biohacker => "health",
             _ => "universal",
         };
 
@@ -114,6 +115,7 @@ public sealed class RoleExperienceCapture
             AgentRole.Developer => Path.Combine("Knowledge", "Development"),
             AgentRole.EnglishTutor => Path.Combine("Knowledge", "English"),
             AgentRole.PersonalManager => Path.Combine("Knowledge", "Productivity"),
+            AgentRole.Biohacker => Path.Combine("Health", "Journal"),
             _ => Path.Combine("Knowledge", "General"),
         };
 

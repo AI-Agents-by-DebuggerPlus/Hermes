@@ -3,6 +3,13 @@ using Hermes.TradingPlatform.Core.Domain;
 using Hermes.TradingPlatform.Core.State;
 using Hermes.TradingPlatform.Data.Seed;
 
+// AUDIT 2026-05-25 (TradingExperienceExporter):
+//   On-disk format mirror of TradingPlatformState. Caps: MaxOrders=500, MaxJournal=1000, MaxLogs=200.
+//   Fields persisted: Account, Pnl, Positions, Orders, Tickers, Strategies, Journal[], Logs[], NextOrderSequence.
+//   NOTE: RiskProfile is NOT persisted here (it has its own RiskProfileFileStore).
+//   File: %LocalAppData%/HermesTrading/session-state.json — only restored on app start (LoadOrSeed), not exposed to bridge.
+//   Any TradingExperienceExporter that wants RAW journal rows or stale logs should read this file directly OR the dedicated trade_journal.jsonl.
+
 namespace Hermes.TradingPlatform.Data.Persistence;
 
 public sealed class TradingSessionStateFileStore

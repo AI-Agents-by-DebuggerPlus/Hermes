@@ -15,6 +15,12 @@ public sealed class RoleAwareMemoryRouter
         [AgentRole.Developer] = ["dotnet", "csharp", "code", "wpf", "wsl", "git", "debug", "architecture"],
         [AgentRole.EnglishTutor] = ["english", "vocabulary", "grammar", "exercise", "pronunciation"],
         [AgentRole.PersonalManager] = ["task", "project", "goal", "productivity", "deadline", "habit"],
+        [AgentRole.Biohacker] =
+        [
+            "health", "supplement", "nootropic", "sleep", "nutrition", "exercise",
+            "cognitive", "energy", "mood", "recovery", "биохакинг", "бад", "ноотроп",
+            "сон", "питание", "тренировка", "самочувствие", "продуктивность", "здоровье",
+        ],
         [AgentRole.Universal] = [],
     };
 
@@ -24,6 +30,11 @@ public sealed class RoleAwareMemoryRouter
         [AgentRole.Developer] = ["Knowledge/Development", "Procedures/Dev", "Projects"],
         [AgentRole.EnglishTutor] = ["Knowledge/English", "Procedures/English"],
         [AgentRole.PersonalManager] = ["Knowledge/Productivity", "Projects", "Identity"],
+        [AgentRole.Biohacker] =
+        [
+            "Health/Supplements", "Health/Protocols", "Health/Journal",
+            "Health/Schedule", "Health/Goals", "Health/Metrics", "Identity",
+        ],
         [AgentRole.Universal] = [],
     };
 
@@ -33,6 +44,7 @@ public sealed class RoleAwareMemoryRouter
         [AgentRole.Developer] = ["trading", "market", "pnl"],
         [AgentRole.EnglishTutor] = ["trading", "dotnet", "csharp"],
         [AgentRole.PersonalManager] = ["trading", "english"],
+        [AgentRole.Biohacker] = ["trading", "dotnet", "csharp", "english", "vocabulary"],
         [AgentRole.Universal] = [],
     };
 
@@ -81,6 +93,7 @@ public sealed class RoleAwareMemoryRouter
             AgentRole.Developer => "development",
             AgentRole.EnglishTutor => "english",
             AgentRole.PersonalManager => "productivity",
+            AgentRole.Biohacker => "health",
             _ => "universal",
         };
 

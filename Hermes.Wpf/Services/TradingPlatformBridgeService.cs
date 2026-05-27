@@ -5,6 +5,13 @@ using System.Text.Json;
 using Hermes.TradingPlatform.Shared.Bridge;
 using Hermes.Wpf.Models;
 
+// AUDIT 2026-05-25 (TradingExperienceExporter integration point):
+//   TryReadSnapshot() is the single hot path where Hermes.Wpf observes the trading platform.
+//   It is invoked from MainViewModel.ExecuteHermesUserTurnAsync (prompt build) and from a polling timer in MainWindow startup.
+//   SnapshotUpdated event fires AFTER a successful deserialise → this is the hook to feed TradingExperienceExporter.OnSnapshotUpdatedAsync.
+//   Snapshot DTO matches Docs/Report/Hermes_Trading_Platform_Integration.md (Account/Pnl/Risk/Positions/Orders/Strategies + Tickers + RecentLogs).
+//   Δ vs doc: RecentLogs / Tickers / Hermes orchestrator block are present in code but only briefly described in the doc; structure is otherwise stable.
+
 namespace Hermes.Wpf.Services;
 
 public sealed class TradingPlatformBridgeService

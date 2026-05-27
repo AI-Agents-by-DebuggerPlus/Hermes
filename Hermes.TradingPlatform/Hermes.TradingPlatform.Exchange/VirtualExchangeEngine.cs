@@ -6,7 +6,24 @@ using Hermes.TradingPlatform.Core.Events;
 
 using Hermes.TradingPlatform.Core.State;
 
-
+// AUDIT 2026-05-25 (TradingExperienceExporter):
+//   Events published by this engine on the IEventBus:
+//     - OrderPlacedEvent  (PlaceOrder accepted by risk)            → reaches bridge as a state delta (snapshot.Orders[Status=Open])
+//     - OrderFilledEvent  (FillOrder)                              → reaches bridge as a state delta (snapshot.Positions/Orders/Pnl/Account)
+//                                                                    Useful payload (filledOrder, fillPrice, fee, realized, balanceBefore/After, journalKind ∈ {Open,Add,Reduce,Close})
+//                                                                    is ONLY persisted to trade_journal.jsonl + session-state.json — NOT directly in the bridge snapshot DTO.
+//     - OrderCancelledEvent                                        → reflected only by Orders[Status=Cancelled] in snapshot
+//     - PositionClosedEvent (symbol, realizedPnl)                  → derivable from snapshot.Pnl changes; raw event is NOT in snapshot
+//     - PlatformLogEvent (EventType ∈ {Risk, Fill, Order, AutoSlTp}) → ends up in snapshot.RecentLogs (capped to last MaxLogs entries),
+//                                                                    so risk rejections / AutoSlTp can be LOST if many Fills/Logs follow.
+//   What surfaces in snapshot.json (TradingPlatformSnapshotFile):
+//     Positions, Orders, Account, Pnl, Risk (RiskLevel/DD/Exposure/SafeMode/EmergencyHalt/MaxLeverage), Strategies, Tickers, RecentLogs.
+//   What does NOT reach Hermes.Wpf via snapshot (so External Brain cannot ingest it):
+//     - TradeJournalEntry per-fill rows (Fee/RealizedPnl/BalanceBefore/After/Kind) — only in trade_journal.jsonl.
+//     - Risk profile config (MaxDailyLossPercent / MaxRiskPerTradePercent / DefaultTakeProfitRrMultiplier / AutoApplyDefaultSlTp) — see RiskProfile.cs audit.
+//     - Auto SL/TP attachment metadata (which entry triggered it, computed SL distance) — only as a PlatformLogEvent EventType=AutoSlTp.
+//   TradingExperienceExporter consumers should diff snapshot.Pnl.Today/Account.Equity/Positions/Orders/Strategies/Risk.EmergencyHalt
+//   between calls instead of relying on per-event payloads.
 
 namespace Hermes.TradingPlatform.Exchange;
 

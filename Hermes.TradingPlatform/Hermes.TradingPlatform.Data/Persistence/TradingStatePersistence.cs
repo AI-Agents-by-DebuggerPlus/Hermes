@@ -1,6 +1,14 @@
 using Hermes.TradingPlatform.Core.Abstractions;
 using Hermes.TradingPlatform.Core.Events;
 
+// AUDIT 2026-05-25 (TradingExperienceExporter):
+//   Writes session-state.json (full TradingPlatformState) on every state change (debounced) and on every OrderFilledEvent (immediate).
+//   File: %LocalAppData%/HermesTrading/session-state.json — used for restoring paper-account state after a restart.
+//   Bridge exposure: NONE — session-state.json is separate from snapshot.json. Hermes.Wpf does not read it.
+//   Subscribed events: StateChanged, OrderFilledEvent (immediate save), OrderPlacedEvent, OrderCancelledEvent (debounced save).
+//   Significance for experience export: this service is the trigger point that ensures the next snapshot write reflects the latest fill,
+//   but the actual snapshot.json publishing is done elsewhere (TradingPlatformBridgePublisher).
+
 namespace Hermes.TradingPlatform.Data.Persistence;
 
 /// <summary>Auto-saves paper session (balance, positions, journal) on state changes and fills.</summary>
