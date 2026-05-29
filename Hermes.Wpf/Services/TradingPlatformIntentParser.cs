@@ -32,6 +32,13 @@ internal static class TradingPlatformIntentParser
     internal static string UserFacingLine(bool ok, string detail)
     {
         var text = TryExtractResultMessage(detail) ?? detail.Trim();
+        if (string.IsNullOrEmpty(text))
+        {
+            text = ok
+                ? "команда выполнена"
+                : "нет ответа от SpotTerminal (запустите Hermes.SpotTerminal.exe)";
+        }
+
         return ok ? $"[trading] {text}" : $"[trading] Ошибка: {text}";
     }
 

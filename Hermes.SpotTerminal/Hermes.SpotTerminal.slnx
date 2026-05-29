@@ -1,0 +1,13 @@
+<Solution>
+  <Project Path="../Hermes.InAppAssistant.Wpf/Hermes.InAppAssistant.Wpf.csproj" />
+  <Project Path="../Hermes.InAppAssistant/Hermes.InAppAssistant.csproj" />
+  <Project Path="../Hermes.Terminals.Shared/Hermes.Terminals.Shared.csproj" />
+  <Project Path="../Hermes.TradingPlatform/Hermes.TradingPlatform.Shared/Hermes.TradingPlatform.Shared.csproj" />
+  <Project Path="Hermes.SpotTerminal.Agent/Hermes.SpotTerminal.Agent.csproj" />
+  <Project Path="Hermes.SpotTerminal.Cli/Hermes.SpotTerminal.Cli.csproj" />
+  <Project Path="Hermes.SpotTerminal.Core/Hermes.SpotTerminal.Core.csproj" />
+  <Project Path="Hermes.SpotTerminal.Data/Hermes.SpotTerminal.Data.csproj" />
+  <Project Path="Hermes.SpotTerminal.Exchange/Hermes.SpotTerminal.Exchange.csproj" />
+  <Project Path="Hermes.SpotTerminal.Shared/Hermes.SpotTerminal.Shared.csproj" />
+  <Project Path="Hermes.SpotTerminal.Wpf/Hermes.SpotTerminal.Wpf.csproj" />
+</Solution>

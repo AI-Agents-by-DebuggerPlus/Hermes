@@ -219,16 +219,26 @@ public sealed class HermesSettings
     public string? ReniWaterLastMonthlyRunKey { get; set; }
 
     /// <summary>Inject Trading Platform bridge instructions and live snapshot into outbound hermes chat.</summary>
-    public bool TradingPlatformIntegrationEnabled { get; set; } = true;
+    public bool TradingPlatformIntegrationEnabled { get; set; } = false;
 
     /// <summary>Start Hermes.TradingPlatform.exe when bridge heartbeat is stale (if exe path resolves).</summary>
-    public bool TradingPlatformAutoLaunchTerminal { get; set; } = true;
+    public bool TradingPlatformAutoLaunchTerminal { get; set; } = false;
 
     /// <summary>Optional full path to Hermes.TradingPlatform.Cli.exe; empty = auto-detect next to Hermes.Wpf or dev tree.</summary>
     public string TradingPlatformCliPath { get; set; } = string.Empty;
 
     /// <summary>Optional full path to Hermes.TradingPlatform.exe for auto-launch.</summary>
     public string TradingPlatformExePath { get; set; } = string.Empty;
+
+    /// <summary>Inject Spot Terminal bridge (agent, spot balances, skills) into Hermes chat.</summary>
+    public bool SpotTerminalIntegrationEnabled { get; set; } = true;
+
+    /// <summary>Auto-launch Hermes.SpotTerminal.exe when spot heartbeat is stale.</summary>
+    public bool SpotTerminalAutoLaunch { get; set; } = true;
+
+    public string SpotTerminalExePath { get; set; } = string.Empty;
+
+    public string SpotTerminalCliPath { get; set; } = string.Empty;
 
     /// <summary>Persisted active agent role (enum name).</summary>
     public string PersistedAgentRole { get; set; } = nameof(AgentRole.Universal);

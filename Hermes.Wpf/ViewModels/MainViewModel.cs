@@ -69,6 +69,7 @@ public sealed class MainViewModel : BaseViewModel
     private readonly DesktopScreenContextStore _desktopScreenContext = new();
     private readonly HermesGalleryPublisher _hermesGalleryPublisher;
     private readonly TradingPlatformBridgeService _tradingBridge;
+    private readonly SpotTerminalBridgeService _spotBridge;
     private readonly TradingManualOrderHandler _tradingManualOrder;
 
     public HermesGalleryPublisher GalleryPublisher => _hermesGalleryPublisher;
@@ -189,7 +190,8 @@ public sealed class MainViewModel : BaseViewModel
         _desktopVisionSkill = new DesktopVisionSkill(_hermesService, logService, _projectService, () => Settings);
         _hermesGalleryPublisher = new HermesGalleryPublisher(logService, () => Settings);
         _tradingBridge = new TradingPlatformBridgeService(logService, () => Settings);
-        _tradingManualOrder = new TradingManualOrderHandler(_tradingBridge, logService);
+        _spotBridge = new SpotTerminalBridgeService(logService, () => Settings);
+        _tradingManualOrder = new TradingManualOrderHandler(_spotBridge, logService);
         _tradingExperienceExporter.AttachToBridge(_tradingBridge);
         _reniWater = new ReniWaterScriptService(logService, () => Settings);
         _reniWater.OutputReceived += line => AppendTerminal($"[reni-water] {line}");
@@ -311,7 +313,7 @@ public sealed class MainViewModel : BaseViewModel
             _ => !_isBusy);
         SaveExperienceCommand = new RelayCommand(_ => _saveExperienceOpener?.Invoke());
         ExportEnglishTutorProgressCommand = new RelayCommand(_ => ExportEnglishTutorProgress(), _ => true);
-        LaunchTradingPlatformCommand = new RelayCommand(_ => LaunchTradingPlatformManual());
+        LaunchSpotTerminalCommand = new RelayCommand(_ => LaunchSpotTerminalManual());
 
         _flashcardSkill = new FlashcardSkill(_logService, GenerateFlashcardJsonViaHermesAsync, PublishFlashcardJsonToSupabaseAsync);
         _flashcardSkill.StatusChanged += FlashcardSkill_OnStatusChanged;
@@ -546,10 +548,10 @@ public sealed class MainViewModel : BaseViewModel
                 Settings.AssistantModeEnabled = false;
             }
 
-            if (value && _tradingBridge.IsIntegrationEnabled)
+            if (value)
             {
-                _tradingBridge.EnsureTerminalRunning(force: true);
-                _logService.LogInfo("[trading-mode] enabled — auto-launch terminal");
+                EnsureSpotTerminalRunning(force: true);
+                _logService.LogInfo("[trading-mode] enabled — auto-launch SpotTerminal");
             }
 
             RaisePropertyChanged(nameof(TradingModeEnabled));
@@ -753,11 +755,16 @@ public sealed class MainViewModel : BaseViewModel
                 blocks.Add(scopeBlock);
             }
 
-            AppendTradingPlatformSnapshotBlocks(blocks);
+            blocks.Add(SpotTerminalInstructions.OutboundBlockRu);
+            AppendSpotTerminalSnapshotBlocks(blocks);
         }
         else
         {
             blocks.Add(TradingModePromptDefaults.NormalModeGuardRu);
+            if (Settings.SpotTerminalIntegrationEnabled)
+            {
+                AppendSpotTerminalSnapshotBlocks(blocks);
+            }
         }
 
         if (Settings.AppendVisionScopeReminder && IsVisionRelatedUserMessage(userVisibleMessage))
@@ -860,10 +867,10 @@ public sealed class MainViewModel : BaseViewModel
     private void OnAgentRoleChanged(RoleChangedEventArgs e)
     {
         ApplyAgentRoleToLegacySettings(e.Current);
-        if (e.Current == AgentRole.Trader && _tradingBridge.IsIntegrationEnabled)
+        if (e.Current == AgentRole.Trader)
         {
-            _tradingBridge.EnsureTerminalRunning(force: true);
-            _logService.LogInfo("[role-manager] Trader — auto-launch terminal");
+            EnsureSpotTerminalRunning(force: true);
+            _logService.LogInfo("[role-manager] Trader — auto-launch SpotTerminal");
         }
 
         if (!_suppressRoleChangeModeNotice && Projects.SelectedProject is { Name: var projectName })
@@ -915,6 +922,31 @@ public sealed class MainViewModel : BaseViewModel
     {
         public bool ExitedThisTurn { get; } = exitedThisTurn;
         public bool EnteredThisTurn { get; } = enteredThisTurn;
+    }
+
+    private void AppendSpotTerminalSnapshotBlocks(List<string> blocks)
+    {
+        if (!_spotBridge.IsActiveForSession)
+        {
+            return;
+        }
+
+        EnsureSpotTerminalRunning(force: true);
+        var spotBlock = _spotBridge.BuildSpotContextBlockRu();
+        if (!string.IsNullOrWhiteSpace(spotBlock))
+        {
+            blocks.Add(spotBlock);
+        }
+        else if (_spotBridge.IsTerminalAlive())
+        {
+            blocks.Add("### Spot Terminal\nТерминал активен, snapshot пуст — дождитесь обновления bridge.");
+        }
+        else
+        {
+            blocks.Add(
+                "### Spot Terminal\n"
+                + "Hermes.SpotTerminal не запущен. Запустите Hermes.SpotTerminal.exe или включите SpotTerminalAutoLaunch.");
+        }
     }
 
     private void AppendTradingPlatformSnapshotBlocks(List<string> blocks)
@@ -1088,7 +1120,7 @@ public sealed class MainViewModel : BaseViewModel
 
     public ICommand ExportEnglishTutorProgressCommand { get; }
 
-    public ICommand LaunchTradingPlatformCommand { get; }
+    public ICommand LaunchSpotTerminalCommand { get; }
 
     public ICommand StopFlashcardsCommand { get; }
 
@@ -1234,10 +1266,10 @@ public sealed class MainViewModel : BaseViewModel
     public async Task OnChatWindowOpenedAsync()
     {
         RefreshChatModeStatusUi();
-        if (Settings.TradingModeEnabled && _tradingBridge.IsIntegrationEnabled)
+        if (_spotBridge.IsActiveForSession && (Settings.SpotTerminalAutoLaunch || Settings.TradingModeEnabled))
         {
-            _tradingBridge.EnsureTerminalRunning(force: true);
-            _logService.LogInfo("[trading-bridge] auto-launch on chat open (trading mode)");
+            _ = _spotBridge.EnsureTerminalReadyAsync(force: Settings.TradingModeEnabled);
+            _logService.LogInfo("[spot-bridge] auto-launch on chat open");
         }
 
         if (_startupModeNoticePending && Projects.SelectedProject is { Name: var projectName })
@@ -1247,22 +1279,39 @@ public sealed class MainViewModel : BaseViewModel
         }
     }
 
-    private void LaunchTradingPlatformManual()
+    private void LaunchSpotTerminalManual() => _ = LaunchSpotTerminalManualAsync();
+
+    private async Task LaunchSpotTerminalManualAsync()
     {
-        if (!_tradingBridge.IsIntegrationEnabled)
+        if (!_spotBridge.IsActiveForSession)
         {
-            AppendTerminal("[trading] Интеграция с Trading Platform отключена в Settings.", isError: true);
+            AppendTerminal("[spot] Включите Spot Terminal в Settings или режим трейдинга.", isError: true);
             return;
         }
 
-        var launched = _tradingBridge.EnsureTerminalRunning(force: true);
-        var alive = _tradingBridge.IsTerminalAlive();
+        var ready = await _spotBridge.EnsureTerminalReadyAsync(force: true).ConfigureAwait(true);
+        var exePath = Path.Combine(AppContext.BaseDirectory, "Hermes.SpotTerminal.exe");
+        var depsOk = File.Exists(Path.Combine(AppContext.BaseDirectory, "Hermes.SpotTerminal.dll"));
         AppendTerminal(
-            launched || alive
-                ? "[trading] Hermes.TradingPlatform запущен или уже активен."
-                : "[trading] Не удалось запустить Hermes.TradingPlatform.exe — проверьте путь в Settings.",
-            isError: !launched && !alive);
-        _logService.LogInfo($"[trading-bridge] manual launch launched={launched} alive={alive}");
+            ready
+                ? "[spot] Hermes.SpotTerminal готов (heartbeat ok)."
+                : !depsOk
+                    ? "[spot] Hermes.SpotTerminal.exe без зависимостей в папке Hermes.Wpf. Пересоберите решение (Build Hermes.Wpf)."
+                    : !File.Exists(exePath)
+                        ? "[spot] Hermes.SpotTerminal.exe не найден — укажите SpotTerminalExePath в Settings."
+                        : "[spot] Процесс запущен, но heartbeat не появился — откройте окно SpotTerminal вручную.",
+            isError: !ready);
+        _logService.LogInfo($"[spot-bridge] manual launch ready={ready}");
+    }
+
+    private void EnsureSpotTerminalRunning(bool force = true)
+    {
+        if (!_spotBridge.IsActiveForSession)
+        {
+            return;
+        }
+
+        _spotBridge.EnsureTerminalRunning(force);
     }
 
     private void RefreshChatModeStatusUi()
@@ -1288,8 +1337,8 @@ public sealed class MainViewModel : BaseViewModel
         var conn = ConnectionStatusMessage;
         var supabase = Settings.SupabaseRelayEnabled ? "on" : "off";
         var agentPaused = Settings.HermesAgentPaused ? "paused" : "active";
-        var tradingBridge = Settings.TradingPlatformIntegrationEnabled
-            ? (_tradingBridge.IsTerminalAlive() ? "terminal alive" : "terminal not running")
+        var tradingBridge = _spotBridge.IsActiveForSession
+            ? (_spotBridge.IsTerminalAlive() ? "SpotTerminal alive" : "SpotTerminal not running")
             : "disabled";
         var flashcards = _flashcardSkill.Status.ToString();
 
@@ -1824,7 +1873,7 @@ public sealed class MainViewModel : BaseViewModel
                 return;
             }
 
-            if (TryHandleTradingStatusQueryLocal(payloadEarly, project.Name))
+            if (await TryHandleTradingStatusQueryLocalAsync(payloadEarly, project.Name).ConfigureAwait(true))
             {
                 return;
             }
@@ -2061,7 +2110,6 @@ public sealed class MainViewModel : BaseViewModel
                 }
             }
             else if (Settings.TradingModeEnabled
-                     && _tradingBridge.IsIntegrationEnabled
                      && TradingPlatformIntentParser.TryConsumeIntent(response, out var tradingCmd, out var tradingQueryOnly))
             {
                 if (tradingQueryOnly)
@@ -2070,22 +2118,11 @@ public sealed class MainViewModel : BaseViewModel
                 }
                 else if (tradingCmd is not null)
                 {
-                    _chatLogService.AppendMessage(project.Name, "System", $"[trading-cmd] {tradingCmd.Action} {tradingCmd.Symbol}");
-                    _tradingBridge.EnsureTerminalRunning(force: true);
-                    if (!_tradingBridge.IsTerminalAlive())
-                    {
-                        displayResponse = TradingPlatformIntentParser.UserFacingLine(
-                            false,
-                            "Hermes.TradingPlatform.exe не запущен. Запустите терминал и повторите.");
-                        _logService.LogWarn($"[trading-bridge] {tradingCmd.Action} aborted — terminal offline");
-                    }
-                    else
-                    {
-                        var tradeResult = await _tradingBridge.TryEnqueueCommandAsync(tradingCmd).ConfigureAwait(true);
-                        displayResponse = TradingPlatformIntentParser.UserFacingLine(tradeResult.Ok, tradeResult.Detail);
-                        _logService.LogInfo($"[trading-bridge] {tradingCmd.Action} ok={tradeResult.Ok} detail={tradeResult.Detail}");
-                        _chatLogService.AppendMessage(project.Name, "System", $"[trading-result] ok={tradeResult.Ok} {tradeResult.Detail}");
-                    }
+                    _chatLogService.AppendMessage(project.Name, "System", $"[spot-cmd] {tradingCmd.Action} {tradingCmd.Symbol}");
+                    var tradeResult = await SpotTradingCommandExecutor.ExecuteAsync(_spotBridge, tradingCmd).ConfigureAwait(true);
+                    displayResponse = TradingPlatformIntentParser.UserFacingLine(tradeResult.Ok, tradeResult.Detail);
+                    _logService.LogInfo($"[spot-bridge] {tradingCmd.Action} ok={tradeResult.Ok} detail={tradeResult.Detail}");
+                    _chatLogService.AppendMessage(project.Name, "System", $"[spot-result] ok={tradeResult.Ok} {tradeResult.Detail}");
                 }
             }
 
@@ -2219,6 +2256,11 @@ public sealed class MainViewModel : BaseViewModel
 
     private async Task<bool> TryHandleDesktopWindowFocusAsync(string userPayload, string projectName)
     {
+        if (TradingManualOrderParser.LooksLikeTradeIntent(userPayload))
+        {
+            return false;
+        }
+
         if (!DesktopWindowFocusTriggers.TryParseTarget(userPayload, out var target))
         {
             return false;
@@ -2851,7 +2893,7 @@ public sealed class MainViewModel : BaseViewModel
         _ = PersistSettingsQuietAsync();
     }
 
-    private bool TryHandleTradingStatusQueryLocal(string payload, string projectName)
+    private async Task<bool> TryHandleTradingStatusQueryLocalAsync(string payload, string projectName)
     {
         if (!Settings.TradingModeEnabled)
         {
@@ -2864,26 +2906,25 @@ public sealed class MainViewModel : BaseViewModel
             return false;
         }
 
-        _tradingBridge.EnsureTerminalRunning(force: true);
-        if (!_tradingBridge.IsTerminalAlive())
+        if (!await _spotBridge.EnsureTerminalReadyAsync(force: true).ConfigureAwait(true))
         {
-            PostLocalHermesReply(projectName, TradingStatusReplyFormatter.TerminalUnavailableMessage());
-            _logService.LogInfo($"[trading-status] {intent}: terminal not running");
+            PostLocalHermesReply(projectName, SpotTerminalStatusReplyFormatter.TerminalUnavailableMessage());
+            _logService.LogInfo($"[trading-status] {intent}: SpotTerminal not running");
             return true;
         }
 
-        var snap = _tradingBridge.TryReadSnapshot();
-        if (snap is null)
+        var spot = _spotBridge.TryReadSpotSection();
+        if (spot is null)
         {
-            PostLocalHermesReply(projectName, TradingStatusReplyFormatter.TerminalUnavailableMessage());
-            _logService.LogInfo($"[trading-status] {intent}: snapshot missing");
+            PostLocalHermesReply(projectName, SpotTerminalStatusReplyFormatter.TerminalUnavailableMessage());
+            _logService.LogInfo($"[trading-status] {intent}: spot snapshot missing");
             return true;
         }
 
         var reply = intent switch
         {
-            TradingQueryIntent.BalanceOnly => TradingStatusReplyFormatter.FormatBalanceOnly(snap),
-            TradingQueryIntent.AccountSummary => TradingStatusReplyFormatter.FormatAccountSummary(snap),
+            TradingQueryIntent.BalanceOnly => SpotTerminalStatusReplyFormatter.FormatBalanceOnly(spot),
+            TradingQueryIntent.AccountSummary => SpotTerminalStatusReplyFormatter.FormatAccountSummary(spot, _spotBridge.TryReadAgentSection()),
             _ => string.Empty,
         };
 
@@ -2893,7 +2934,7 @@ public sealed class MainViewModel : BaseViewModel
         }
 
         PostLocalHermesReply(projectName, reply);
-        _logService.LogInfo($"[trading-status] local reply ({intent}), balance={snap.Account.Balance:N2}");
+        _logService.LogInfo($"[trading-status] local reply ({intent}) from SpotTerminal");
         return true;
     }
 
@@ -2965,7 +3006,7 @@ public sealed class MainViewModel : BaseViewModel
                 _ = PersistSettingsQuietAsync();
                 _logService.LogInfo("[trading-mode] подтверждён переход в режим трейдинга");
 
-                _tradingBridge.EnsureTerminalRunning(force: true);
+                EnsureSpotTerminalRunning(force: true);
                 RefreshChatModeStatusUi();
 
                 if (IsBareTradingConfirmMessage(payload))
@@ -3083,7 +3124,7 @@ public sealed class MainViewModel : BaseViewModel
                 _ = PersistSettingsQuietAsync();
             }
 
-            _tradingBridge.EnsureTerminalRunning(force: true);
+            EnsureSpotTerminalRunning(force: true);
             PostModeStatusNotice(projectName);
             RefreshChatModeStatusUi();
             _logService.LogInfo("[trading-mode] bare switch → trading mode (local ack)");
@@ -3212,7 +3253,7 @@ public sealed class MainViewModel : BaseViewModel
 
     private async Task<bool> TryHandleClosePositionLocalAsync(string payload, string projectName)
     {
-        if (!Settings.TradingModeEnabled || !_tradingBridge.IsIntegrationEnabled)
+        if (!Settings.TradingModeEnabled)
         {
             return false;
         }
@@ -3222,36 +3263,32 @@ public sealed class MainViewModel : BaseViewModel
             return false;
         }
 
-        _tradingBridge.EnsureTerminalRunning(force: true);
-        if (!_tradingBridge.IsTerminalAlive())
+        if (!await _spotBridge.EnsureTerminalReadyAsync(force: true).ConfigureAwait(true))
         {
-            PostLocalHermesReply(projectName, TradingStatusReplyFormatter.TerminalUnavailableMessage());
-            _logService.LogWarn("[trading-close] terminal offline");
+            PostLocalHermesReply(projectName, SpotTerminalStatusReplyFormatter.TerminalUnavailableMessage());
             return true;
         }
 
-        var snap = _tradingBridge.TryReadSnapshot();
-        var known = snap?.Tickers.Select(t => t.Symbol).ToList();
-        var symbol = TradingSymbolResolver.ResolveFromText(payload, known);
-        if (string.IsNullOrWhiteSpace(symbol))
+        var spot = _spotBridge.TryReadSpotSection();
+        var spotSymbols = spot?.Tickers.Select(t => t.Symbol).ToList();
+        var spotSymbol = TradingSymbolResolver.ResolveFromText(payload, spotSymbols);
+        if (string.IsNullOrWhiteSpace(spotSymbol))
         {
             PostLocalHermesReply(projectName, "Укажите инструмент (например ETH / ETHUSDT).");
-            _logService.LogWarn("[trading-close] symbol not resolved from user text");
             return true;
         }
 
-        var cmd = new TradingPlatformCommand
+        var sellCmd = new TradingPlatformCommand
         {
-            Action = "close_position",
-            Symbol = symbol,
+            Action = "place_order",
+            Symbol = spotSymbol,
+            Side = "Sell",
+            OrderType = "Market",
+            Quantity = 0.001m,
             RequestedBy = "Hermes.Wpf-local",
         };
-        _logService.LogInfo($"[trading-close] local close_position symbol={symbol}");
-        _chatLogService.AppendMessage(projectName, "System", $"[trading-close] enqueue close_position {symbol}");
-        var result = await _tradingBridge.TryEnqueueCommandAsync(cmd).ConfigureAwait(true);
-        var line = TradingPlatformIntentParser.UserFacingLine(result.Ok, result.Detail);
-        PostLocalHermesReply(projectName, line);
-        _chatLogService.AppendMessage(projectName, "System", $"[trading-close] ok={result.Ok} {result.Detail}");
+        var result = await SpotTradingCommandExecutor.ExecuteAsync(_spotBridge, sellCmd).ConfigureAwait(true);
+        PostLocalHermesReply(projectName, TradingPlatformIntentParser.UserFacingLine(result.Ok, result.Detail));
         return true;
     }
 

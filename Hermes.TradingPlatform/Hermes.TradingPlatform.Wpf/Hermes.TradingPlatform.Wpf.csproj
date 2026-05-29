@@ -23,6 +23,7 @@
     <ProjectReference Include="..\Hermes.TradingPlatform.Strategies\Hermes.TradingPlatform.Strategies.csproj" />
     <ProjectReference Include="..\Hermes.TradingPlatform.Orchestration\Hermes.TradingPlatform.Orchestration.csproj" />
     <ProjectReference Include="..\..\Hermes.InAppAssistant.Wpf\Hermes.InAppAssistant.Wpf.csproj" />
+    <ProjectReference Include="..\..\Hermes.Terminals.Shared\Hermes.Terminals.Shared.csproj" />
   </ItemGroup>
 
   <Target Name="BuildInAppAssistantBeforeMarkupCompile"

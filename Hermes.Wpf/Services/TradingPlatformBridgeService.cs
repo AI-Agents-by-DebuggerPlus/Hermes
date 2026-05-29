@@ -3,6 +3,7 @@ using System.IO;
 using System.Text;
 using System.Text.Json;
 using Hermes.TradingPlatform.Shared.Bridge;
+using Hermes.Terminals.Shared.Bridge;
 using Hermes.Wpf.Models;
 
 // AUDIT 2026-05-25 (TradingExperienceExporter integration point):
@@ -43,7 +44,7 @@ public sealed class TradingPlatformBridgeService
                && DateTimeOffset.UtcNow - beat < TimeSpan.FromSeconds(12);
     }
 
-    public TradingPlatformSnapshotFile? TryReadSnapshot()
+    public UnifiedTerminalSnapshotFile? TryReadUnifiedSnapshot()
     {
         if (!File.Exists(TradingBridgePaths.SnapshotFile))
         {
@@ -52,9 +53,21 @@ public sealed class TradingPlatformBridgeService
 
         try
         {
-            var snap = JsonSerializer.Deserialize<TradingPlatformSnapshotFile>(
-                File.ReadAllText(TradingBridgePaths.SnapshotFile),
-                JsonOptions);
+            return UnifiedSnapshotIO.Read(TradingBridgePaths.SnapshotFile);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarn($"[trading-bridge] unified snapshot read failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    public TradingPlatformSnapshotFile? TryReadSnapshot()
+    {
+        try
+        {
+            var unified = TryReadUnifiedSnapshot();
+            var snap = unified?.TradingPlatform;
             if (snap is not null)
             {
                 SnapshotUpdated?.Invoke(snap);
@@ -189,41 +202,8 @@ public sealed class TradingPlatformBridgeService
     /// <summary>Launch terminal when integration is on; <paramref name="force"/> ignores auto-launch setting.</summary>
     public bool EnsureTerminalRunning(bool force = false)
     {
-        if (!IsIntegrationEnabled)
-        {
-            _log.LogInfo("[trading-bridge] launch skipped — integration disabled");
-            return false;
-        }
-
-        if (!force && !_settings().TradingPlatformAutoLaunchTerminal)
-        {
-            return IsTerminalAlive();
-        }
-
-        if (IsTerminalAlive())
-        {
-            _log.LogInfo("[trading-bridge] terminal already alive (heartbeat ok)");
-            return true;
-        }
-
-        var exe = ResolveTerminalExePath();
-        if (string.IsNullOrEmpty(exe) || !File.Exists(exe))
-        {
-            _log.LogWarn($"[trading-bridge] TradingPlatform.exe not found: {exe ?? "(null)"}");
-            return false;
-        }
-
-        try
-        {
-            Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true });
-            _log.LogInfo($"[trading-bridge] launched Hermes.TradingPlatform.exe path={exe}");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _log.LogWarn($"[trading-bridge] launch failed: {ex.Message}");
-            return false;
-        }
+        _log.LogInfo("[trading-bridge] TradingPlatform launch disabled — use Hermes.SpotTerminal");
+        return IsTerminalAlive();
     }
 
     private string? ResolveCliPath()

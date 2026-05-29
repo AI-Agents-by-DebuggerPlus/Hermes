@@ -22,6 +22,8 @@
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
     <ProjectReference Include="..\Hermes.TradingPlatform\Hermes.TradingPlatform.Shared\Hermes.TradingPlatform.Shared.csproj" />
+    <ProjectReference Include="..\Hermes.SpotTerminal\Hermes.SpotTerminal.Shared\Hermes.SpotTerminal.Shared.csproj" />
+    <ProjectReference Include="..\Hermes.Terminals.Shared\Hermes.Terminals.Shared.csproj" />
     <ProjectReference Include="..\Hermes.InAppAssistant.Wpf\Hermes.InAppAssistant.Wpf.csproj" />
   </ItemGroup>
 
@@ -41,6 +43,35 @@
           DestinationFolder="$(OutDir)"
           SkipUnchangedFiles="true"
           Condition="Exists('$(_GalleryTool)')" />
+  </Target>
+
+  <!-- SpotTerminal must be built and fully copied (exe alone crashes without dependency DLLs). -->
+  <Target Name="BuildSpotTerminalProjects"
+          BeforeTargets="CopySpotTerminalToWpfOut"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <MSBuild Projects="..\Hermes.SpotTerminal\Hermes.SpotTerminal.Wpf\Hermes.SpotTerminal.Wpf.csproj"
+             Properties="Configuration=$(Configuration);Platform=$(Platform)" />
+    <MSBuild Projects="..\Hermes.SpotTerminal\Hermes.SpotTerminal.Cli\Hermes.SpotTerminal.Cli.csproj"
+             Properties="Configuration=$(Configuration);Platform=$(Platform)" />
+  </Target>
+
+  <Target Name="CopySpotTerminalToWpfOut" AfterTargets="Build">
+    <PropertyGroup>
+      <_SpotWpfDir>$(MSBuildThisFileDirectory)..\Hermes.SpotTerminal\Hermes.SpotTerminal.Wpf\bin\$(Configuration)\net8.0-windows\</_SpotWpfDir>
+      <_SpotCliDir>$(MSBuildThisFileDirectory)..\Hermes.SpotTerminal\Hermes.SpotTerminal.Cli\bin\$(Configuration)\net8.0\</_SpotCliDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <_SpotWpfFiles Include="$(_SpotWpfDir)*.*" Exclude="$(_SpotWpfDir)*.pdb" />
+      <_SpotCliFiles Include="$(_SpotCliDir)*.*" Exclude="$(_SpotCliDir)*.pdb" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_SpotWpfFiles)"
+          DestinationFolder="$(OutDir)"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(_SpotWpfDir)Hermes.SpotTerminal.exe')" />
+    <Copy SourceFiles="@(_SpotCliFiles)"
+          DestinationFolder="$(OutDir)"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(_SpotCliDir)Hermes.SpotTerminal.Cli.exe')" />
   </Target>
 
   <Target Name="CopyTradingPlatformCliToWpfOut" AfterTargets="Build">

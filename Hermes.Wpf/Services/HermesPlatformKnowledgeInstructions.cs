@@ -22,7 +22,7 @@ public static class HermesPlatformKnowledgeInstructions
         + "3. **НЕ автоматически:** новый навык **не** создаётся после каждой успешной задачи без `skill_save` / явной просьбы.\n\n"
         + "**Ответы пользователю:** если спрашивают «как работает память/навыки/самообучение в Hermes» — опирайся на этот блок и при необходимости на vault-заметку `Knowledge/Hermes/Experience_and_Skills_Logic.md`. Не утверждай, что функции из старых README уже есть в WPF, если их нет в списке выше.\n"
         + "Подробный отчёт в репозитории: `Docs/Report/Experience_And_Skills_Logic_Report.md`.\n\n"
-        + "**Hermes Trading Platform (paper terminal):** отдельное приложение `Hermes.TradingPlatform.exe`. При включённой интеграции в Settings клиент подмешивает live snapshot (позиции, баланс, ордера, риск, стратегии) и принимает JSON `{\"skill\":\"trading\",…}` для ордеров и алгоритмов через file-bridge + CLI. Ордера проходят virtual exchange и RiskValidator. Подробнее: `Docs/Report/Hermes_Trading_Platform_Integration.md`.";
+        + "**Hermes Spot Terminal:** отдельное приложение `Hermes.SpotTerminal.exe` (Virtual / Binance Spot Demo). В режиме трейдинга Hermes.Wpf подмешивает snapshot (балансы, ордера, agent, skills) и отправляет JSON `{\"skill\":\"trading\",…}` через bridge + CLI в SpotTerminal. Legacy `Hermes.TradingPlatform.exe` для сделок не используется.";
 
     /// <summary>Vault note body (without YAML) — synced when repo report is unavailable.</summary>
     public static string VaultMarkdownBody =>

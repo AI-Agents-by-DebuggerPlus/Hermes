@@ -15,6 +15,10 @@ public static class TradingSymbolResolver
         ["эфиру"] = "ETHUSDT",
         ["биткоин"] = "BTCUSDT",
         ["битка"] = "BTCUSDT",
+        ["битку"] = "BTCUSDT",
+        ["битке"] = "BTCUSDT",
+        ["биткон"] = "BTCUSDT",
+        ["биткоину"] = "BTCUSDT",
     };
 
     public static string? Resolve(string? input, IEnumerable<string>? knownSymbols = null)
@@ -72,6 +76,15 @@ public static class TradingSymbolResolver
             {
                 return sym;
             }
+        }
+
+        var usdtMatch = System.Text.RegularExpressions.Regex.Match(
+            lower,
+            @"\b([a-z]{2,15}usdt)\b",
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        if (usdtMatch.Success)
+        {
+            return Resolve(usdtMatch.Groups[1].Value, knownSymbols);
         }
 
         return null;

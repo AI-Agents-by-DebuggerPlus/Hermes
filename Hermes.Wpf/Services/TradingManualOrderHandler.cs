@@ -2,16 +2,16 @@ using Hermes.TradingPlatform.Shared.Bridge;
 
 namespace Hermes.Wpf.Services;
 
-/// <summary>Local chat flow: open long/short → ask price → market/limit/stop order via bridge (no strategy).</summary>
+/// <summary>Local chat flow: open long/short → ask price → market/limit order via SpotTerminal bridge.</summary>
 internal sealed class TradingManualOrderHandler
 {
-    private readonly TradingPlatformBridgeService _bridge;
+    private readonly SpotTerminalBridgeService _spot;
     private readonly LogService _log;
     private ManualOrderDraft? _pending;
 
-    public TradingManualOrderHandler(TradingPlatformBridgeService bridge, LogService log)
+    public TradingManualOrderHandler(SpotTerminalBridgeService spot, LogService log)
     {
-        _bridge = bridge;
+        _spot = spot;
         _log = log;
     }
 
@@ -24,7 +24,7 @@ internal sealed class TradingManualOrderHandler
         Func<string, string, Task> postHermesReplyAsync,
         Func<string, string, Task> appendSystemLogAsync)
     {
-        if (!tradingModeEnabled || !_bridge.IsIntegrationEnabled)
+        if (!tradingModeEnabled || !_spot.IsActiveForSession)
         {
             return false;
         }
@@ -48,6 +48,16 @@ internal sealed class TradingManualOrderHandler
                 out var price)
             || draft is null)
         {
+            if (TradingManualOrderParser.LooksLikeTradeIntent(text))
+            {
+                await postHermesReplyAsync(
+                        projectName,
+                        "Не удалось определить инструмент. Пример: «открой лонг BTCUSDT по рыночной» или «открой лонг по биткоину».")
+                    .ConfigureAwait(false);
+                _log.LogWarn("[spot-open] trade intent but symbol not resolved");
+                return true;
+            }
+
             return false;
         }
 
@@ -56,9 +66,9 @@ internal sealed class TradingManualOrderHandler
             _pending = draft;
             var ask =
                 $"По какой цене открыть {TradingManualOrderParser.FormatSideRu(draft.Side)} по {draft.Symbol}? "
-                + $"Объём {draft.Quantity} (paper). Напишите «по рыночной», цену лимита или стопа; «нет» — отмена.";
+                + $"Объём {draft.Quantity}. Напишите «по рыночной», цену лимита или стопа; «нет» — отмена.";
             await postHermesReplyAsync(projectName, ask).ConfigureAwait(false);
-            _log.LogInfo($"[trading-open] awaiting price symbol={draft.Symbol} side={draft.Side} qty={draft.Quantity}");
+            _log.LogInfo($"[spot-open] awaiting price symbol={draft.Symbol} side={draft.Side} qty={draft.Quantity}");
             return true;
         }
 
@@ -105,30 +115,29 @@ internal sealed class TradingManualOrderHandler
             return true;
         }
 
-        _bridge.EnsureTerminalRunning(force: true);
-        if (!_bridge.IsTerminalAlive())
+        if (!await _spot.EnsureTerminalReadyAsync(force: true).ConfigureAwait(false))
         {
-            await postHermesReplyAsync(projectName, TradingStatusReplyFormatter.TerminalUnavailableMessage())
+            await postHermesReplyAsync(projectName, SpotTerminalStatusReplyFormatter.TerminalUnavailableMessage())
                 .ConfigureAwait(false);
             return true;
         }
 
         var cmd = TradingManualOrderParser.BuildCommand(draft, price);
         _log.LogInfo(
-            $"[trading-open] place_order {cmd.Symbol} {cmd.Side} {cmd.OrderType} qty={cmd.Quantity} price={cmd.Price}");
-        await appendSystemLogAsync(projectName, $"[trading-open] enqueue {cmd.OrderType} {cmd.Symbol} {cmd.Side}")
+            $"[spot-open] place_order {cmd.Symbol} {cmd.Side} {cmd.OrderType} qty={cmd.Quantity} price={cmd.Price}");
+        await appendSystemLogAsync(projectName, $"[spot-open] enqueue {cmd.OrderType} {cmd.Symbol} {cmd.Side}")
             .ConfigureAwait(false);
 
-        var result = await _bridge.TryEnqueueCommandAsync(cmd).ConfigureAwait(false);
+        var result = await SpotTradingCommandExecutor.ExecuteAsync(_spot, cmd).ConfigureAwait(false);
         var line = TradingPlatformIntentParser.UserFacingLine(result.Ok, result.Detail);
         await postHermesReplyAsync(projectName, line).ConfigureAwait(false);
-        await appendSystemLogAsync(projectName, $"[trading-open] ok={result.Ok} {result.Detail}").ConfigureAwait(false);
+        await appendSystemLogAsync(projectName, $"[spot-open] ok={result.Ok} {result.Detail}").ConfigureAwait(false);
         return true;
     }
 
     private IReadOnlyList<string>? KnownSymbols()
     {
-        var snap = _bridge.TryReadSnapshot();
-        return snap?.Tickers.Select(t => t.Symbol).ToList();
+        var spot = _spot.TryReadSpotSection();
+        return spot?.Tickers.Select(t => t.Symbol).ToList();
     }
 }

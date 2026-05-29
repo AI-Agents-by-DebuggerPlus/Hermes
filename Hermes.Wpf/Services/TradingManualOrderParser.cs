@@ -65,6 +65,18 @@ internal static class TradingManualOrderParser
     public static bool IsCancel(string? text) =>
         !string.IsNullOrWhiteSpace(text) && CancelPattern.IsMatch(text.Trim());
 
+    /// <summary>Trade command in chat (open/close) — must not be routed to desktop window focus / vision.</summary>
+    public static bool LooksLikeTradeIntent(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var t = text.Trim();
+        return TradingClosePositionTriggers.Matches(t) || LooksLikeOpenOrderIntent(t);
+    }
+
     public static bool TryParseOpenRequest(string text, IEnumerable<string>? knownSymbols, out ManualOrderDraft? draft, out ManualPriceSpec price)
     {
         draft = null;

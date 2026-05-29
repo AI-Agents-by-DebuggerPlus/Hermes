@@ -85,6 +85,11 @@ public sealed class SettingsService
             migrated = true;
         }
 
+        if (MigrateTradingPlatformToSpotTerminal(settings))
+        {
+            migrated = true;
+        }
+
         if (migrated)
         {
             await SaveAsync(settings);
@@ -356,5 +361,36 @@ public sealed class SettingsService
         {
             s.HermesGallerySiteUrl = site;
         }
+    }
+
+    /// <summary>Trading Platform superseded by SpotTerminal for order execution.</summary>
+    private static bool MigrateTradingPlatformToSpotTerminal(HermesSettings settings)
+    {
+        var changed = false;
+        if (settings.TradingPlatformIntegrationEnabled)
+        {
+            settings.TradingPlatformIntegrationEnabled = false;
+            changed = true;
+        }
+
+        if (settings.TradingPlatformAutoLaunchTerminal)
+        {
+            settings.TradingPlatformAutoLaunchTerminal = false;
+            changed = true;
+        }
+
+        if (!settings.SpotTerminalIntegrationEnabled)
+        {
+            settings.SpotTerminalIntegrationEnabled = true;
+            changed = true;
+        }
+
+        if (!settings.SpotTerminalAutoLaunch)
+        {
+            settings.SpotTerminalAutoLaunch = true;
+            changed = true;
+        }
+
+        return changed;
     }
 }

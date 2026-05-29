@@ -1,0 +1,19 @@
+# User credentials
+api_credentials.json
+
+# Visual Studio / .NET outputs
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider / IntelliJ
+.idea/
+
+# OS specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini

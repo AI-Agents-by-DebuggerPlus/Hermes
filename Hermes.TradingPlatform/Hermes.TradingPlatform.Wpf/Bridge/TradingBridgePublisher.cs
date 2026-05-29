@@ -1,15 +1,13 @@
 using System.IO;
-using System.Text.Json;
 using Hermes.TradingPlatform.Core.Domain;
 using Hermes.TradingPlatform.Shared.Bridge;
 using Hermes.TradingPlatform.Wpf.Services;
+using Hermes.Terminals.Shared.Bridge;
 
 namespace Hermes.TradingPlatform.Wpf.Bridge;
 
 public sealed class TradingBridgePublisher : IDisposable
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
-
     private readonly TradingPlatformHost _host;
     private readonly Timer _heartbeatTimer;
     private DateTimeOffset _lastPublish = DateTimeOffset.MinValue;
@@ -37,9 +35,20 @@ public sealed class TradingBridgePublisher : IDisposable
 
     public void Publish()
     {
-        var snapshot = BuildSnapshot();
+        var trading = BuildSnapshot();
         TradingBridgePaths.EnsureRoot();
-        File.WriteAllText(TradingBridgePaths.SnapshotFile, JsonSerializer.Serialize(snapshot, JsonOptions));
+        var path = TradingBridgePaths.SnapshotFile;
+        var existing = UnifiedSnapshotIO.Read(path);
+        var unified = new UnifiedTerminalSnapshotFile
+        {
+            SchemaVersion = 2,
+            TimestampUtc = DateTimeOffset.UtcNow,
+            TradingPlatform = trading,
+            SpotTerminal = existing.SpotTerminal,
+            Agent = existing.Agent,
+            Skills = existing.Skills,
+        };
+        UnifiedSnapshotIO.WriteAtomic(path, unified);
         WriteHeartbeat();
     }
 
