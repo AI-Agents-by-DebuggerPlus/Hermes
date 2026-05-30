@@ -1,0 +1,243 @@
+<UserControl x:Class="Hermes.BinanceDemoFuturesTerminal.Controls.PositionsPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="clr-namespace:Hermes.BinanceDemoFuturesTerminal.Models">
+    <UserControl.Resources>
+        <Style x:Key="YellowLinkButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#FCD535"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="10.5"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#252930"/>
+                                <Setter Property="Foreground" Value="#E0BE2F"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#5E6673"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PositionHeaderTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#848E9C"/>
+            <Setter Property="FontSize" Value="9.5"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+        </Style>
+
+        <Style x:Key="PositionCellTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#EAECEF"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+        </Style>
+
+        <Style x:Key="PositionInputStyle" TargetType="TextBox">
+            <Setter Property="Background" Value="#20242B"/>
+            <Setter Property="Foreground" Value="#EAECEF"/>
+            <Setter Property="BorderBrush" Value="#2B3139"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Padding" Value="4,2"/>
+        </Style>
+
+        <Style x:Key="PositionBadgeStyle" TargetType="Border">
+            <Setter Property="Background" Value="#2B3139"/>
+            <Setter Property="CornerRadius" Value="2"/>
+            <Setter Property="Padding" Value="4,1"/>
+            <Setter Property="Margin" Value="0,2,4,0"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="0,8,0,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" Margin="0,0,0,8">
+            <Button DockPanel.Dock="Right"
+                    Content="Закрыть все позиции"
+                    Style="{StaticResource YellowLinkButtonStyle}"
+                    Command="{Binding CloseAllPositionsCommand}"/>
+        </DockPanel>
+
+        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+            <StackPanel MinWidth="1280">
+                <Grid Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="110"/>
+                        <ColumnDefinition Width="88"/>
+                        <ColumnDefinition Width="88"/>
+                        <ColumnDefinition Width="88"/>
+                        <ColumnDefinition Width="88"/>
+                        <ColumnDefinition Width="80"/>
+                        <ColumnDefinition Width="72"/>
+                        <ColumnDefinition Width="118"/>
+                        <ColumnDefinition Width="96"/>
+                        <ColumnDefinition Width="92"/>
+                        <ColumnDefinition Width="300"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Символ" Style="{StaticResource PositionHeaderTextStyle}"/>
+                    <TextBlock Grid.Column="1" Text="Размер" Style="{StaticResource PositionHeaderTextStyle}"/>
+                    <TextBlock Grid.Column="2" Text="Цена входа" Style="{StaticResource PositionHeaderTextStyle}"/>
+                    <TextBlock Grid.Column="3" Text="Безубыток" Style="{StaticResource PositionHeaderTextStyle}"/>
+                    <TextBlock Grid.Column="4" Text="Mark" Style="{StaticResource PositionHeaderTextStyle}"/>
+                    <TextBlock Grid.Column="5" Text="Ликвид." Style="{StaticResource PositionHeaderTextStyle}"/>
+                    <TextBlock Grid.Column="6" Text="Маржа %" Style="{StaticResource PositionHeaderTextStyle}"/>
+                    <TextBlock Grid.Column="7" Text="Маржа" Style="{StaticResource PositionHeaderTextStyle}"/>
+                    <TextBlock Grid.Column="8" Text="PnL (ROI)" Style="{StaticResource PositionHeaderTextStyle}"/>
+                    <TextBlock Grid.Column="9" Text="Финанс." Style="{StaticResource PositionHeaderTextStyle}"/>
+                    <TextBlock Grid.Column="10" Text="Закрыть позицию" Style="{StaticResource PositionHeaderTextStyle}"/>
+                </Grid>
+
+                <ItemsControl ItemsSource="{Binding Positions}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type models:PositionModel}">
+                            <Border BorderBrush="#2B3139" BorderThickness="0,1,0,0" Padding="0,8">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110"/>
+                                        <ColumnDefinition Width="88"/>
+                                        <ColumnDefinition Width="88"/>
+                                        <ColumnDefinition Width="88"/>
+                                        <ColumnDefinition Width="88"/>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="72"/>
+                                        <ColumnDefinition Width="118"/>
+                                        <ColumnDefinition Width="96"/>
+                                        <ColumnDefinition Width="92"/>
+                                        <ColumnDefinition Width="300"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{Binding Symbol}" Foreground="#EAECEF" FontSize="11" FontWeight="Bold"/>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Style="{StaticResource PositionBadgeStyle}">
+                                                <TextBlock Text="{Binding ContractBadge}" Foreground="#848E9C" FontSize="9"/>
+                                            </Border>
+                                            <Border Style="{StaticResource PositionBadgeStyle}">
+                                                <TextBlock Text="{Binding LeverageBadge}" Foreground="#848E9C" FontSize="9"/>
+                                            </Border>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <TextBlock Grid.Column="1" Text="{Binding SizeDisplay}" FontWeight="Bold">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource PositionCellTextStyle}">
+                                                <Setter Property="Foreground" Value="#0ECB81"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsLong}" Value="False">
+                                                        <Setter Property="Foreground" Value="#F6465D"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+
+                                    <TextBlock Grid.Column="2" Text="{Binding EntryDisplay}" Style="{StaticResource PositionCellTextStyle}"/>
+                                    <TextBlock Grid.Column="3" Text="{Binding BreakEvenDisplay}" Style="{StaticResource PositionCellTextStyle}"/>
+                                    <TextBlock Grid.Column="4" Text="{Binding MarkDisplay}" Style="{StaticResource PositionCellTextStyle}"/>
+                                    <TextBlock Grid.Column="5" Text="{Binding LiquidationDisplay}" Style="{StaticResource PositionCellTextStyle}"/>
+                                    <TextBlock Grid.Column="6" Text="{Binding MarginRatioDisplay}" Style="{StaticResource PositionCellTextStyle}"/>
+                                    <TextBlock Grid.Column="7" Text="{Binding MarginDisplay}" Style="{StaticResource PositionCellTextStyle}" TextWrapping="Wrap"/>
+                                    <StackPanel Grid.Column="8">
+                                        <TextBlock Text="{Binding PnlDisplay}" FontSize="10" FontWeight="Bold">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="#0ECB81"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsPnlPositive}" Value="False">
+                                                            <Setter Property="Foreground" Value="#F6465D"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding RoiDisplay}" FontSize="9.5">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="#0ECB81"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsPnlPositive}" Value="False">
+                                                            <Setter Property="Foreground" Value="#F6465D"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="9" Text="{Binding FundingFeeDisplay}" Style="{StaticResource PositionCellTextStyle}"/>
+
+                                    <Grid Grid.Column="10">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,4">
+                                            <Button Content="Рынок" Style="{StaticResource YellowLinkButtonStyle}" Margin="0,0,10,0"
+                                                    Command="{Binding DataContext.ClosePositionMarketCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"/>
+                                            <Button Content="Лимит" Style="{StaticResource YellowLinkButtonStyle}"
+                                                    Command="{Binding DataContext.ClosePositionLimitCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"/>
+                                        </StackPanel>
+                                        <Grid Grid.Row="1" Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="8"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Grid.Column="0" Style="{StaticResource PositionInputStyle}"
+                                                     Text="{Binding CloseLimitPriceText, UpdateSourceTrigger=PropertyChanged}"/>
+                                            <TextBox Grid.Column="2" Style="{StaticResource PositionInputStyle}"
+                                                     Text="{Binding CloseQuantityText, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </Grid>
+                                        <StackPanel Grid.Row="2" Orientation="Horizontal">
+                                            <TextBlock Text="{Binding StopLossDisplay}" Foreground="#848E9C" FontSize="9.5" VerticalAlignment="Center"/>
+                                            <TextBlock Text=" / " Foreground="#848E9C" FontSize="9.5" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding TakeProfitDisplay}" Foreground="#848E9C" FontSize="9.5" VerticalAlignment="Center"/>
+                                            <Button Content="+ Добавить" FontSize="9" Background="#2B3139" Foreground="#02A4FF"
+                                                    FontWeight="Bold" BorderThickness="0" Padding="6,2" Height="18" Margin="8,0,0,0"
+                                                    Command="{Binding DataContext.SetPositionSlTpCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="Нет открытых позиций" Foreground="#848E9C" FontSize="11" Margin="0,12,0,0">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Positions.Count}" Value="0">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

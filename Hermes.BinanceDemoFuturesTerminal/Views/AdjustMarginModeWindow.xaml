@@ -1,0 +1,188 @@
+<Window x:Class="Hermes.BinanceDemoFuturesTerminal.Views.AdjustMarginModeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Режим маржи"
+        Height="560" Width="480"
+        Background="#0C0E12"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        WindowStyle="None"
+        AllowsTransparency="True">
+    <Window.Resources>
+        <Style x:Key="DarkCloseButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#848E9C"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="2">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#2B3139"/>
+                                <Setter Property="Foreground" Value="#EAECEF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#252930"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ModeToggleButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#EAECEF"/>
+            <Setter Property="Background" Value="#181A20"/>
+            <Setter Property="BorderBrush" Value="#2B3139"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#383f49"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#252930"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#5E6673"/>
+                                <Setter TargetName="Root" Property="Background" Value="#181A20"/>
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#2B3139"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ConfirmButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#FCD535"/>
+            <Setter Property="Foreground" Value="#181A20"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#E0BE2F"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#C9A926"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Background" Value="#5E6673"/>
+                                <Setter Property="Foreground" Value="#848E9C"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Border Background="#1E2329" BorderBrush="#2B3139" BorderThickness="1" CornerRadius="8" Margin="8">
+        <Grid Margin="20,16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" Margin="0,0,0,16">
+                <TextBlock Text="Режим маржи" Foreground="#EAECEF" FontSize="16" FontWeight="Bold"/>
+                <Button Content="✕" HorizontalAlignment="Right" Width="28" Height="28"
+                        Style="{StaticResource DarkCloseButtonStyle}" FontSize="14"
+                        Click="OnCloseClick"/>
+            </Grid>
+
+            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,14">
+                <TextBlock Text="{Binding Symbol}" Foreground="#EAECEF" FontSize="14" FontWeight="Bold" VerticalAlignment="Center"/>
+                <Border Background="#2B3139" CornerRadius="3" Padding="6,2" Margin="8,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding ContractBadge}" Foreground="#848E9C" FontSize="10" FontWeight="Bold"/>
+                </Border>
+            </StackPanel>
+
+            <UniformGrid Grid.Row="2" Columns="2" Margin="0,0,0,16">
+                <Button Content="Кросс-маржа" Margin="0,0,4,0"
+                        Command="{Binding SelectCrossCommand}">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource ModeToggleButtonStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsCrossSelected}" Value="True">
+                                    <Setter Property="BorderBrush" Value="#EAECEF"/>
+                                    <Setter Property="BorderThickness" Value="2"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <Button Content="Изолированная" Margin="4,0,0,0"
+                        Command="{Binding SelectIsolatedCommand}">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource ModeToggleButtonStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsIsolatedSelected}" Value="True">
+                                    <Setter Property="BorderBrush" Value="#EAECEF"/>
+                                    <Setter Property="BorderThickness" Value="2"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </UniformGrid>
+
+            <StackPanel Grid.Row="3" Margin="0,0,0,16">
+                <TextBlock Text="{Binding ScopeNoticeText}" Foreground="#848E9C" FontSize="10.5"
+                           TextWrapping="Wrap" Margin="0,0,0,8"/>
+                <TextBlock Text="{Binding CrossExplanationText}" Foreground="#848E9C" FontSize="10.5"
+                           TextWrapping="Wrap" Margin="0,0,0,8"/>
+                <TextBlock Text="{Binding IsolatedExplanationText}" Foreground="#848E9C" FontSize="10.5"
+                           TextWrapping="Wrap" Margin="0,0,0,8"/>
+                <TextBlock Text="{Binding RestrictionWarningText}" Foreground="#F6465D" FontSize="10.5"
+                           TextWrapping="Wrap">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasOpenPositionOrOrder}" Value="False">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+
+            <CheckBox Grid.Row="4" Content="Установить по умолчанию для всех контрактов"
+                      Foreground="#EAECEF" FontSize="10.5" Margin="0,0,0,12"
+                      IsChecked="{Binding ApplyToAllSymbols}"/>
+
+            <Button Grid.Row="5" Content="Подтвердить" Height="42" FontSize="14" FontWeight="Bold"
+                    Style="{StaticResource ConfirmButtonStyle}"
+                    Command="{Binding ConfirmCommand}"/>
+        </Grid>
+    </Border>
+</Window>

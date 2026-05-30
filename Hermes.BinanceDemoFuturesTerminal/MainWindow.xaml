@@ -6,7 +6,7 @@
         xmlns:vm="clr-namespace:Hermes.BinanceDemoFuturesTerminal.ViewModels"
         xmlns:ctrl="clr-namespace:Hermes.BinanceDemoFuturesTerminal.Controls"
         mc:Ignorable="d"
-        Title="Hermes Binance FUTURES DEMO Terminal" Height="780" Width="1240"
+        Title="Hermes Binance FUTURES DEMO Terminal" Height="820" Width="1380"
         Background="#0C0E12" WindowStartupLocation="CenterScreen">
     
     <Window.DataContext>
@@ -93,6 +93,34 @@
             </Style.Triggers>
         </Style>
 
+        <Style x:Key="LeverageChipBtnStyle" TargetType="Button">
+            <Setter Property="Background" Value="#2B3139"/>
+            <Setter Property="Foreground" Value="#EAECEF"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#383f49"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Foreground" Value="#848E9C"/>
+                    <Setter Property="Cursor" Value="Arrow"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
         <Style x:Key="PctBtnStyle" TargetType="Button">
             <Setter Property="Background" Value="#252930"/>
             <Setter Property="Foreground" Value="#848E9C"/>
@@ -149,11 +177,37 @@
             <Setter Property="Background" Value="#181A20"/>
             <Setter Property="Foreground" Value="#848E9C"/>
             <Setter Property="BorderBrush" Value="#2B3139"/>
-            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="BorderThickness" Value="0,0,1,1"/>
             <Setter Property="Padding" Value="8,6"/>
             <Setter Property="HorizontalContentAlignment" Value="Left"/>
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="GridViewColumnHeader">
+                        <Border x:Name="HeaderBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center"
+                                              RecognizesAccessKey="True"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="HeaderBorder" Property="Background" Value="#252C3B"/>
+                                <Setter Property="Foreground" Value="#EAECEF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="HeaderBorder" Property="Background" Value="#2B3139"/>
+                                <Setter Property="Foreground" Value="#EAECEF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="DarkListViewItemStyle" TargetType="ListViewItem">
@@ -196,12 +250,8 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <!-- Шапка (Header) -->
             <RowDefinition Height="60"/>
-            <!-- Основная панель -->
             <RowDefinition Height="*"/>
-            <!-- Нижняя панель вкладок (История, Балансы, Лог) -->
-            <RowDefinition Height="220"/>
         </Grid.RowDefinitions>
 
         <!-- ==================== ШАПКА ТЕРМИНАЛА ==================== -->
@@ -251,19 +301,21 @@
             </Grid>
         </Border>
 
-        <!-- ==================== ОСНОВНАЯ ПАНЕЛЬ ==================== -->
+        <!-- ==================== ОСНОВНАЯ ПАНЕЛЬ (Binance-style) ==================== -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <!-- Левая: Выбор пар -->
                 <ColumnDefinition Width="220"/>
-                <!-- Центр: График и Торговая панель -->
                 <ColumnDefinition Width="*"/>
-                <!-- Правая: Стакан и Недавние сделки -->
                 <ColumnDefinition Width="280"/>
+                <ColumnDefinition Width="300"/>
             </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="220"/>
+            </Grid.RowDefinitions>
 
             <!-- LЕВАЯ: ВЫБОР ТОРГОВЫХ ПАР -->
-            <Border Grid.Column="0" Background="{StaticResource BgDark}" BorderBrush="{StaticResource BorderSlate}" BorderThickness="0,0,1,0">
+            <Border Grid.Column="0" Grid.RowSpan="2" Background="{StaticResource BgDark}" BorderBrush="{StaticResource BorderSlate}" BorderThickness="0,0,1,0">
                 <Grid Margin="10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -313,15 +365,11 @@
                 </Grid>
             </Border>
 
-            <!-- ЦЕНТР: ГРАФИК И ФОРМА ОРДЕРОВ -->
-            <Grid Grid.Column="1">
+            <!-- ЦЕНТР: ТИКЕР + ГРАФИК -->
+            <Grid Grid.Column="1" Grid.Row="0">
                 <Grid.RowDefinitions>
-                    <!-- Статистика тикера сверху -->
                     <RowDefinition Height="50"/>
-                    <!-- Сам кастомный график -->
                     <RowDefinition Height="*"/>
-                    <!-- Форма ордеров (Buy / Sell) -->
-                    <RowDefinition Height="185"/>
                 </Grid.RowDefinitions>
 
                 <!-- Статистика тикера -->
@@ -387,170 +435,12 @@
                     </Grid>
                 </Border>
 
-                <!-- Кастомный график свечей (WPF Canvas drawing) -->
-                <ctrl:CandlestickChart Grid.Row="1" Candles="{Binding Candles}" Margin="2,2,2,5"/>
-
-                <!-- ФОРМА РАЗМЕЩЕНИЯ ОРДЕРОВ -->
-                <Border Grid.Row="2" Background="{StaticResource BgCard}" BorderBrush="{StaticResource BorderSlate}" BorderThickness="0,1,0,0">
-                    <Grid Margin="10">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
-
-                        <!-- Переключатель LIMIT / MARKET и единицы объёма -->
-                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5,0,0,8">
-                            <RadioButton GroupName="OrderType" Content="Лимитный (LIMIT)" Foreground="{StaticResource TextMain}" FontSize="10.5" FontWeight="Bold" IsChecked="{Binding IsLimitOrder}" Margin="0,0,20,0"/>
-                            <RadioButton GroupName="OrderType" Content="Рыночный (MARKET)" Foreground="{StaticResource TextMain}" FontSize="10.5" FontWeight="Bold" IsChecked="{Binding IsMarketOrder}" Margin="0,0,20,0"/>
-                            <RadioButton GroupName="QuantityUnit" Content="USDT" Foreground="{StaticResource TextMain}" FontSize="10.5" FontWeight="Bold" IsChecked="{Binding QuantityInUsdt}" Margin="0,0,8,0"/>
-                            <RadioButton GroupName="QuantityUnit" Content="Контракты" Foreground="{StaticResource TextMain}" FontSize="10.5" FontWeight="Bold" IsChecked="{Binding QuantityInContracts}"/>
-                        </StackPanel>
-
-                        <!-- Stop-Loss / Take-Profit -->
-                        <Grid Grid.Row="1" Margin="5,0,0,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="16"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Stop-Loss:" VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource TextMuted}" Margin="0,0,8,0"/>
-                            <TextBox Grid.Column="1" FontSize="11.5" Style="{StaticResource DarkTextBoxStyle}"
-                                     Text="{Binding OrderStopLoss, UpdateSourceTrigger=PropertyChanged}"/>
-                            <TextBlock Grid.Column="3" Text="Take-Profit:" VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource TextMuted}" Margin="0,0,8,0"/>
-                            <TextBox Grid.Column="4" FontSize="11.5" Style="{StaticResource DarkTextBoxStyle}"
-                                     Text="{Binding OrderTakeProfit, UpdateSourceTrigger=PropertyChanged}"/>
-                        </Grid>
-
-                        <!-- Форма: Покупка и Продажа side-by-side -->
-                        <Grid Grid.Row="2">
-                            <Grid.ColumnDefinitions>
-                                <!-- Покупка (Buy) -->
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="15"/>
-                                <!-- Продажа (Sell) -->
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-
-                            <!-- Блок ПОКУПКИ -->
-                            <StackPanel Grid.Column="0">
-                                <Grid Height="26" Margin="0,0,0,5">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="65"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Цена:" VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource TextMuted}"/>
-                                    <!-- Если ордер MARKET, пишем "По рынку" -->
-                                    <TextBox Grid.Column="1" FontSize="11.5" Style="{StaticResource DarkTextBoxStyle}" Text="{Binding OrderPrice, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsLimitOrder}"/>
-                                    <TextBlock Grid.Column="1" Text="РЫНОЧНАЯ" Foreground="{StaticResource TextMuted}" FontSize="10" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" IsHitTestVisible="False">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsMarketOrder}" Value="True">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                </Grid>
-
-                                <Grid Height="26" Margin="0,0,0,5">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="65"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding QuantityLabel}" VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource TextMuted}"/>
-                                    <TextBox Grid.Column="1" FontSize="11.5" Style="{StaticResource DarkTextBoxStyle}" Text="{Binding OrderQuantity, UpdateSourceTrigger=PropertyChanged}"/>
-                                </Grid>
-                                <TextBlock Text="{Binding ContractQtyPreview}" FontSize="10" Foreground="{StaticResource TextMuted}" Margin="65,0,0,4"/>
-
-                                <!-- Проценты заполнения и сумма -->
-                                <Grid Margin="0,1,0,8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Orientation="Horizontal" Grid.Column="0">
-                                        <Button Content="25%" Command="{Binding SetPercentageQtyCommand}" CommandParameter="25%" Style="{StaticResource PctBtnStyle}"/>
-                                        <Button Content="50%" Command="{Binding SetPercentageQtyCommand}" CommandParameter="50%" Style="{StaticResource PctBtnStyle}"/>
-                                        <Button Content="75%" Command="{Binding SetPercentageQtyCommand}" CommandParameter="75%" Style="{StaticResource PctBtnStyle}"/>
-                                        <Button Content="100%" Command="{Binding SetPercentageQtyCommand}" CommandParameter="100%" Style="{StaticResource PctBtnStyle}"/>
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                                        <TextBlock Text="Всего: " FontSize="10" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center"/>
-                                        <TextBlock Text="{Binding TotalCost, StringFormat='N2'}" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextMain}" VerticalAlignment="Center"/>
-                                        <TextBlock Text=" USDT" FontSize="10" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </Grid>
-
-                                <Button Content="LONG" Style="{StaticResource BuyBtnStyle}" Command="{Binding PlaceBuyOrderCommand}" Height="28"/>
-                            </StackPanel>
-
-                            <!-- Блок ПРОДАЖИ -->
-                            <StackPanel Grid.Column="2">
-                                <Grid Height="26" Margin="0,0,0,5">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="65"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Цена:" VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource TextMuted}"/>
-                                    <TextBox Grid.Column="1" FontSize="11.5" Style="{StaticResource DarkTextBoxStyle}" Text="{Binding OrderPrice, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsLimitOrder}"/>
-                                    <TextBlock Grid.Column="1" Text="РЫНОЧНАЯ" Foreground="{StaticResource TextMuted}" FontSize="10" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" IsHitTestVisible="False">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsMarketOrder}" Value="True">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                </Grid>
-
-                                <Grid Height="26" Margin="0,0,0,5">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="65"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding QuantityLabel}" VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource TextMuted}"/>
-                                    <TextBox Grid.Column="1" FontSize="11.5" Style="{StaticResource DarkTextBoxStyle}" Text="{Binding OrderQuantity, UpdateSourceTrigger=PropertyChanged}"/>
-                                </Grid>
-                                <TextBlock Text="{Binding ContractQtyPreview}" FontSize="10" Foreground="{StaticResource TextMuted}" Margin="65,0,0,4"/>
-
-                                <!-- Проценты заполнения и сумма -->
-                                <Grid Margin="0,1,0,8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Orientation="Horizontal" Grid.Column="0">
-                                        <Button Content="25%" Command="{Binding SetPercentageQtyCommand}" CommandParameter="25%" Style="{StaticResource PctBtnStyle}"/>
-                                        <Button Content="50%" Command="{Binding SetPercentageQtyCommand}" CommandParameter="50%" Style="{StaticResource PctBtnStyle}"/>
-                                        <Button Content="75%" Command="{Binding SetPercentageQtyCommand}" CommandParameter="75%" Style="{StaticResource PctBtnStyle}"/>
-                                        <Button Content="100%" Command="{Binding SetPercentageQtyCommand}" CommandParameter="100%" Style="{StaticResource PctBtnStyle}"/>
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                                        <TextBlock Text="Всего: " FontSize="10" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center"/>
-                                        <TextBlock Text="{Binding TotalCost, StringFormat='N2'}" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextMain}" VerticalAlignment="Center"/>
-                                        <TextBlock Text=" USDT" FontSize="10" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </Grid>
-
-                                <Button Content="SHORT" Style="{StaticResource SellBtnStyle}" Command="{Binding PlaceSellOrderCommand}" Height="28"/>
-                            </StackPanel>
-                        </Grid>
-                    </Grid>
-                </Border>
+                <!-- Кастомный график свечей -->
+                <ctrl:CandlestickChart Grid.Row="1" Candles="{Binding Candles}" Margin="2,2,2,2"/>
             </Grid>
 
-            <!-- ПРАВАЯ: СТАКАН ОРДЕРОВ И СДЕЛКИ -->
-            <Border Grid.Column="2" Background="{StaticResource BgDark}" BorderBrush="{StaticResource BorderSlate}" BorderThickness="1,0,0,0">
+            <!-- ПРАВАЯ-ЦЕНТР: СТАКАН И СДЕЛКИ -->
+            <Border Grid.Column="2" Grid.Row="0" Background="{StaticResource BgDark}" BorderBrush="{StaticResource BorderSlate}" BorderThickness="1,0,1,0">
                 <Grid>
                     <Grid.RowDefinitions>
                         <!-- Стакан ордеров (Книга) -->
@@ -567,7 +457,7 @@
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Text="СТАКАН ОРДЕРОВ" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMain}" Margin="0,0,0,5"/>
+                        <TextBlock Grid.Row="0" Text="БИРЖЕВОЙ СТАКАН" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMain}" Margin="0,0,0,5"/>
 
                         <!-- Заголовки колонок стакана -->
                         <Grid Grid.Row="1" Height="16" Margin="0,0,0,2">
@@ -652,7 +542,7 @@
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Text="НЕДАВНИЕ СДЕЛКИ" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMain}" Margin="0,8,0,5"/>
+                        <TextBlock Grid.Row="0" Text="СДЕЛКИ" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMain}" Margin="0,8,0,5"/>
 
                         <Grid Grid.Row="1" Height="16" Margin="0,0,0,2">
                             <Grid.ColumnDefinitions>
@@ -711,10 +601,120 @@
                 </Border>
                 </Grid>
             </Border>
-        </Grid>
 
-        <!-- ==================== НИЖНЯЯ ПАНЕЛЬ ВКЛАДОК ==================== -->
-        <Border Grid.Row="2" Background="{StaticResource BgCard}" BorderBrush="{StaticResource BorderSlate}" BorderThickness="0,1,0,0">
+            <!-- ПРАВАЯ: ФОРМА ОРДЕРА -->
+            <Border Grid.Column="3" Grid.Row="0" Background="{StaticResource BgCard}" BorderBrush="{StaticResource BorderSlate}" BorderThickness="1,0,0,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="12,10">
+                        <TextBlock Text="ОРДЕР" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMain}" Margin="0,0,0,10"/>
+
+                        <!-- Кросс / Плечо -->
+                        <UniformGrid Columns="2" Margin="0,0,0,8">
+                            <Button Content="{Binding MarginModeDisplay}" Style="{StaticResource LeverageChipBtnStyle}"
+                                    Margin="0,0,4,0" Command="{Binding OpenAdjustMarginModeCommand}"
+                                    ToolTip="Изменить режим маржи"/>
+                            <Button Content="{Binding LeverageDisplay}" Style="{StaticResource LeverageChipBtnStyle}"
+                                    Margin="4,0,0,0" Command="{Binding OpenAdjustLeverageCommand}"
+                                    ToolTip="Изменить кредитное плечо"/>
+                        </UniformGrid>
+
+                        <Grid Margin="0,0,0,10">
+                            <TextBlock Text="Дост." FontSize="10" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center"/>
+                            <TextBlock HorizontalAlignment="Right" FontSize="10" FontWeight="Bold"
+                                       Foreground="{StaticResource TextMain}" VerticalAlignment="Center">
+                                <Run Text="{Binding UsdtAvailableDisplay, Mode=OneWay}"/>
+                                <Run Text=" USDT" Foreground="{StaticResource TextMuted}"/>
+                            </TextBlock>
+                        </Grid>
+
+                        <!-- Лимит / Рынок -->
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <RadioButton GroupName="OrderType" Content="Лимит" Foreground="{StaticResource TextMain}" FontSize="11" FontWeight="Bold"
+                                         IsChecked="{Binding IsLimitOrder}" Margin="0,0,16,0" Padding="0,4"/>
+                            <RadioButton GroupName="OrderType" Content="Рынок" Foreground="{StaticResource TextMain}" FontSize="11" FontWeight="Bold"
+                                         IsChecked="{Binding IsMarketOrder}" Padding="0,4"/>
+                        </StackPanel>
+
+                        <!-- Цена -->
+                        <TextBlock Text="Цена" FontSize="10" Foreground="{StaticResource TextMuted}" Margin="0,0,0,4"/>
+                        <Grid Height="30" Margin="0,0,0,8">
+                            <TextBox FontSize="11.5" Style="{StaticResource DarkTextBoxStyle}"
+                                     Text="{Binding OrderPrice, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsLimitOrder}"/>
+                            <TextBlock Text="РЫНОЧНАЯ" Foreground="{StaticResource TextMuted}" FontSize="10" FontWeight="Bold"
+                                       HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" IsHitTestVisible="False">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsMarketOrder}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+
+                        <!-- Количество -->
+                        <TextBlock Text="{Binding QuantityLabel}" FontSize="10" Foreground="{StaticResource TextMuted}" Margin="0,0,0,4"/>
+                        <Grid Height="30" Margin="0,0,0,2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0" FontSize="11.5" Style="{StaticResource DarkTextBoxStyle}"
+                                     Text="{Binding OrderQuantity, UpdateSourceTrigger=PropertyChanged}"
+                                     BorderThickness="1,1,0,1"/>
+                            <ctrl:QuantityUnitSelector Grid.Column="1"/>
+                        </Grid>
+                        <TextBlock Text="{Binding QuantityHint}" FontSize="9" Foreground="{StaticResource TextMuted}" Margin="0,0,0,2"/>
+                        <TextBlock Text="{Binding ContractQtyPreview}" FontSize="10" Foreground="{StaticResource TextMuted}" Margin="0,0,0,8"/>
+
+                        <!-- Проценты -->
+                        <UniformGrid Columns="4" Margin="0,0,0,8">
+                            <Button Content="25%" Command="{Binding SetPercentageQtyCommand}" CommandParameter="25%" Style="{StaticResource PctBtnStyle}" Margin="0,0,2,0"/>
+                            <Button Content="50%" Command="{Binding SetPercentageQtyCommand}" CommandParameter="50%" Style="{StaticResource PctBtnStyle}" Margin="0,0,2,0"/>
+                            <Button Content="75%" Command="{Binding SetPercentageQtyCommand}" CommandParameter="75%" Style="{StaticResource PctBtnStyle}" Margin="0,0,2,0"/>
+                            <Button Content="100%" Command="{Binding SetPercentageQtyCommand}" CommandParameter="100%" Style="{StaticResource PctBtnStyle}"/>
+                        </UniformGrid>
+
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,8">
+                            <TextBlock Text="Всего: " FontSize="10" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding TotalCost, StringFormat='N2'}" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource TextMain}" VerticalAlignment="Center"/>
+                            <TextBlock Text=" USDT" FontSize="10" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <!-- TP/SL -->
+                        <CheckBox Content="TP/SL" Foreground="{StaticResource TextMain}" FontSize="11" FontWeight="Bold"
+                                  IsChecked="{Binding UseOrderSlTp}" Margin="0,0,0,8"/>
+
+                        <StackPanel Margin="0,0,0,10">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding UseOrderSlTp}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <TextBlock Text="Stop-Loss" FontSize="10" Foreground="{StaticResource TextMuted}" Margin="0,0,0,4"/>
+                            <TextBox Height="28" FontSize="11.5" Style="{StaticResource DarkTextBoxStyle}" Margin="0,0,0,8"
+                                     Text="{Binding OrderStopLoss, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBlock Text="Take-Profit" FontSize="10" Foreground="{StaticResource TextMuted}" Margin="0,0,0,4"/>
+                            <TextBox Height="28" FontSize="11.5" Style="{StaticResource DarkTextBoxStyle}"
+                                     Text="{Binding OrderTakeProfit, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+
+                        <Button Content="Купить / Long" Style="{StaticResource BuyBtnStyle}" Command="{Binding PlaceBuyOrderCommand}" Height="36" Margin="0,0,0,8"/>
+                        <Button Content="Продать / Short" Style="{StaticResource SellBtnStyle}" Command="{Binding PlaceSellOrderCommand}" Height="36"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- НИЖНЯЯ ПАНЕЛЬ: ПОЗИЦИИ / ОРДЕРА (под графиком и стаканом) -->
+            <Border Grid.Column="0" Grid.ColumnSpan="3" Grid.Row="1" Background="{StaticResource BgCard}" BorderBrush="{StaticResource BorderSlate}" BorderThickness="0,1,0,0">
             <TabControl Background="Transparent" BorderThickness="0" Margin="10,5">
                 <TabControl.Resources>
                     <!-- Кастомная стилизация вкладок в темную тему -->
@@ -737,7 +737,7 @@
                                             <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource CyanActive}"/>
                                         </Trigger>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter Property="Foreground" Value="White"/>
+                                            <Setter Property="Foreground" Value="#EAECEF"/>
                                         </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
@@ -746,8 +746,8 @@
                     </Style>
                 </TabControl.Resources>
 
-                <!-- ВКЛАДКА: БАЛАНСЫ -->
-                <TabItem Header="БАЛАНСЫ ДЕМО-СЧЕТА">
+                <!-- ВКЛАДКА: АКТИВЫ -->
+                <TabItem Header="{Binding BalancesTabHeader}">
                     <Grid Margin="0,8,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -775,42 +775,12 @@
                 </TabItem>
 
                 <!-- ВКЛАДКА: ПОЗИЦИИ -->
-                <TabItem Header="ПОЗИЦИИ">
-                    <Grid Margin="0,8,0,0">
-                        <ListView Background="Transparent" BorderThickness="0" ItemsSource="{Binding Positions}" Foreground="{StaticResource TextMain}">
-                            <ListView.View>
-                                <GridView ColumnHeaderContainerStyle="{StaticResource DarkGridViewColumnHeaderStyle}">
-                                    <GridViewColumn Header="Символ" Width="90" DisplayMemberBinding="{Binding Symbol}"/>
-                                    <GridViewColumn Header="Сторона" Width="70" DisplayMemberBinding="{Binding Side}"/>
-                                    <GridViewColumn Header="Размер" Width="90" DisplayMemberBinding="{Binding SizeDisplay}"/>
-                                    <GridViewColumn Header="Вход" Width="100" DisplayMemberBinding="{Binding EntryDisplay}"/>
-                                    <GridViewColumn Header="Mark" Width="100" DisplayMemberBinding="{Binding MarkDisplay}"/>
-                                    <GridViewColumn Header="PnL" Width="90" DisplayMemberBinding="{Binding PnlDisplay}"/>
-                                    <GridViewColumn Header="Плечо" Width="55" DisplayMemberBinding="{Binding Leverage}"/>
-                                    <GridViewColumn Header="SL" Width="80" DisplayMemberBinding="{Binding StopLossDisplay}"/>
-                                    <GridViewColumn Header="TP" Width="80" DisplayMemberBinding="{Binding TakeProfitDisplay}"/>
-                                    <GridViewColumn Header="SL/TP" Width="90">
-                                        <GridViewColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <Button Content="Изменить" FontSize="9.5" Background="#2B3139" Foreground="#EAECEF" BorderThickness="0" Padding="6,2" Height="18"
-                                                        Command="{Binding DataContext.SetPositionSlTpCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                        CommandParameter="{Binding}"/>
-                                            </DataTemplate>
-                                        </GridViewColumn.CellTemplate>
-                                    </GridViewColumn>
-                                </GridView>
-                            </ListView.View>
-                            <ListView.ItemContainerStyle>
-                                <Style TargetType="ListViewItem" BasedOn="{StaticResource DarkListViewItemStyle}">
-                                    <Setter Property="Height" Value="25"/>
-                                </Style>
-                            </ListView.ItemContainerStyle>
-                        </ListView>
-                    </Grid>
+                <TabItem Header="{Binding PositionsTabHeader}">
+                    <ctrl:PositionsPanel DataContext="{Binding}"/>
                 </TabItem>
 
                 <!-- ВКЛАДКА: ОТКРЫТЫЕ ОРДЕРА -->
-                <TabItem Header="ОТКРЫТЫЕ ОРДЕРА">
+                <TabItem Header="{Binding OpenOrdersTabHeader}">
                     <Grid Margin="0,8,0,0">
                         <ListView Background="Transparent" BorderThickness="0" ItemsSource="{Binding OpenOrders}" Foreground="{StaticResource TextMain}">
                             <ListView.View>
@@ -902,6 +872,32 @@
                     </Grid>
                 </TabItem>
             </TabControl>
-        </Border>
+            </Border>
+
+            <!-- АККАУНТ (под формой ордера) -->
+            <Border Grid.Column="3" Grid.Row="1" Background="{StaticResource BgCard}" BorderBrush="{StaticResource BorderSlate}" BorderThickness="1,1,0,0">
+                <StackPanel Margin="12,10">
+                    <TextBlock Text="АККАУНТ" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMain}" Margin="0,0,0,10"/>
+                    <Grid Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Доступно USDT" FontSize="10" Foreground="{StaticResource TextMuted}"/>
+                        <TextBlock Grid.Column="1" Text="{Binding UsdtAvailableDisplay}" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMain}"/>
+                    </Grid>
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Баланс кошелька" FontSize="10" Foreground="{StaticResource TextMuted}"/>
+                        <TextBlock Grid.Column="1" Text="{Binding UsdtWalletDisplay}" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMain}"/>
+                    </Grid>
+                    <Button Content="Обновить" Style="{StaticResource SecondaryBtnStyle}" Command="{Binding RefreshBalancesCommand}"
+                            HorizontalAlignment="Stretch" Height="28" FontSize="10"/>
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </Window>

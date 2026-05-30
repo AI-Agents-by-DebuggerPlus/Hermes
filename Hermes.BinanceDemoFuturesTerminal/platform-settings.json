@@ -5,5 +5,12 @@
   "MaxOrderUsdt": 500,
   "MaxTotalExposureUsdt": 2000,
   "MaxOpenPositions": 5,
-  "MaxLeverage": 20
+  "MaxLeverage": 10,
+  "IsLimitOrder": true,
+  "QuantityInUsdt": true,
+  "QuantityInputMode": "UsdtInitialMargin",
+  "ApplyDefaultLeverageToAllSymbols": true,
+  "DefaultLeverage": 10,
+  "ApplyDefaultMarginTypeToAllSymbols": false,
+  "DefaultMarginType": "Cross"
 }

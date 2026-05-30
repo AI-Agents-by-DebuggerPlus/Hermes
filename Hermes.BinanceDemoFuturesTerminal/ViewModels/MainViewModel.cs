@@ -25,6 +25,8 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
         private string _wsStatus = "Отключено";
         private LogsWindow? _logsWindow;
         private SettingsWindow? _settingsWindow;
+        private AdjustLeverageWindow? _adjustLeverageWindow;
+        private AdjustMarginModeWindow? _adjustMarginModeWindow;
 
         // Поиск и список торговых пар
         private string _searchText = string.Empty;
@@ -51,9 +53,13 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
         private string _orderQuantity = string.Empty;
         private string _orderStopLoss = string.Empty;
         private string _orderTakeProfit = string.Empty;
+        private bool _useOrderSlTp;
         private double _totalCost = 0.0;
         private bool _isLimitOrder = true;
-        private bool _quantityInUsdt = true;
+        private QuantityInputMode _quantityInputMode = QuantityInputMode.UsdtOrderSize;
+        private bool _isUnitSelectorOpen;
+        private int _exchangeSymbolLeverage = 20;
+        private FuturesMarginType _symbolMarginMode = FuturesMarginType.Cross;
         private string _contractQtyPreview = string.Empty;
         private bool _applyMinQtyOnNextPrice;
 
@@ -191,6 +197,34 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             set => SetProperty(ref _orderTakeProfit, value);
         }
 
+        public bool UseOrderSlTp
+        {
+            get => _useOrderSlTp;
+            set => SetProperty(ref _useOrderSlTp, value);
+        }
+
+        public string PositionsTabHeader => $"ПОЗИЦИИ ({Positions.Count})";
+        public string OpenOrdersTabHeader => $"ОТКРЫТЫЕ ОРДЕРА ({OpenOrders.Count})";
+        public string BalancesTabHeader => "АКТИВЫ";
+
+        public string UsdtAvailableDisplay
+        {
+            get
+            {
+                var usdt = Balances.FirstOrDefault(b => b.Asset.Equals("USDT", StringComparison.OrdinalIgnoreCase));
+                return usdt == null ? "—" : usdt.Free.ToString("N2");
+            }
+        }
+
+        public string UsdtWalletDisplay
+        {
+            get
+            {
+                var usdt = Balances.FirstOrDefault(b => b.Asset.Equals("USDT", StringComparison.OrdinalIgnoreCase));
+                return usdt == null ? "—" : usdt.Total.ToString("N2");
+            }
+        }
+
         public double TotalCost
         {
             get => _totalCost;
@@ -219,27 +253,51 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
 
         public bool QuantityInUsdt
         {
-            get => _quantityInUsdt;
-            set
-            {
-                if (SetProperty(ref _quantityInUsdt, value))
-                {
-                    OnPropertyChanged(nameof(QuantityInContracts));
-                    OnPropertyChanged(nameof(QuantityLabel));
-                    UpdateTotalCost();
-                    PersistTradingPreferences();
-                    ApplyDefaultOrderQuantity();
-                }
-            }
+            get => _quantityInputMode != QuantityInputMode.Contracts;
+            set => SetQuantityMode(value ? QuantityInputMode.UsdtOrderSize : QuantityInputMode.Contracts);
         }
 
         public bool QuantityInContracts
         {
-            get => !_quantityInUsdt;
-            set => QuantityInUsdt = !value;
+            get => _quantityInputMode == QuantityInputMode.Contracts;
+            set { if (value) SetQuantityMode(QuantityInputMode.Contracts); }
         }
 
-        public string QuantityLabel => QuantityInUsdt ? "Сумма USDT:" : "Количество:";
+        public QuantityInputMode SelectedQuantityMode
+        {
+            get => _quantityInputMode;
+            private set => SetQuantityMode(value);
+        }
+
+        public bool IsUnitSelectorOpen
+        {
+            get => _isUnitSelectorOpen;
+            set => SetProperty(ref _isUnitSelectorOpen, value);
+        }
+
+        public bool IsContractsMode => _quantityInputMode == QuantityInputMode.Contracts;
+        public bool IsUsdtOrderSizeMode => _quantityInputMode == QuantityInputMode.UsdtOrderSize;
+        public bool IsUsdtInitialMarginMode => _quantityInputMode == QuantityInputMode.UsdtInitialMargin;
+        public bool IsUsdtQuantityMode => _quantityInputMode != QuantityInputMode.Contracts;
+
+        public string SelectedBaseAsset => GetSelectedSymbolInfo()?.BaseAsset ?? "—";
+        public string QuantityUnitButtonText => IsContractsMode ? SelectedBaseAsset : "USDT";
+        public int ExchangeSymbolLeverage => _exchangeSymbolLeverage;
+        public int EffectiveLeverage =>
+            RiskManager.CapLeverage(_exchangeSymbolLeverage, AppServices.Settings.MaxLeverage);
+        public int CurrentSymbolLeverage => EffectiveLeverage;
+        public string LeverageDisplay => $"{EffectiveLeverage}x";
+        public string MarginModeDisplay => _symbolMarginMode.ToButtonLabel();
+
+        public string QuantityLabel => "Кол.";
+
+        public string QuantityHint => _quantityInputMode switch
+        {
+            QuantityInputMode.Contracts => $"Размер ордера в {SelectedBaseAsset}",
+            QuantityInputMode.UsdtOrderSize => "Размер ордера в USDT",
+            QuantityInputMode.UsdtInitialMargin => $"Начальная маржа USDT · плечо {EffectiveLeverage}x",
+            _ => string.Empty,
+        };
 
         public string ContractQtyPreview
         {
@@ -259,6 +317,14 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
         public ICommand RefreshBalancesCommand { get; }
         public ICommand SetPercentageQtyCommand { get; }
         public ICommand SetPositionSlTpCommand { get; }
+        public ICommand SelectContractsModeCommand { get; }
+        public ICommand SelectUsdtOrderSizeCommand { get; }
+        public ICommand SelectUsdtInitialMarginCommand { get; }
+        public ICommand OpenAdjustLeverageCommand { get; }
+        public ICommand OpenAdjustMarginModeCommand { get; }
+        public ICommand ClosePositionMarketCommand { get; }
+        public ICommand ClosePositionLimitCommand { get; }
+        public ICommand CloseAllPositionsCommand { get; }
         #endregion
 
         public MainViewModel()
@@ -285,6 +351,14 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             RefreshBalancesCommand = new RelayCommand(async () => await RefreshAccountDataAsync());
             SetPercentageQtyCommand = new RelayCommand((pct) => ExecutePercentageQty(pct));
             SetPositionSlTpCommand = new RelayCommand((param) => OpenPositionSlTp(param));
+            SelectContractsModeCommand = new RelayCommand(_ => SetQuantityMode(QuantityInputMode.Contracts));
+            SelectUsdtOrderSizeCommand = new RelayCommand(_ => SetQuantityMode(QuantityInputMode.UsdtOrderSize));
+            SelectUsdtInitialMarginCommand = new RelayCommand(_ => SetQuantityMode(QuantityInputMode.UsdtInitialMargin));
+            OpenAdjustLeverageCommand = new RelayCommand(() => _ = OpenAdjustLeverageAsync());
+            OpenAdjustMarginModeCommand = new RelayCommand(() => _ = OpenAdjustMarginModeAsync());
+            ClosePositionMarketCommand = new RelayCommand(async p => await ClosePositionAsync(p, market: true));
+            ClosePositionLimitCommand = new RelayCommand(async p => await ClosePositionAsync(p, market: false));
+            CloseAllPositionsCommand = new RelayCommand(async () => await CloseAllPositionsAsync(), () => Positions.Count > 0);
 
             AppServices.Log.Info("Hermes.BinanceDemoFuturesTerminal запущен.");
             _ = InitializeTerminalAsync();
@@ -315,28 +389,68 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
         private void ApplyTradingPreferences(PlatformSettings settings)
         {
             _isLimitOrder = settings.IsLimitOrder;
-            _quantityInUsdt = settings.QuantityInUsdt;
+            _quantityInputMode = ParseQuantityInputMode(settings);
             OnPropertyChanged(nameof(IsLimitOrder));
             OnPropertyChanged(nameof(IsMarketOrder));
+            NotifyQuantityModeChanged();
+            UpdateTotalCost();
+        }
+
+        private static QuantityInputMode ParseQuantityInputMode(PlatformSettings settings)
+        {
+            if (Enum.TryParse<QuantityInputMode>(settings.QuantityInputMode, out var mode))
+            {
+                return mode;
+            }
+
+            return settings.QuantityInUsdt ? QuantityInputMode.UsdtOrderSize : QuantityInputMode.Contracts;
+        }
+
+        private void SetQuantityMode(QuantityInputMode mode)
+        {
+            if (_quantityInputMode == mode)
+            {
+                IsUnitSelectorOpen = false;
+                return;
+            }
+
+            _quantityInputMode = mode;
+            NotifyQuantityModeChanged();
+            IsUnitSelectorOpen = false;
+            UpdateTotalCost();
+            PersistTradingPreferences();
+            ApplyDefaultOrderQuantity();
+        }
+
+        private void NotifyQuantityModeChanged()
+        {
+            OnPropertyChanged(nameof(SelectedQuantityMode));
             OnPropertyChanged(nameof(QuantityInUsdt));
             OnPropertyChanged(nameof(QuantityInContracts));
+            OnPropertyChanged(nameof(IsContractsMode));
+            OnPropertyChanged(nameof(IsUsdtOrderSizeMode));
+            OnPropertyChanged(nameof(IsUsdtInitialMarginMode));
+            OnPropertyChanged(nameof(IsUsdtQuantityMode));
+            OnPropertyChanged(nameof(QuantityUnitButtonText));
             OnPropertyChanged(nameof(QuantityLabel));
-            UpdateTotalCost();
+            OnPropertyChanged(nameof(QuantityHint));
         }
 
         private void PersistTradingPreferences()
         {
             var settings = AppServices.Settings;
-            if (settings.IsLimitOrder == IsLimitOrder && settings.QuantityInUsdt == QuantityInUsdt)
+            if (settings.IsLimitOrder == IsLimitOrder
+                && settings.QuantityInputMode == _quantityInputMode.ToString())
             {
                 return;
             }
 
             settings.IsLimitOrder = IsLimitOrder;
-            settings.QuantityInUsdt = QuantityInUsdt;
+            settings.QuantityInputMode = _quantityInputMode.ToString();
+            settings.QuantityInUsdt = _quantityInputMode != QuantityInputMode.Contracts;
             AppServices.SaveSettings(settings);
             AppServices.Log.Info(
-                $"Торговые настройки сохранены: {(IsLimitOrder ? "LIMIT" : "MARKET")}, {(QuantityInUsdt ? "USDT" : "контракты")}.");
+                $"Торговые настройки сохранены: {(IsLimitOrder ? "LIMIT" : "MARKET")}, {_quantityInputMode}.");
         }
 
         private void OpenSettings()
@@ -348,7 +462,12 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             }
 
             _settingsWindow = new SettingsWindow(ApplyCredentials) { Owner = Application.Current.MainWindow };
-            _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+            _settingsWindow.Closed += (_, _) =>
+            {
+                _settingsWindow = null;
+                NotifyLeverageChanged();
+                ApplyDefaultOrderQuantity();
+            };
             _settingsWindow.Show();
         }
 
@@ -440,6 +559,16 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             // 1. Загрузка исторических свечей (1m, 100 штук) через REST
             var historicalCandles = await _apiService.GetKlinesAsync(symbol, "1m", 100);
             var depthSnapshot = await _apiService.GetDepthAsync(symbol, 20);
+            var leverage = 20;
+            var marginMode = FuturesMarginType.Cross;
+            if (!string.IsNullOrEmpty(_apiKey) && !string.IsNullOrEmpty(_secretKey))
+            {
+                leverage = await LoadSymbolLeverageAsync(symbol);
+                marginMode = await _apiService.GetSymbolMarginTypeAsync(symbol);
+                await ApplySymbolMarginDefaultAsync(symbol);
+                marginMode = await _apiService.GetSymbolMarginTypeAsync(symbol);
+            }
+
             RunOnUIThread(() =>
             {
                 foreach (var candle in historicalCandles)
@@ -452,6 +581,12 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
                     ApplyDepth(depthSnapshot);
                 }
 
+                _exchangeSymbolLeverage = leverage;
+                _symbolMarginMode = marginMode;
+                NotifyLeverageChanged();
+                NotifyMarginModeChanged();
+                OnPropertyChanged(nameof(SelectedBaseAsset));
+                OnPropertyChanged(nameof(QuantityUnitButtonText));
                 ApplyDefaultOrderQuantity();
             });
 
@@ -647,13 +782,28 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
                 foreach (var b in balances) Balances.Add(b);
 
                 Positions.Clear();
-                foreach (var p in positions) Positions.Add(p);
+                foreach (var p in positions)
+                {
+                    var symbolInfo = _allSymbols.FirstOrDefault(s =>
+                        s.Symbol.Equals(p.Symbol, StringComparison.OrdinalIgnoreCase));
+                    p.ContractBadge = GetContractBadge(symbolInfo);
+                    p.InitializeCloseFields(
+                        symbolInfo?.FormatQuantity(Math.Abs(p.Size)),
+                        symbolInfo?.FormatPrice(p.MarkPrice));
+                    Positions.Add(p);
+                }
 
                 OpenOrders.Clear();
                 foreach (var o in openOrders)
                 {
                     OpenOrders.Add(MapBinanceOrderToModel(o));
                 }
+
+                OnPropertyChanged(nameof(PositionsTabHeader));
+                OnPropertyChanged(nameof(OpenOrdersTabHeader));
+                CommandManager.InvalidateRequerySuggested();
+                OnPropertyChanged(nameof(UsdtAvailableDisplay));
+                OnPropertyChanged(nameof(UsdtWalletDisplay));
             });
 
             // История ордеров для текущей выбранной пары
@@ -690,6 +840,14 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             }
 
             if (string.IsNullOrEmpty(SelectedSymbol)) return;
+
+            var leverageError = await ValidateLeverageBeforeOrderAsync(SelectedSymbol);
+            if (leverageError != null)
+            {
+                AppServices.Log.Warn(leverageError);
+                MessageBox.Show(leverageError, "Риск-менеджер", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
 
             if (!TryResolveContractQuantity(out var qty, out var qtyText, out var error))
             {
@@ -734,7 +892,7 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             }
 
             string orderType = IsLimitOrder ? "LIMIT" : "MARKET";
-            var usdtNote = QuantityInUsdt ? $" ({OrderQuantity} USDT → {qtyText} контр.)" : string.Empty;
+            var usdtNote = BuildQuantityLogNote(qtyText);
             var protectionNote = BuildProtectionLogNote(stopLossPrice, takeProfitPrice);
             AddLog($"Отправка ордера: {side} {orderType} {qtyText} {SelectedSymbol}{usdtNote} @ {(priceText ?? "MARKET")}{protectionNote}");
 
@@ -807,20 +965,26 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
 
             var quoteBalance = Balances.FirstOrDefault(b => b.Asset.Equals(currentSymbolInfo.QuoteAsset, StringComparison.OrdinalIgnoreCase));
             double availableQuote = quoteBalance?.Free ?? 0.0;
-
-            if (QuantityInUsdt)
-            {
-                OrderQuantity = (availableQuote * percent).ToString("F2", CultureInfo.InvariantCulture);
-                return;
-            }
-
-            if (Ticker == null) return;
-
             double price = GetOrderPriceEstimate();
-            if (price <= 0) return;
 
-            double targetQty = currentSymbolInfo.RoundQuantity((availableQuote * percent) / price);
-            OrderQuantity = currentSymbolInfo.FormatQuantity(targetQty);
+            switch (_quantityInputMode)
+            {
+                case QuantityInputMode.UsdtOrderSize:
+                    OrderQuantity = (availableQuote * percent).ToString("F2", CultureInfo.InvariantCulture);
+                    return;
+                case QuantityInputMode.UsdtInitialMargin:
+                    OrderQuantity = (availableQuote * percent).ToString("F2", CultureInfo.InvariantCulture);
+                    return;
+                default:
+                    if (price <= 0)
+                    {
+                        return;
+                    }
+
+                    var maxContracts = (availableQuote * EffectiveLeverage) / price;
+                    OrderQuantity = currentSymbolInfo.FormatQuantity(maxContracts * percent);
+                    return;
+            }
         }
         #endregion
 
@@ -855,27 +1019,49 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             var price = GetOrderPriceEstimate();
             var symbolInfo = GetSelectedSymbolInfo();
 
-            if (QuantityInUsdt)
+            if (price <= 0 || symbolInfo == null)
             {
-                TotalCost = input;
-                if (price > 0 && symbolInfo != null)
-                {
-                    var contracts = symbolInfo.RoundQuantity(input / price);
-                    ContractQtyPreview = contracts > 0
-                        ? $"≈ {symbolInfo.FormatQuantity(contracts)} {symbolInfo.BaseAsset}"
-                        : string.Empty;
-                }
-                else
-                {
-                    ContractQtyPreview = string.Empty;
-                }
-
+                TotalCost = 0.0;
+                ContractQtyPreview = string.Empty;
                 return;
             }
 
-            TotalCost = price > 0 ? input * price : 0.0;
-            ContractQtyPreview = string.Empty;
+            var notional = ResolveNotionalUsdt(input, price);
+            TotalCost = notional;
+            var contracts = symbolInfo.EnsureMinNotionalQuantity(notional / price, price);
+
+            ContractQtyPreview = _quantityInputMode switch
+            {
+                QuantityInputMode.Contracts => contracts > 0
+                    ? $"≈ {notional.ToString("F2", CultureInfo.InvariantCulture)} USDT"
+                    : string.Empty,
+                QuantityInputMode.UsdtOrderSize => contracts > 0
+                    ? $"≈ {symbolInfo.FormatQuantity(contracts)} {symbolInfo.BaseAsset}"
+                    : string.Empty,
+                QuantityInputMode.UsdtInitialMargin => contracts > 0
+                    ? $"≈ {symbolInfo.FormatQuantity(contracts)} {symbolInfo.BaseAsset} · номинал {notional.ToString("F2", CultureInfo.InvariantCulture)} USDT"
+                    : string.Empty,
+                _ => string.Empty,
+            };
         }
+
+        private double ResolveNotionalUsdt(double input, double price) =>
+            _quantityInputMode switch
+            {
+                QuantityInputMode.Contracts => input * price,
+                QuantityInputMode.UsdtOrderSize => input,
+                QuantityInputMode.UsdtInitialMargin => input * EffectiveLeverage,
+                _ => input,
+            };
+
+        private string BuildQuantityLogNote(string qtyText) =>
+            _quantityInputMode switch
+            {
+                QuantityInputMode.UsdtInitialMargin => $" ({OrderQuantity} USDT маржа @ {LeverageDisplay} → {qtyText} контр.)",
+                QuantityInputMode.UsdtOrderSize => $" ({OrderQuantity} USDT → {qtyText} контр.)",
+                QuantityInputMode.Contracts => $" ({OrderQuantity} {SelectedBaseAsset} → {qtyText} контр.)",
+                _ => string.Empty,
+            };
 
         private double GetOrderPriceEstimate()
         {
@@ -910,9 +1096,12 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
 
             if (!double.TryParse(OrderQuantity.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out var input) || input <= 0)
             {
-                error = QuantityInUsdt
-                    ? "Введите корректную сумму в USDT."
-                    : "Введите корректное количество контрактов.";
+                error = _quantityInputMode switch
+                {
+                    QuantityInputMode.UsdtInitialMargin => "Введите корректную начальную маржу в USDT.",
+                    QuantityInputMode.UsdtOrderSize => "Введите корректную сумму в USDT.",
+                    _ => $"Введите корректное количество в {SelectedBaseAsset}.",
+                };
                 return false;
             }
 
@@ -923,27 +1112,21 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
                 return false;
             }
 
-            if (QuantityInUsdt)
+            var price = GetOrderPriceEstimate();
+            if (price <= 0)
             {
-                var price = GetOrderPriceEstimate();
-                if (price <= 0)
-                {
-                    error = "Нет цены для расчёта количества. Дождитесь тикера или укажите цену.";
-                    return false;
-                }
+                error = "Нет цены для расчёта количества. Дождитесь тикера или укажите цену.";
+                return false;
+            }
 
-                qty = symbolInfo.RoundQuantity(input / price);
-            }
-            else
-            {
-                qty = symbolInfo.RoundQuantity(input);
-            }
+            var notional = ResolveNotionalUsdt(input, price);
+            qty = symbolInfo.EnsureMinNotionalQuantity(notional / price, price);
 
             if (qty <= 0)
             {
-                error = QuantityInUsdt
-                    ? "Сумма USDT слишком мала для минимального лота."
-                    : "Количество меньше минимального шага лота.";
+                error = _quantityInputMode == QuantityInputMode.Contracts
+                    ? "Количество меньше минимального шага лота."
+                    : "Сумма слишком мала для минимального лота.";
                 return false;
             }
 
@@ -960,6 +1143,523 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
 
         private void AddLog(string message) => AppServices.Log.Info(message);
 
+        private void NotifyLeverageChanged()
+        {
+            OnPropertyChanged(nameof(ExchangeSymbolLeverage));
+            OnPropertyChanged(nameof(EffectiveLeverage));
+            OnPropertyChanged(nameof(CurrentSymbolLeverage));
+            OnPropertyChanged(nameof(LeverageDisplay));
+            OnPropertyChanged(nameof(QuantityHint));
+            UpdateTotalCost();
+        }
+
+        private void NotifyMarginModeChanged() =>
+            OnPropertyChanged(nameof(MarginModeDisplay));
+
+        private async Task<string?> ValidateLeverageBeforeOrderAsync(string symbol)
+        {
+            if (string.IsNullOrEmpty(_apiKey) || string.IsNullOrEmpty(_secretKey))
+            {
+                return null;
+            }
+
+            var exchangeLev = await _apiService.GetSymbolLeverageAsync(symbol);
+            RunOnUIThread(() =>
+            {
+                _exchangeSymbolLeverage = exchangeLev;
+                NotifyLeverageChanged();
+            });
+
+            if (!AppServices.Settings.RiskManagementEnabled || AppServices.Settings.MaxLeverage <= 0)
+            {
+                return null;
+            }
+
+            if (exchangeLev > AppServices.Settings.MaxLeverage)
+            {
+                return
+                    $"Плечо {exchangeLev}x превышает лимит риск-менеджера {AppServices.Settings.MaxLeverage}x. Нажмите «{LeverageDisplay}» над формой ордера и снизьте плечо.";
+            }
+
+            return null;
+        }
+
+        private async Task OpenAdjustLeverageAsync()
+        {
+            if (string.IsNullOrEmpty(SelectedSymbol))
+            {
+                return;
+            }
+
+            if (string.IsNullOrEmpty(_apiKey) || string.IsNullOrEmpty(_secretKey))
+            {
+                MessageBox.Show(
+                    "Для изменения плеча сохраните API-ключи Demo в «Настройках».",
+                    "Кредитное плечо",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            if (_adjustLeverageWindow is { IsVisible: true })
+            {
+                _adjustLeverageWindow.Activate();
+                return;
+            }
+
+            var exchangeLev = await _apiService.GetSymbolLeverageAsync(SelectedSymbol);
+            var brackets = await _apiService.GetLeverageBracketsAsync(SelectedSymbol);
+            var symbolMax = LeverageBracketHelper.GetSymbolMaxLeverage(brackets);
+            var riskMax = AppServices.Settings.RiskManagementEnabled && AppServices.Settings.MaxLeverage > 0
+                ? AppServices.Settings.MaxLeverage
+                : 0;
+            var maxSelectable = riskMax > 0 ? Math.Min(symbolMax, riskMax) : symbolMax;
+            var displayLeverage = RiskManager.CapLeverage(exchangeLev, riskMax > 0 ? riskMax : exchangeLev);
+
+            RunOnUIThread(() =>
+            {
+                _exchangeSymbolLeverage = exchangeLev;
+                NotifyLeverageChanged();
+
+                var vm = new AdjustLeverageViewModel(
+                    SelectedSymbol,
+                    displayLeverage,
+                    maxSelectable,
+                    symbolMax,
+                    brackets,
+                    AppServices.Settings);
+
+                _adjustLeverageWindow = new AdjustLeverageWindow(
+                    vm,
+                    (lev, applyToAll) => ApplyLeverageAsync(SelectedSymbol, lev, applyToAll))
+                {
+                    Owner = Application.Current.MainWindow,
+                };
+                _adjustLeverageWindow.Closed += (_, _) => _adjustLeverageWindow = null;
+                _adjustLeverageWindow.ShowDialog();
+            });
+        }
+
+        private async Task<bool> ApplyLeverageAsync(string symbol, int leverage, bool applyToAllSymbols)
+        {
+            if (AppServices.Settings.RiskManagementEnabled && AppServices.Settings.MaxLeverage > 0)
+            {
+                leverage = RiskManager.CapLeverage(leverage, AppServices.Settings.MaxLeverage);
+            }
+
+            var ok = await _apiService.SetLeverageAsync(symbol, leverage);
+            if (!ok)
+            {
+                return false;
+            }
+
+            var settings = AppServices.Settings;
+            settings.ApplyDefaultLeverageToAllSymbols = applyToAllSymbols;
+            if (applyToAllSymbols)
+            {
+                settings.DefaultLeverage = leverage;
+            }
+
+            AppServices.SaveSettings(settings);
+
+            if (applyToAllSymbols)
+            {
+                await ApplyLeverageToAllSymbolsAsync(leverage);
+            }
+
+            RunOnUIThread(() =>
+            {
+                _exchangeSymbolLeverage = leverage;
+                NotifyLeverageChanged();
+                ApplyDefaultOrderQuantity();
+            });
+            AddLog(applyToAllSymbols
+                ? $"Плечо {leverage}x установлено для всех контрактов (по умолчанию)."
+                : $"Плечо {symbol} изменено на {leverage}x.");
+            await RefreshAccountDataAsync();
+            return true;
+        }
+
+        private async Task ApplyLeverageToAllSymbolsAsync(int leverage)
+        {
+            foreach (var symbol in _allSymbols.Select(s => s.Symbol).Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    await _apiService.SetLeverageAsync(symbol, leverage);
+                }
+                catch (Exception ex)
+                {
+                    AppServices.Log.Warn($"Плечо {symbol}: {ex.Message}");
+                }
+            }
+        }
+
+        private async Task<int> LoadSymbolLeverageAsync(string symbol)
+        {
+            var leverage = await _apiService.GetSymbolLeverageAsync(symbol);
+            var settings = AppServices.Settings;
+            var riskMax = settings.RiskManagementEnabled && settings.MaxLeverage > 0
+                ? settings.MaxLeverage
+                : 0;
+
+            if (settings.ApplyDefaultLeverageToAllSymbols && settings.DefaultLeverage > 0)
+            {
+                var target = riskMax > 0
+                    ? RiskManager.CapLeverage(settings.DefaultLeverage, riskMax)
+                    : settings.DefaultLeverage;
+                if (leverage != target)
+                {
+                    await _apiService.SetLeverageAsync(symbol, target);
+                    leverage = target;
+                }
+
+                return leverage;
+            }
+
+            if (riskMax > 0 && leverage > riskMax)
+            {
+                leverage = riskMax;
+            }
+
+            return leverage;
+        }
+
+        private async Task ApplySymbolMarginDefaultAsync(string symbol)
+        {
+            var settings = AppServices.Settings;
+            if (!settings.ApplyDefaultMarginTypeToAllSymbols)
+            {
+                return;
+            }
+
+            if (!Enum.TryParse<FuturesMarginType>(settings.DefaultMarginType, out var target))
+            {
+                return;
+            }
+
+            var openOrders = await _apiService.GetOpenOrdersAsync(symbol);
+            var hasPosition = Positions.Any(p =>
+                p.Symbol.Equals(symbol, StringComparison.OrdinalIgnoreCase));
+            if (hasPosition || openOrders.Count > 0)
+            {
+                return;
+            }
+
+            var current = await _apiService.GetSymbolMarginTypeAsync(symbol);
+            if (current == target)
+            {
+                return;
+            }
+
+            var (success, _) = await _apiService.SetMarginTypeAsync(symbol, target);
+            if (success)
+            {
+                RunOnUIThread(() =>
+                {
+                    if (symbol.Equals(SelectedSymbol, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _symbolMarginMode = target;
+                        NotifyMarginModeChanged();
+                    }
+                });
+            }
+        }
+
+        private async Task OpenAdjustMarginModeAsync()
+        {
+            if (string.IsNullOrEmpty(SelectedSymbol))
+            {
+                return;
+            }
+
+            if (string.IsNullOrEmpty(_apiKey) || string.IsNullOrEmpty(_secretKey))
+            {
+                MessageBox.Show(
+                    "Для изменения режима маржи сохраните API-ключи Demo в «Настройках».",
+                    "Режим маржи",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            if (_adjustMarginModeWindow is { IsVisible: true })
+            {
+                _adjustMarginModeWindow.Activate();
+                return;
+            }
+
+            var currentMode = await _apiService.GetSymbolMarginTypeAsync(SelectedSymbol);
+            var openOrders = await _apiService.GetOpenOrdersAsync(SelectedSymbol);
+            var hasPosition = Positions.Any(p =>
+                p.Symbol.Equals(SelectedSymbol, StringComparison.OrdinalIgnoreCase));
+            var hasOpenPositionOrOrder = hasPosition || openOrders.Count > 0;
+            var contractBadge = GetContractBadge(GetSelectedSymbolInfo());
+
+            RunOnUIThread(() =>
+            {
+                _symbolMarginMode = currentMode;
+                NotifyMarginModeChanged();
+
+                var vm = new AdjustMarginModeViewModel(
+                    SelectedSymbol,
+                    contractBadge,
+                    currentMode,
+                    hasOpenPositionOrOrder,
+                    AppServices.Settings.ApplyDefaultMarginTypeToAllSymbols);
+
+                _adjustMarginModeWindow = new AdjustMarginModeWindow(
+                    vm,
+                    (mode, applyToAll) => ApplyMarginTypeAsync(SelectedSymbol, mode, applyToAll))
+                {
+                    Owner = Application.Current.MainWindow,
+                };
+                _adjustMarginModeWindow.Closed += (_, _) => _adjustMarginModeWindow = null;
+                _adjustMarginModeWindow.ShowDialog();
+            });
+        }
+
+        private async Task<(bool Success, string? Error)> ApplyMarginTypeAsync(
+            string symbol,
+            FuturesMarginType marginType,
+            bool applyToAllSymbols)
+        {
+            var (success, error) = await _apiService.SetMarginTypeAsync(symbol, marginType);
+            if (!success)
+            {
+                return (false, error);
+            }
+
+            var settings = AppServices.Settings;
+            settings.ApplyDefaultMarginTypeToAllSymbols = applyToAllSymbols;
+            if (applyToAllSymbols)
+            {
+                settings.DefaultMarginType = marginType.ToString();
+            }
+
+            AppServices.SaveSettings(settings);
+
+            if (applyToAllSymbols)
+            {
+                var bulkError = await ApplyMarginTypeToAllSymbolsAsync(marginType);
+                if (bulkError != null)
+                {
+                    error = bulkError;
+                }
+            }
+
+            RunOnUIThread(() =>
+            {
+                _symbolMarginMode = marginType;
+                NotifyMarginModeChanged();
+            });
+            AddLog(applyToAllSymbols
+                ? $"Режим маржи {marginType.ToMarginLabel()} установлен для всех контрактов (по умолчанию)."
+                : $"Режим маржи {symbol} изменён на {marginType.ToButtonLabel()}.");
+            await RefreshAccountDataAsync();
+            return (true, error);
+        }
+
+        private async Task<string?> ApplyMarginTypeToAllSymbolsAsync(FuturesMarginType marginType)
+        {
+            var openOrders = await _apiService.GetOpenOrdersAsync();
+            var blockedSymbols = Positions
+                .Select(p => p.Symbol)
+                .Concat(openOrders.Select(o => o.Symbol))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var failures = new List<string>();
+            foreach (var sym in _allSymbols.Select(s => s.Symbol).Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (blockedSymbols.Contains(sym))
+                {
+                    continue;
+                }
+
+                var (ok, err) = await _apiService.SetMarginTypeAsync(sym, marginType);
+                if (!ok)
+                {
+                    failures.Add($"{sym}: {err ?? "ошибка API"}");
+                }
+            }
+
+            return failures.Count > 0 ? string.Join(Environment.NewLine, failures) : null;
+        }
+
+        private static string GetContractBadge(SymbolInfo? symbolInfo)
+        {
+            if (symbolInfo == null || string.IsNullOrWhiteSpace(symbolInfo.ContractType))
+            {
+                return "Бесср";
+            }
+
+            return symbolInfo.ContractType.Equals("PERPETUAL", StringComparison.OrdinalIgnoreCase)
+                ? "Бесср"
+                : symbolInfo.ContractType;
+        }
+
+        private async Task ClosePositionAsync(object? param, bool market)
+        {
+            if (param is not PositionModel position)
+            {
+                return;
+            }
+
+            if (string.IsNullOrEmpty(_apiKey) || string.IsNullOrEmpty(_secretKey))
+            {
+                MessageBox.Show(
+                    "Для закрытия позиций сохраните API-ключи Demo в «Настройках».",
+                    "Закрытие позиции",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            var symbolInfo = _allSymbols.FirstOrDefault(s =>
+                s.Symbol.Equals(position.Symbol, StringComparison.OrdinalIgnoreCase));
+            if (!TryResolveCloseQuantity(position, symbolInfo, out _, out var qtyText, out var error))
+            {
+                MessageBox.Show(error, "Закрытие позиции", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            string? priceText = null;
+            if (!market)
+            {
+                if (!double.TryParse(position.CloseLimitPriceText.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out var price)
+                    || price <= 0)
+                {
+                    MessageBox.Show("Введите корректную цену для лимитного закрытия.", "Закрытие позиции", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                priceText = symbolInfo?.FormatPrice(price) ?? price.ToString(CultureInfo.InvariantCulture);
+            }
+
+            var side = position.IsLong ? "SELL" : "BUY";
+            var orderType = market ? "MARKET" : "LIMIT";
+            AddLog($"Закрытие позиции: {side} {orderType} {qtyText} {position.Symbol} (reduceOnly)");
+
+            try
+            {
+                await _apiService.PlaceOrderAsync(position.Symbol, side, orderType, qtyText, priceText, reduceOnly: true);
+                AddLog($"Позиция {position.Symbol} закрыта ({orderType}).");
+                await RefreshAccountDataAsync();
+            }
+            catch (Exception ex)
+            {
+                AppServices.Log.Warn(ex.Message);
+                MessageBox.Show(ex.Message, "Закрытие позиции", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private async Task CloseAllPositionsAsync()
+        {
+            if (Positions.Count == 0)
+            {
+                return;
+            }
+
+            if (string.IsNullOrEmpty(_apiKey) || string.IsNullOrEmpty(_secretKey))
+            {
+                MessageBox.Show(
+                    "Для закрытия позиций сохраните API-ключи Demo в «Настройках».",
+                    "Закрыть все позиции",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            var confirm = MessageBox.Show(
+                $"Закрыть все {Positions.Count} позиц(ии/ий) по рынку?",
+                "Закрыть все позиции",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            var failures = new List<string>();
+            foreach (var position in Positions.ToList())
+            {
+                var symbolInfo = _allSymbols.FirstOrDefault(s =>
+                    s.Symbol.Equals(position.Symbol, StringComparison.OrdinalIgnoreCase));
+                var qtyText = symbolInfo?.FormatQuantity(Math.Abs(position.Size))
+                              ?? Math.Abs(position.Size).ToString(CultureInfo.InvariantCulture);
+                var side = position.IsLong ? "SELL" : "BUY";
+
+                try
+                {
+                    AddLog($"Закрытие позиции: {side} MARKET {qtyText} {position.Symbol} (reduceOnly, close all)");
+                    await _apiService.PlaceOrderAsync(position.Symbol, side, "MARKET", qtyText, reduceOnly: true);
+                }
+                catch (Exception ex)
+                {
+                    failures.Add($"{position.Symbol}: {ex.Message}");
+                }
+            }
+
+            await RefreshAccountDataAsync();
+
+            if (failures.Count > 0)
+            {
+                MessageBox.Show(
+                    string.Join(Environment.NewLine, failures),
+                    "Закрыть все позиции",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+            else
+            {
+                AddLog("Все позиции закрыты по рынку.");
+            }
+        }
+
+        private static bool TryResolveCloseQuantity(
+            PositionModel position,
+            SymbolInfo? symbolInfo,
+            out double qty,
+            out string qtyText,
+            out string error)
+        {
+            qty = 0;
+            qtyText = string.Empty;
+            error = string.Empty;
+
+            if (!double.TryParse(position.CloseQuantityText.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out qty)
+                || qty <= 0)
+            {
+                error = "Введите корректное количество для закрытия.";
+                return false;
+            }
+
+            var maxQty = Math.Abs(position.Size);
+            if (qty > maxQty + 1e-12)
+            {
+                error = $"Количество не может превышать размер позиции ({symbolInfo?.FormatQuantity(maxQty) ?? maxQty.ToString(CultureInfo.InvariantCulture)}).";
+                return false;
+            }
+
+            if (symbolInfo != null)
+            {
+                qty = symbolInfo.RoundQuantity(qty);
+                if (qty <= 0)
+                {
+                    error = "Количество меньше минимального шага инструмента.";
+                    return false;
+                }
+
+                qtyText = symbolInfo.FormatQuantity(qty);
+            }
+            else
+            {
+                qtyText = qty.ToString(CultureInfo.InvariantCulture);
+            }
+
+            return true;
+        }
+
         private void ApplyDefaultOrderQuantity()
         {
             var symbolInfo = GetSelectedSymbolInfo();
@@ -969,7 +1669,7 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             }
 
             var price = GetOrderPriceEstimate();
-            var defaultInput = symbolInfo.GetDefaultQuantityInput(QuantityInUsdt, price);
+            var defaultInput = symbolInfo.GetDefaultQuantityInput(_quantityInputMode, price, EffectiveLeverage);
             if (string.IsNullOrEmpty(defaultInput))
             {
                 return;
@@ -1050,8 +1750,8 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
                 symbolInfo,
                 isLong,
                 referencePrice,
-                OrderStopLoss,
-                OrderTakeProfit,
+                UseOrderSlTp ? OrderStopLoss : string.Empty,
+                UseOrderSlTp ? OrderTakeProfit : string.Empty,
                 out stopLossPrice,
                 out takeProfitPrice,
                 out error);

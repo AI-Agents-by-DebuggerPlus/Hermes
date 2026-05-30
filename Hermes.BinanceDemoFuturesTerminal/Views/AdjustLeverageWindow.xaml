@@ -1,0 +1,176 @@
+<Window x:Class="Hermes.BinanceDemoFuturesTerminal.Views.AdjustLeverageWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Изменить кредитное плечо"
+        Height="470" Width="480"
+        Background="#0C0E12"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        WindowStyle="None"
+        AllowsTransparency="True">
+    <Window.Resources>
+        <Style x:Key="DarkIconButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#2B3139"/>
+            <Setter Property="Foreground" Value="#EAECEF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="2">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#383f49"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#252930"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#5E6673"/>
+                                <Setter TargetName="Root" Property="Background" Value="#2B3139"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkCloseButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#848E9C"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="2">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#2B3139"/>
+                                <Setter Property="Foreground" Value="#EAECEF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#252930"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ConfirmButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#FCD535"/>
+            <Setter Property="Foreground" Value="#181A20"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#E0BE2F"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#C9A926"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Background" Value="#5E6673"/>
+                                <Setter Property="Foreground" Value="#848E9C"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="Slider">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#848E9C"/>
+        </Style>
+    </Window.Resources>
+    <Border Background="#1E2329" BorderBrush="#2B3139" BorderThickness="1" CornerRadius="8" Margin="8">
+        <Grid Margin="20,16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Заголовок -->
+            <Grid Grid.Row="0" Margin="0,0,0,18">
+                <TextBlock Text="Изменить кредитное плечо" Foreground="#EAECEF" FontSize="16" FontWeight="Bold"/>
+                <Button Content="✕" HorizontalAlignment="Right" Width="28" Height="28"
+                        Style="{StaticResource DarkCloseButtonStyle}" FontSize="14"
+                        Click="OnCloseClick"/>
+            </Grid>
+
+            <TextBlock Grid.Row="1" Text="Кредитное плечо" Foreground="#848E9C" FontSize="11" Margin="0,0,0,8"/>
+
+            <!-- - / значение / + -->
+            <Grid Grid.Row="2" Margin="0,0,0,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="44"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="44"/>
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0" Content="−" Height="40" FontSize="18" FontWeight="Bold"
+                        Style="{StaticResource DarkIconButtonStyle}"
+                        Command="{Binding DecreaseLeverageCommand}"/>
+                <Border Grid.Column="1" Background="#181A20" BorderBrush="#2B3139" BorderThickness="1" Margin="8,0">
+                    <TextBlock Text="{Binding SelectedLeverageDisplay}" Foreground="#EAECEF" FontSize="18" FontWeight="Bold"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <Button Grid.Column="2" Content="+" Height="40" FontSize="18" FontWeight="Bold"
+                        Style="{StaticResource DarkIconButtonStyle}"
+                        Command="{Binding IncreaseLeverageCommand}"/>
+            </Grid>
+
+            <!-- Слайдер -->
+            <Slider Grid.Row="3" Minimum="1" Maximum="{Binding MaxSelectableLeverage}"
+                    Value="{Binding SelectedLeverage, Mode=TwoWay}" TickFrequency="1"
+                    IsSnapToTickEnabled="True" Margin="0,0,0,4"/>
+            <ItemsControl Grid.Row="4" ItemsSource="{Binding SliderTickLabels}" Margin="0,0,0,16">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Rows="1"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" Foreground="#848E9C" FontSize="10" HorizontalAlignment="Center"/>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- Пояснения -->
+            <StackPanel Grid.Row="5" Margin="0,0,0,16">
+                <TextBlock Text="{Binding MaxNotionalText}" Foreground="#848E9C" FontSize="10.5"
+                           TextWrapping="Wrap" Margin="0,0,0,8"/>
+                <TextBlock Text="{Binding PositionNoticeText}" Foreground="#848E9C" FontSize="10.5"
+                           TextWrapping="Wrap" Margin="0,0,0,8"/>
+                <TextBlock Text="{Binding RiskWarningText}" Foreground="#848E9C" FontSize="10.5"
+                           TextWrapping="Wrap"/>
+            </StackPanel>
+
+            <CheckBox Grid.Row="6" Content="Установить по умолчанию для всех контрактов"
+                      Foreground="#EAECEF" FontSize="10.5" Margin="0,0,0,12"
+                      IsChecked="{Binding ApplyToAllSymbols}"/>
+
+            <Button Grid.Row="7" Content="Подтвердить" Height="42" FontSize="14" FontWeight="Bold"
+                    Style="{StaticResource ConfirmButtonStyle}"
+                    Command="{Binding ConfirmCommand}"/>
+        </Grid>
+    </Border>
+</Window>

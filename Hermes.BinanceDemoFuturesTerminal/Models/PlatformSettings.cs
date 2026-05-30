@@ -22,6 +22,20 @@ public sealed class PlatformSettings
     /// <summary>True = LIMIT, false = MARKET.</summary>
     public bool IsLimitOrder { get; set; } = true;
 
-    /// <summary>True = quantity in USDT, false = in contracts.</summary>
+    /// <summary>True = quantity in USDT, false = in contracts. Legacy field.</summary>
     public bool QuantityInUsdt { get; set; } = true;
+
+    /// <summary>Contracts | UsdtOrderSize | UsdtInitialMargin</summary>
+    public string QuantityInputMode { get; set; } = "UsdtOrderSize";
+
+    /// <summary>When true, DefaultLeverage is applied to every symbol on switch and bulk-set on confirm.</summary>
+    public bool ApplyDefaultLeverageToAllSymbols { get; set; }
+
+    public int DefaultLeverage { get; set; } = 20;
+
+    /// <summary>When true, DefaultMarginType is applied to every symbol on switch and bulk-set on confirm.</summary>
+    public bool ApplyDefaultMarginTypeToAllSymbols { get; set; }
+
+    /// <summary>Cross | Isolated</summary>
+    public string DefaultMarginType { get; set; } = "Cross";
 }

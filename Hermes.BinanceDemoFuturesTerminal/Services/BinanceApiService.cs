@@ -208,15 +208,35 @@ public sealed class BinanceApiService
                     continue;
                 }
 
+                var markPrice = double.Parse(row.MarkPrice, CultureInfo.InvariantCulture);
+                var leverage = int.TryParse(row.Leverage, out var lev) ? lev : 1;
+                var notional = Math.Abs(ParseDouble(row.Notional));
+                if (notional <= 0)
+                {
+                    notional = Math.Abs(size) * markPrice;
+                }
+
+                var isolatedMargin = ParseDouble(row.IsolatedMargin);
+                var marginType = FuturesMarginTypeExtensions.ParseApi(row.MarginType);
+                var initialMargin = marginType == FuturesMarginType.Isolated && isolatedMargin > 0
+                    ? isolatedMargin
+                    : leverage > 0 ? notional / leverage : 0;
+
                 positions.Add(new PositionModel
                 {
                     Symbol = row.Symbol,
                     Size = size,
                     EntryPrice = double.Parse(row.EntryPrice, CultureInfo.InvariantCulture),
-                    MarkPrice = double.Parse(row.MarkPrice, CultureInfo.InvariantCulture),
+                    MarkPrice = markPrice,
                     UnrealizedPnl = double.Parse(row.UnRealizedProfit, CultureInfo.InvariantCulture),
-                    Leverage = int.TryParse(row.Leverage, out var lev) ? lev : 1,
+                    Leverage = leverage,
                     Side = size > 0 ? "LONG" : "SHORT",
+                    LiquidationPrice = ParseDouble(row.LiquidationPrice),
+                    BreakEvenPrice = ParseDouble(row.BreakEvenPrice),
+                    InitialMargin = initialMargin,
+                    MaintMargin = ParseDouble(row.MaintMargin),
+                    NotionalUsdt = notional,
+                    MarginType = marginType,
                 });
             }
 
@@ -229,7 +249,187 @@ public sealed class BinanceApiService
         }
     }
 
-    public async Task<BinanceOrder> PlaceOrderAsync(string symbol, string side, string type, string quantity, string? price = null)
+    public async Task<int> GetSymbolLeverageAsync(string symbol)
+    {
+        if (string.IsNullOrEmpty(ApiKey) || string.IsNullOrEmpty(SecretKey) || string.IsNullOrEmpty(symbol))
+        {
+            return 20;
+        }
+
+        var url = SignedUrl("/fapi/v2/positionRisk", $"symbol={symbol.ToUpperInvariant()}&timestamp={{0}}");
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Add("X-MBX-APIKEY", ApiKey);
+            var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
+            var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                return 20;
+            }
+
+            var rows = JsonSerializer.Deserialize<List<PositionRiskResponse>>(content) ?? [];
+            var row = rows.FirstOrDefault(r =>
+                r.Symbol.Equals(symbol, StringComparison.OrdinalIgnoreCase));
+            return row != null && int.TryParse(row.Leverage, out var lev) && lev > 0 ? lev : 20;
+        }
+        catch
+        {
+            return 20;
+        }
+    }
+
+    public async Task<FuturesMarginType> GetSymbolMarginTypeAsync(string symbol)
+    {
+        if (string.IsNullOrEmpty(ApiKey) || string.IsNullOrEmpty(SecretKey) || string.IsNullOrEmpty(symbol))
+        {
+            return FuturesMarginType.Cross;
+        }
+
+        var url = SignedUrl("/fapi/v2/positionRisk", $"symbol={symbol.ToUpperInvariant()}&timestamp={{0}}");
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Add("X-MBX-APIKEY", ApiKey);
+            var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
+            var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                return FuturesMarginType.Cross;
+            }
+
+            var rows = JsonSerializer.Deserialize<List<PositionRiskResponse>>(content) ?? [];
+            var row = rows.FirstOrDefault(r =>
+                r.Symbol.Equals(symbol, StringComparison.OrdinalIgnoreCase));
+            return FuturesMarginTypeExtensions.ParseApi(row?.MarginType);
+        }
+        catch
+        {
+            return FuturesMarginType.Cross;
+        }
+    }
+
+    public async Task<(bool Success, string? Error)> SetMarginTypeAsync(string symbol, FuturesMarginType marginType)
+    {
+        if (string.IsNullOrEmpty(ApiKey) || string.IsNullOrEmpty(SecretKey) || string.IsNullOrEmpty(symbol))
+        {
+            return (false, "API-ключи не заданы.");
+        }
+
+        var url = SignedUrl(
+            "/fapi/v1/marginType",
+            $"symbol={symbol.ToUpperInvariant()}&marginType={marginType.ToApiValue()}&timestamp={{0}}");
+        Log($"POST /fapi/v1/marginType {symbol} {marginType.ToApiValue()}");
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, url);
+            request.Headers.Add("X-MBX-APIKEY", ApiKey);
+            var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
+            var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            if (response.IsSuccessStatusCode)
+            {
+                return (true, null);
+            }
+
+            Log($"SetMarginType error: {content}");
+            return (false, ParseApiErrorMessage(content));
+        }
+        catch (Exception ex)
+        {
+            Log($"SetMarginType: {ex.Message}");
+            return (false, ex.Message);
+        }
+    }
+
+    private static string ParseApiErrorMessage(string content)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(content);
+            if (doc.RootElement.TryGetProperty("msg", out var msg))
+            {
+                return msg.GetString() ?? content;
+            }
+        }
+        catch
+        {
+            // ignore parse errors
+        }
+
+        return content;
+    }
+
+    public async Task<List<LeverageBracket>> GetLeverageBracketsAsync(string symbol)
+    {
+        if (string.IsNullOrEmpty(symbol))
+        {
+            return [];
+        }
+
+        var query = string.IsNullOrEmpty(ApiKey)
+            ? $"symbol={symbol.ToUpperInvariant()}"
+            : $"symbol={symbol.ToUpperInvariant()}&timestamp={{0}}";
+
+        var url = string.IsNullOrEmpty(ApiKey)
+            ? $"{BaseUrl}/fapi/v1/leverageBracket?{query}"
+            : SignedUrl("/fapi/v1/leverageBracket", query);
+
+        Log($"GET /fapi/v1/leverageBracket {symbol}");
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            if (!string.IsNullOrEmpty(ApiKey))
+            {
+                request.Headers.Add("X-MBX-APIKEY", ApiKey);
+            }
+
+            var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
+            var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                Log($"GetLeverageBrackets error: {content}");
+                return [];
+            }
+
+            var rows = JsonSerializer.Deserialize<List<LeverageBracketResponse>>(content) ?? [];
+            return rows.FirstOrDefault(r =>
+                r.Symbol.Equals(symbol, StringComparison.OrdinalIgnoreCase))?.Brackets ?? [];
+        }
+        catch (Exception ex)
+        {
+            Log($"GetLeverageBrackets: {ex.Message}");
+            return [];
+        }
+    }
+
+    public async Task<bool> SetLeverageAsync(string symbol, int leverage)
+    {
+        if (string.IsNullOrEmpty(ApiKey) || string.IsNullOrEmpty(SecretKey) || string.IsNullOrEmpty(symbol))
+        {
+            return false;
+        }
+
+        var url = SignedUrl("/fapi/v1/leverage", $"symbol={symbol.ToUpperInvariant()}&leverage={leverage}&timestamp={{0}}");
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, url);
+            request.Headers.Add("X-MBX-APIKEY", ApiKey);
+            var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public async Task<BinanceOrder> PlaceOrderAsync(
+        string symbol,
+        string side,
+        string type,
+        string quantity,
+        string? price = null,
+        bool reduceOnly = false)
     {
         if (string.IsNullOrEmpty(ApiKey) || string.IsNullOrEmpty(SecretKey))
         {
@@ -241,6 +441,11 @@ public sealed class BinanceApiService
         sb.Append($"&side={side.ToUpperInvariant()}");
         sb.Append($"&type={type.ToUpperInvariant()}");
         sb.Append($"&quantity={quantity}");
+        if (reduceOnly)
+        {
+            sb.Append("&reduceOnly=true");
+        }
+
         if (type.Equals("LIMIT", StringComparison.OrdinalIgnoreCase))
         {
             if (string.IsNullOrEmpty(price))
@@ -399,4 +604,7 @@ public sealed class BinanceApiService
         var idx = signedUrl.IndexOf('?');
         return idx >= 0 ? signedUrl[(idx + 1)..] : signedUrl;
     }
+
+    private static double ParseDouble(string? value) =>
+        double.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed) ? parsed : 0;
 }

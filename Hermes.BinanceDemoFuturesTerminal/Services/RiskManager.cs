@@ -56,4 +56,22 @@ public static class RiskManager
 
     public static double EstimateNotionalUsdt(double contractQty, double price) =>
         contractQty * price;
+
+    public static int CapLeverage(int exchangeLeverage, int maxLeverage) =>
+        maxLeverage > 0 ? Math.Min(exchangeLeverage, maxLeverage) : exchangeLeverage;
+
+    public static string? ValidateSymbolLeverage(PlatformSettings settings, int exchangeLeverage)
+    {
+        if (!settings.RiskManagementEnabled || settings.MaxLeverage <= 0)
+        {
+            return null;
+        }
+
+        if (exchangeLeverage > settings.MaxLeverage)
+        {
+            return $"Риск: плечо {exchangeLeverage}x превышает лимит {settings.MaxLeverage}x из риск-менеджера.";
+        }
+
+        return null;
+    }
 }

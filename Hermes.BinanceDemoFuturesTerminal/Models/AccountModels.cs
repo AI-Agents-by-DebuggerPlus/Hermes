@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text.Json.Serialization;
+using Hermes.BinanceDemoFuturesTerminal.MVVM;
 
 namespace Hermes.BinanceDemoFuturesTerminal.Models;
 
@@ -60,12 +62,35 @@ public sealed class PositionRiskResponse
     [JsonPropertyName("leverage")]
     public string Leverage { get; set; } = "1";
 
+    [JsonPropertyName("marginType")]
+    public string MarginType { get; set; } = "cross";
+
+    [JsonPropertyName("liquidationPrice")]
+    public string LiquidationPrice { get; set; } = "0";
+
+    [JsonPropertyName("breakEvenPrice")]
+    public string BreakEvenPrice { get; set; } = "0";
+
+    [JsonPropertyName("isolatedMargin")]
+    public string IsolatedMargin { get; set; } = "0";
+
+    [JsonPropertyName("notional")]
+    public string Notional { get; set; } = "0";
+
+    [JsonPropertyName("maintMargin")]
+    public string MaintMargin { get; set; } = "0";
+
     [JsonPropertyName("positionSide")]
     public string PositionSide { get; set; } = "BOTH";
 }
 
-public sealed class PositionModel
+public sealed class PositionModel : ObservableObject
 {
+    private string _closeLimitPriceText = string.Empty;
+    private string _closeQuantityText = string.Empty;
+    private double? _stopLoss;
+    private double? _takeProfit;
+
     public string Symbol { get; set; } = string.Empty;
     public double Size { get; set; }
     public double EntryPrice { get; set; }
@@ -73,16 +98,76 @@ public sealed class PositionModel
     public double UnrealizedPnl { get; set; }
     public int Leverage { get; set; }
     public string Side { get; set; } = string.Empty;
-    public double? StopLoss { get; set; }
-    public double? TakeProfit { get; set; }
+    public double LiquidationPrice { get; set; }
+    public double BreakEvenPrice { get; set; }
+    public double InitialMargin { get; set; }
+    public double MaintMargin { get; set; }
+    public double NotionalUsdt { get; set; }
+    public FuturesMarginType MarginType { get; set; } = FuturesMarginType.Cross;
+    public string ContractBadge { get; set; } = "Бесср";
 
-    public string SizeDisplay => Math.Abs(Size).ToString("N4");
-    public string EntryDisplay => EntryPrice.ToString("N2");
-    public string MarkDisplay => MarkPrice.ToString("N2");
-    public string PnlDisplay => (UnrealizedPnl >= 0 ? "+" : "") + UnrealizedPnl.ToString("N2");
-    public string StopLossDisplay => StopLoss.HasValue ? StopLoss.Value.ToString("N2") : "—";
-    public string TakeProfitDisplay => TakeProfit.HasValue ? TakeProfit.Value.ToString("N2") : "—";
+    public double? StopLoss
+    {
+        get => _stopLoss;
+        set
+        {
+            if (SetProperty(ref _stopLoss, value))
+            {
+                OnPropertyChanged(nameof(StopLossDisplay));
+            }
+        }
+    }
+
+    public double? TakeProfit
+    {
+        get => _takeProfit;
+        set
+        {
+            if (SetProperty(ref _takeProfit, value))
+            {
+                OnPropertyChanged(nameof(TakeProfitDisplay));
+            }
+        }
+    }
+
+    public string CloseLimitPriceText
+    {
+        get => _closeLimitPriceText;
+        set => SetProperty(ref _closeLimitPriceText, value);
+    }
+
+    public string CloseQuantityText
+    {
+        get => _closeQuantityText;
+        set => SetProperty(ref _closeQuantityText, value);
+    }
+
+    public string SizeDisplay => (Math.Abs(Size) * MarkPrice).ToString("N2", CultureInfo.InvariantCulture);
+    public string EntryDisplay => EntryPrice.ToString("N2", CultureInfo.InvariantCulture);
+    public string BreakEvenDisplay =>
+        BreakEvenPrice > 0 ? BreakEvenPrice.ToString("N2", CultureInfo.InvariantCulture) : "—";
+    public string MarkDisplay => MarkPrice.ToString("N2", CultureInfo.InvariantCulture);
+    public string LiquidationDisplay =>
+        LiquidationPrice > 0 ? LiquidationPrice.ToString("N2", CultureInfo.InvariantCulture) : "—";
+    public string MarginRatioDisplay =>
+        InitialMargin > 0 ? $"{MaintMargin / InitialMargin * 100:F2}%" : "—";
+    public string MarginDisplay =>
+        $"{InitialMargin.ToString("N2", CultureInfo.InvariantCulture)} USDT ({MarginType.ToMarginLabel()})";
+    public string PnlDisplay => (UnrealizedPnl >= 0 ? "+" : string.Empty) + UnrealizedPnl.ToString("N2", CultureInfo.InvariantCulture);
+    public double RoiPercent => InitialMargin > 0 ? UnrealizedPnl / InitialMargin * 100 : 0;
+    public string RoiDisplay => (RoiPercent >= 0 ? "+" : string.Empty) + RoiPercent.ToString("N2", CultureInfo.InvariantCulture) + "%";
+    public string FundingFeeDisplay => "0,00 USDT";
+    public string LeverageBadge => $"{Leverage}x";
+    public string StopLossDisplay => StopLoss.HasValue ? StopLoss.Value.ToString("N2", CultureInfo.InvariantCulture) : "—";
+    public string TakeProfitDisplay => TakeProfit.HasValue ? TakeProfit.Value.ToString("N2", CultureInfo.InvariantCulture) : "—";
     public bool IsLong => Size > 0;
+    public bool IsPnlPositive => UnrealizedPnl >= 0;
+
+    public void InitializeCloseFields(string? formattedQty, string? formattedPrice)
+    {
+        CloseQuantityText = formattedQty ?? Math.Abs(Size).ToString(CultureInfo.InvariantCulture);
+        CloseLimitPriceText = formattedPrice ?? MarkPrice.ToString(CultureInfo.InvariantCulture);
+    }
 }
 
 public sealed class BinanceOrder

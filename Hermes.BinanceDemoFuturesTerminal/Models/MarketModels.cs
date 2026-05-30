@@ -89,22 +89,34 @@ namespace Hermes.BinanceDemoFuturesTerminal.Models
             return Math.Max(GetMinQty() * price, GetMinNotional());
         }
 
-        public string GetDefaultQuantityInput(bool quantityInUsdt, double price)
+        public string GetDefaultQuantityInput(QuantityInputMode mode, double price, int leverage)
         {
             var minQty = GetMinQty();
-            if (quantityInUsdt)
+            if (mode == QuantityInputMode.Contracts)
             {
-                if (price <= 0)
-                {
-                    return string.Empty;
-                }
+                return FormatQuantity(minQty);
+            }
 
-                var minUsdt = GetMinOrderUsdt(price);
+            if (price <= 0 || leverage < 1)
+            {
+                return string.Empty;
+            }
+
+            var minUsdt = GetMinOrderUsdt(price);
+            if (mode == QuantityInputMode.UsdtOrderSize)
+            {
                 return minUsdt.ToString("F2", CultureInfo.InvariantCulture);
             }
 
-            return FormatQuantity(minQty);
+            var minMargin = minUsdt / leverage;
+            return minMargin.ToString("F2", CultureInfo.InvariantCulture);
         }
+
+        public string GetDefaultQuantityInput(bool quantityInUsdt, double price) =>
+            GetDefaultQuantityInput(
+                quantityInUsdt ? QuantityInputMode.UsdtOrderSize : QuantityInputMode.Contracts,
+                price,
+                20);
 
         public decimal RoundQuantityDecimal(decimal qty)
         {
@@ -120,6 +132,33 @@ namespace Hermes.BinanceDemoFuturesTerminal.Models
         }
 
         public double RoundQuantity(double qty) => (double)RoundQuantityDecimal((decimal)qty);
+
+        public decimal RoundQuantityUpDecimal(decimal qty)
+        {
+            var lot = GetLotSizeFilter();
+            if (lot?.StepSize == null
+                || !decimal.TryParse(lot.StepSize, NumberStyles.Any, CultureInfo.InvariantCulture, out var step)
+                || step <= 0)
+            {
+                return qty;
+            }
+
+            return Math.Ceiling(qty / step) * step;
+        }
+
+        public double RoundQuantityUp(double qty) => (double)RoundQuantityUpDecimal((decimal)qty);
+
+        public double EnsureMinNotionalQuantity(double qty, double price)
+        {
+            var rounded = RoundQuantity(qty);
+            var minNotional = GetMinNotional();
+            if (minNotional <= 0 || price <= 0 || rounded * price >= minNotional)
+            {
+                return rounded;
+            }
+
+            return RoundQuantityUp(minNotional / price);
+        }
 
         public string FormatQuantity(double qty)
         {
