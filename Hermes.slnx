@@ -7,7 +7,8 @@
   <Project Path="Hermes.InAppAssistant/Hermes.InAppAssistant.csproj" />
   <Project Path="Hermes.InAppAssistant.Wpf/Hermes.InAppAssistant.Wpf.csproj" />
   <Project Path="Hermes.TradingPlatform/Hermes.TradingPlatform.Shared/Hermes.TradingPlatform.Shared.csproj" />
-  <Project Path="Hermes.SpotTerminal/Hermes.SpotTerminal.Shared/Hermes.SpotTerminal.Shared.csproj" />
+  <Project Path="Hermes.BinanceDemoSpotTerminal/Hermes.BinanceDemoSpotTerminal.csproj" />
+  <Project Path="Hermes.BinanceDemoFuturesTerminal/Hermes.BinanceDemoFuturesTerminal.csproj" />
   <Project Path="Hermes.Terminals.Shared/Hermes.Terminals.Shared.csproj" />
   <Project Path="Hermes.Wpf/Hermes.Wpf.csproj" />
 </Solution>

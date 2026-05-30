@@ -231,10 +231,10 @@ public sealed class HermesSettings
     public string TradingPlatformExePath { get; set; } = string.Empty;
 
     /// <summary>Inject Spot Terminal bridge (agent, spot balances, skills) into Hermes chat.</summary>
-    public bool SpotTerminalIntegrationEnabled { get; set; } = true;
+    public bool SpotTerminalIntegrationEnabled { get; set; } = false;
 
     /// <summary>Auto-launch Hermes.SpotTerminal.exe when spot heartbeat is stale.</summary>
-    public bool SpotTerminalAutoLaunch { get; set; } = true;
+    public bool SpotTerminalAutoLaunch { get; set; } = false;
 
     public string SpotTerminalExePath { get; set; } = string.Empty;
 

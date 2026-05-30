@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -313,7 +314,8 @@ public sealed class MainViewModel : BaseViewModel
             _ => !_isBusy);
         SaveExperienceCommand = new RelayCommand(_ => _saveExperienceOpener?.Invoke());
         ExportEnglishTutorProgressCommand = new RelayCommand(_ => ExportEnglishTutorProgress(), _ => true);
-        LaunchSpotTerminalCommand = new RelayCommand(_ => LaunchSpotTerminalManual());
+        LaunchBinanceDemoSpotCommand = new RelayCommand(_ => LaunchBinanceDemoSpotManual());
+        LaunchBinanceDemoFuturesCommand = new RelayCommand(_ => LaunchBinanceDemoFuturesManual());
 
         _flashcardSkill = new FlashcardSkill(_logService, GenerateFlashcardJsonViaHermesAsync, PublishFlashcardJsonToSupabaseAsync);
         _flashcardSkill.StatusChanged += FlashcardSkill_OnStatusChanged;
@@ -1120,7 +1122,9 @@ public sealed class MainViewModel : BaseViewModel
 
     public ICommand ExportEnglishTutorProgressCommand { get; }
 
-    public ICommand LaunchSpotTerminalCommand { get; }
+    public ICommand LaunchBinanceDemoSpotCommand { get; }
+
+    public ICommand LaunchBinanceDemoFuturesCommand { get; }
 
     public ICommand StopFlashcardsCommand { get; }
 
@@ -1276,6 +1280,58 @@ public sealed class MainViewModel : BaseViewModel
         {
             _startupModeNoticePending = false;
             PostModeStatusNotice(projectName);
+        }
+    }
+
+    private void LaunchBinanceDemoFuturesManual()
+    {
+        var exe = Path.Combine(AppContext.BaseDirectory, "Hermes.BinanceDemoFuturesTerminal.exe");
+        if (!File.Exists(exe))
+        {
+            AppendTerminal("[binance-futures] Hermes.BinanceDemoFuturesTerminal.exe не найден — пересоберите Hermes.Wpf.", isError: true);
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(exe)
+            {
+                WorkingDirectory = AppContext.BaseDirectory,
+                UseShellExecute = true,
+            });
+            AppendTerminal("[binance-futures] Запущен Hermes.BinanceDemoFuturesTerminal.exe.");
+            _logService.LogInfo($"[binance-futures] launched {exe}");
+        }
+        catch (Exception ex)
+        {
+            AppendTerminal($"[binance-futures] Ошибка запуска: {ex.Message}", isError: true);
+            _logService.LogError($"[binance-futures] launch failed: {ex.Message}");
+        }
+    }
+
+    private void LaunchBinanceDemoSpotManual()
+    {
+        var exe = Path.Combine(AppContext.BaseDirectory, "Hermes.BinanceDemoSpotTerminal.exe");
+        if (!File.Exists(exe))
+        {
+            AppendTerminal("[binance-demo] Hermes.BinanceDemoSpotTerminal.exe не найден — пересоберите Hermes.Wpf.", isError: true);
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(exe)
+            {
+                WorkingDirectory = AppContext.BaseDirectory,
+                UseShellExecute = true,
+            });
+            AppendTerminal("[binance-demo] Запущен Hermes.BinanceDemoSpotTerminal.exe.");
+            _logService.LogInfo($"[binance-demo] launched {exe}");
+        }
+        catch (Exception ex)
+        {
+            AppendTerminal($"[binance-demo] Ошибка запуска: {ex.Message}", isError: true);
+            _logService.LogError($"[binance-demo] launch failed: {ex.Message}");
         }
     }
 

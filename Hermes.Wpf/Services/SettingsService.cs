@@ -363,7 +363,7 @@ public sealed class SettingsService
         }
     }
 
-    /// <summary>Trading Platform superseded by SpotTerminal for order execution.</summary>
+    /// <summary>Legacy SpotTerminal bridge — disabled while Hermes.SpotTerminal is detached from main solution.</summary>
     private static bool MigrateTradingPlatformToSpotTerminal(HermesSettings settings)
     {
         var changed = false;
@@ -376,18 +376,6 @@ public sealed class SettingsService
         if (settings.TradingPlatformAutoLaunchTerminal)
         {
             settings.TradingPlatformAutoLaunchTerminal = false;
-            changed = true;
-        }
-
-        if (!settings.SpotTerminalIntegrationEnabled)
-        {
-            settings.SpotTerminalIntegrationEnabled = true;
-            changed = true;
-        }
-
-        if (!settings.SpotTerminalAutoLaunch)
-        {
-            settings.SpotTerminalAutoLaunch = true;
             changed = true;
         }
 

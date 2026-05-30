@@ -97,9 +97,14 @@
                             Click="OpenLogsButton_OnClick" />
                     <Button Width="130"
                             Margin="0,0,8,8"
-                            Content="SpotTerminal"
-                            ToolTip="Запустить Hermes.SpotTerminal.exe"
-                            Command="{Binding LaunchSpotTerminalCommand}" />
+                            Content="Binance Spot"
+                            ToolTip="Запустить Hermes.BinanceDemoSpotTerminal.exe"
+                            Command="{Binding LaunchBinanceDemoSpotCommand}" />
+                    <Button Width="140"
+                            Margin="0,0,8,8"
+                            Content="Binance Futures"
+                            ToolTip="Запустить Hermes.BinanceDemoFuturesTerminal.exe"
+                            Command="{Binding LaunchBinanceDemoFuturesCommand}" />
                 </WrapPanel>
 
                     <TabControl Grid.Row="2"

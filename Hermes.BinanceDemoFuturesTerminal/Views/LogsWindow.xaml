@@ -1,0 +1,36 @@
+<Window x:Class="Hermes.BinanceDemoFuturesTerminal.Views.LogsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Журнал — Hermes Futures Demo"
+        Height="520" Width="900"
+        Background="#0C0E12"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="Журнал терминала" Foreground="#EAECEF" FontSize="16" FontWeight="Bold"/>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8,0,8">
+            <Button Content="Очистить экран" Padding="10,4" Margin="0,0,8,0" Click="OnClear"/>
+            <Button Content="Открыть папку Logs" Padding="10,4" Margin="0,0,8,0" Click="OnOpenFolder"/>
+            <Button Content="Копировать путь" Padding="10,4" Click="OnCopyPath"/>
+        </StackPanel>
+
+        <Border Grid.Row="2" BorderBrush="#2B3139" BorderThickness="1" Background="#090B0E">
+            <ListBox x:Name="LogList"
+                     ItemsSource="{Binding Entries}"
+                     Foreground="#02A4FF"
+                     FontFamily="Consolas"
+                     FontSize="10.5"
+                     Background="Transparent"
+                     BorderThickness="0"/>
+        </Border>
+
+        <TextBlock Grid.Row="2" VerticalAlignment="Bottom" Margin="4"
+                   Text="{Binding LogFilePath}" Foreground="#848E9C" FontSize="9"/>
+    </Grid>
+</Window>
