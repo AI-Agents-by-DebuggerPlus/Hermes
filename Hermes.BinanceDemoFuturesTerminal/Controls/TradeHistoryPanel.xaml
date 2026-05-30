@@ -1,0 +1,200 @@
+<UserControl x:Class="Hermes.BinanceDemoFuturesTerminal.Controls.TradeHistoryPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="clr-namespace:Hermes.BinanceDemoFuturesTerminal.Models">
+    <UserControl.Resources>
+        <Style x:Key="FilterChipStyle" TargetType="Button">
+            <Setter Property="Background" Value="#252930"/>
+            <Setter Property="Foreground" Value="#848E9C"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#383f49"/>
+                                <Setter Property="Foreground" Value="#EAECEF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SearchButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#FCD535"/>
+            <Setter Property="Foreground" Value="#181A20"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="14,4"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#E0BE2F"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkGridViewColumnHeaderStyle" TargetType="GridViewColumnHeader">
+            <Setter Property="Background" Value="#181A20"/>
+            <Setter Property="Foreground" Value="#848E9C"/>
+            <Setter Property="BorderBrush" Value="#2B3139"/>
+            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="GridViewColumnHeader">
+                        <Border x:Name="HeaderBorder" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="HeaderBorder" Property="Background" Value="#252C3B"/>
+                                <Setter Property="Foreground" Value="#EAECEF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkListViewItemStyle" TargetType="ListViewItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#EAECEF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="4,0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListViewItem">
+                        <Border x:Name="RowBorder" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                            <GridViewRowPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="RowBorder" Property="Background" Value="#252C3B"/>
+                                <Setter Property="Foreground" Value="#EAECEF"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="RowBorder" Property="Background" Value="#2B3139"/>
+                                <Setter Property="Foreground" Value="#EAECEF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="0,8,0,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" Margin="0,0,0,8">
+            <CheckBox DockPanel.Dock="Right" Content="Скрыть другие тикеры"
+                      Foreground="#848E9C" FontSize="10" VerticalAlignment="Center"
+                      IsChecked="{Binding HideOtherTradeTickers}"/>
+            <StackPanel Orientation="Horizontal">
+                <Button Content="1 день" Style="{StaticResource FilterChipStyle}"
+                        Command="{Binding SetTradeHistoryDaysCommand}" CommandParameter="1"/>
+                <Button Content="1 нед." Style="{StaticResource FilterChipStyle}"
+                        Command="{Binding SetTradeHistoryDaysCommand}" CommandParameter="7"/>
+                <Button Content="1 мес." Style="{StaticResource FilterChipStyle}"
+                        Command="{Binding SetTradeHistoryDaysCommand}" CommandParameter="30"/>
+                <Button Content="3 мес." Style="{StaticResource FilterChipStyle}"
+                        Command="{Binding SetTradeHistoryDaysCommand}" CommandParameter="90"/>
+                <TextBlock Text="{Binding TradeHistoryPeriodDisplay}" Foreground="#848E9C" FontSize="10"
+                           VerticalAlignment="Center" Margin="8,0,0,0"/>
+            </StackPanel>
+        </DockPanel>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+            <ComboBox Width="110" Height="24" FontSize="10" Margin="0,0,8,0"
+                      SelectedValue="{Binding TradeHistorySideFilter}" SelectedValuePath="Tag">
+                <ComboBoxItem Content="Сторона: все" Tag="All"/>
+                <ComboBoxItem Content="Покупка" Tag="Buy"/>
+                <ComboBoxItem Content="Продать" Tag="Sell"/>
+            </ComboBox>
+            <Button Content="Поиск" Style="{StaticResource SearchButtonStyle}" Margin="0,0,8,0"
+                    Command="{Binding SearchTradeHistoryCommand}"/>
+            <Button Content="Сброс" Style="{StaticResource FilterChipStyle}"
+                    Command="{Binding ResetTradeHistoryFiltersCommand}"/>
+        </StackPanel>
+
+        <ListView Grid.Row="2" Background="Transparent" BorderThickness="0"
+                  ItemsSource="{Binding TradeHistory}" Foreground="#EAECEF"
+                  ScrollViewer.HorizontalScrollBarVisibility="Auto">
+            <ListView.View>
+                <GridView ColumnHeaderContainerStyle="{StaticResource DarkGridViewColumnHeaderStyle}">
+                    <GridViewColumn Header="№ ордера" Width="110" DisplayMemberBinding="{Binding OrderIdDisplay}"/>
+                    <GridViewColumn Header="Время" Width="140" DisplayMemberBinding="{Binding TimeDisplay}"/>
+                    <GridViewColumn Header="Тикер" Width="120">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate DataType="{x:Type models:UserTradeModel}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Symbol}" FontWeight="Bold" VerticalAlignment="Center"/>
+                                    <Border Background="#2B3139" CornerRadius="2" Padding="4,1" Margin="6,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding ContractBadge}" Foreground="#848E9C" FontSize="9"/>
+                                    </Border>
+                                </StackPanel>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                    <GridViewColumn Header="Сторона" Width="80">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate DataType="{x:Type models:UserTradeModel}">
+                                <TextBlock Text="{Binding SideDisplay}" FontWeight="Bold">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="#0ECB81"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsBuy}" Value="False">
+                                                    <Setter Property="Foreground" Value="#F6465D"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                    <GridViewColumn Header="Цена" Width="100" DisplayMemberBinding="{Binding PriceDisplay}"/>
+                    <GridViewColumn Header="Количество" Width="100" DisplayMemberBinding="{Binding QuantityDisplay}"/>
+                    <GridViewColumn Header="Комиссия" Width="130" DisplayMemberBinding="{Binding CommissionDisplay}"/>
+                    <GridViewColumn Header="Роль" Width="70" DisplayMemberBinding="{Binding RoleDisplay}"/>
+                    <GridViewColumn Header="Реализ. PnL" Width="120" DisplayMemberBinding="{Binding RealizedPnlDisplay}"/>
+                </GridView>
+            </ListView.View>
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem" BasedOn="{StaticResource DarkListViewItemStyle}">
+                    <Setter Property="Height" Value="28"/>
+                </Style>
+            </ListView.ItemContainerStyle>
+        </ListView>
+    </Grid>
+</UserControl>

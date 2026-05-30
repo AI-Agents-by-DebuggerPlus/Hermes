@@ -1,0 +1,43 @@
+---
+description: Dark UI theme — light text on dark backgrounds, including hover states
+alwaysApply: true
+---
+
+# Dark UI: Text and Hover
+
+Hermes terminals use a dark theme. Follow this for all UI work (WPF, web, dialogs):
+
+## Rule
+
+**Light text → dark background.** The same pairing applies to **hover, focus, pressed, and selected** states.
+
+Never use light/white backgrounds on hover for dark-themed controls.
+
+## WPF
+
+- Override the default `Button` template — the stock template adds a light hover background.
+- Hover: keep background dark/transparent; change text color, border, or a slightly lighter **dark** shade (e.g. `#2B3139` → `#383f49`).
+- Use shared styles such as `DarkLinkBtnStyle`, `SecondaryBtnStyle`, `LeverageChipBtnStyle`.
+
+```xml
+<!-- ✅ GOOD: hover only brightens text, background stays transparent/dark -->
+<Trigger Property="IsMouseOver" Value="True">
+    <Setter TargetName="Label" Property="TextElement.Foreground" Value="#F8D12F"/>
+    <Setter TargetName="Root" Property="Background" Value="Transparent"/>
+</Trigger>
+
+<!-- ❌ BAD: default Button hover or explicit light background -->
+<Trigger Property="IsMouseOver" Value="True">
+    <Setter Property="Background" Value="#F0F0F0"/>
+</Trigger>
+```
+
+## Palette reference
+
+| Role | Color |
+|------|-------|
+| Background | `#0B0E11`, `#181A20`, `#2B3139` |
+| Hover (dark controls) | `#383f49`, `#252C3B` |
+| Text | `#EAECEF` |
+| Muted text | `#848E9C` |
+| Accent / links | `#F0B90B` → `#F8D12F` on hover |

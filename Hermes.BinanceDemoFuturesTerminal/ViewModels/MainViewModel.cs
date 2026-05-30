@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Text;
@@ -47,6 +48,11 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
         private ObservableCollection<PositionModel> _positions = new ObservableCollection<PositionModel>();
         private ObservableCollection<OrderModel> _openOrders = new ObservableCollection<OrderModel>();
         private ObservableCollection<OrderModel> _orderHistory = new ObservableCollection<OrderModel>();
+        private ObservableCollection<UserTradeModel> _tradeHistory = new ObservableCollection<UserTradeModel>();
+        private readonly List<UserTradeModel> _tradeHistoryCache = [];
+        private bool _hideOtherTradeTickers = true;
+        private int _tradeHistoryDays = 7;
+        private string _tradeHistorySideFilter = "All";
 
         // Форма ордера
         private string _orderPrice = string.Empty;
@@ -55,7 +61,13 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
         private string _orderTakeProfit = string.Empty;
         private bool _useOrderSlTp;
         private double _totalCost = 0.0;
-        private bool _isLimitOrder = true;
+        private OrderEntryMode _orderEntryMode = OrderEntryMode.Limit;
+        private bool _conditionalUseLimit = true;
+        private string _orderStopPrice = string.Empty;
+        private StopWorkingType _stopWorkingType = StopWorkingType.ContractPrice;
+        private string _orderTimeInForce = "GTC";
+        private bool _orderReduceOnly;
+        private bool _isConditionalInfoOpen;
         private QuantityInputMode _quantityInputMode = QuantityInputMode.UsdtOrderSize;
         private bool _isUnitSelectorOpen;
         private int _exchangeSymbolLeverage = 20;
@@ -203,9 +215,225 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             set => SetProperty(ref _useOrderSlTp, value);
         }
 
+        public string OrderStopPrice
+        {
+            get => _orderStopPrice;
+            set
+            {
+                if (SetProperty(ref _orderStopPrice, value))
+                {
+                    UpdateTotalCost();
+                }
+            }
+        }
+
+        public StopWorkingType SelectedStopWorkingType
+        {
+            get => _stopWorkingType;
+            set
+            {
+                if (SetProperty(ref _stopWorkingType, value))
+                {
+                    OnPropertyChanged(nameof(StopWorkingTypeIndex));
+                    PersistTradingPreferences();
+                }
+            }
+        }
+
+        public string OrderTimeInForce
+        {
+            get => _orderTimeInForce;
+            set
+            {
+                if (SetProperty(ref _orderTimeInForce, value))
+                {
+                    OnPropertyChanged(nameof(OrderTimeInForceIndex));
+                    PersistTradingPreferences();
+                }
+            }
+        }
+
+        public bool OrderReduceOnly
+        {
+            get => _orderReduceOnly;
+            set => SetProperty(ref _orderReduceOnly, value);
+        }
+
+        public bool IsConditionalOrder => _orderEntryMode == OrderEntryMode.Conditional;
+
+        public bool IsLimitOrderEntry
+        {
+            get => _orderEntryMode == OrderEntryMode.Limit;
+            set
+            {
+                if (value)
+                {
+                    SelectedOrderEntryMode = OrderEntryMode.Limit;
+                }
+            }
+        }
+
+        public bool IsMarketOrderEntry
+        {
+            get => _orderEntryMode == OrderEntryMode.Market;
+            set
+            {
+                if (value)
+                {
+                    SelectedOrderEntryMode = OrderEntryMode.Market;
+                }
+            }
+        }
+
+        public bool IsConditionalOrderEntry
+        {
+            get => _orderEntryMode == OrderEntryMode.Conditional;
+            set
+            {
+                if (value)
+                {
+                    SelectedOrderEntryMode = OrderEntryMode.Conditional;
+                }
+            }
+        }
+
+        public OrderEntryMode SelectedOrderEntryMode
+        {
+            get => _orderEntryMode;
+            set
+            {
+                if (SetProperty(ref _orderEntryMode, value))
+                {
+                    OnPropertyChanged(nameof(IsLimitOrder));
+                    OnPropertyChanged(nameof(IsMarketOrder));
+                    OnPropertyChanged(nameof(IsConditionalOrder));
+                    OnPropertyChanged(nameof(IsLimitOrderEntry));
+                    OnPropertyChanged(nameof(IsMarketOrderEntry));
+                    OnPropertyChanged(nameof(IsConditionalOrderEntry));
+                    OnPropertyChanged(nameof(IsConditionalLimit));
+                    OnPropertyChanged(nameof(IsConditionalMarket));
+                    OnPropertyChanged(nameof(ConditionalExecutionModeIndex));
+                    OnPropertyChanged(nameof(StopWorkingTypeIndex));
+                    OnPropertyChanged(nameof(OrderTimeInForceIndex));
+                    UpdateTotalCost();
+                    PersistTradingPreferences();
+                }
+            }
+        }
+
+        public bool IsConditionalLimit
+        {
+            get => _conditionalUseLimit;
+            set
+            {
+                if (SetProperty(ref _conditionalUseLimit, value))
+                {
+                    OnPropertyChanged(nameof(IsLimitOrder));
+                    OnPropertyChanged(nameof(IsMarketOrder));
+                    OnPropertyChanged(nameof(IsConditionalMarket));
+                    OnPropertyChanged(nameof(ConditionalExecutionModeIndex));
+                    OnPropertyChanged(nameof(OrderTimeInForceIndex));
+                    UpdateTotalCost();
+                    PersistTradingPreferences();
+                }
+            }
+        }
+
+        public bool IsConditionalMarket
+        {
+            get => !_conditionalUseLimit;
+            set => IsConditionalLimit = !value;
+        }
+
+        public int ConditionalExecutionModeIndex
+        {
+            get => _conditionalUseLimit ? 0 : 1;
+            set => IsConditionalLimit = value == 0;
+        }
+
+        public int StopWorkingTypeIndex
+        {
+            get => _stopWorkingType == StopWorkingType.MarkPrice ? 1 : 0;
+            set => SelectedStopWorkingType = value == 1 ? StopWorkingType.MarkPrice : StopWorkingType.ContractPrice;
+        }
+
+        public int OrderTimeInForceIndex
+        {
+            get => _orderTimeInForce switch
+            {
+                "IOC" => 1,
+                "FOK" => 2,
+                _ => 0,
+            };
+            set => OrderTimeInForce = value switch
+            {
+                1 => "IOC",
+                2 => "FOK",
+                _ => "GTC",
+            };
+        }
+
+        public string ConditionalOrderInfo =>
+            "Условные ордера будут отображаться в списке лимитных или рыночных ордеров, "
+            + "когда они достигнут цены активации. Они будут отображаться в списке условных "
+            + "ордеров перед их срабатыванием. При срабатывании они будут перемещены в раздел базовых ордеров.";
+
+        public bool IsConditionalInfoOpen
+        {
+            get => _isConditionalInfoOpen;
+            set => SetProperty(ref _isConditionalInfoOpen, value);
+        }
+
         public string PositionsTabHeader => $"ПОЗИЦИИ ({Positions.Count})";
         public string OpenOrdersTabHeader => $"ОТКРЫТЫЕ ОРДЕРА ({OpenOrders.Count})";
         public string BalancesTabHeader => "АКТИВЫ";
+        public string TradeHistoryTabHeader => "ИСТОРИЯ СДЕЛОК";
+
+        public ObservableCollection<UserTradeModel> TradeHistory
+        {
+            get => _tradeHistory;
+            set => SetProperty(ref _tradeHistory, value);
+        }
+
+        public bool HideOtherTradeTickers
+        {
+            get => _hideOtherTradeTickers;
+            set
+            {
+                if (SetProperty(ref _hideOtherTradeTickers, value))
+                {
+                    ApplyTradeHistoryFilter();
+                }
+            }
+        }
+
+        public int TradeHistoryDays
+        {
+            get => _tradeHistoryDays;
+            set => SetProperty(ref _tradeHistoryDays, value);
+        }
+
+        public string TradeHistorySideFilter
+        {
+            get => _tradeHistorySideFilter;
+            set
+            {
+                if (SetProperty(ref _tradeHistorySideFilter, value))
+                {
+                    ApplyTradeHistoryFilter();
+                }
+            }
+        }
+
+        public string TradeHistoryPeriodDisplay
+        {
+            get
+            {
+                var end = DateTime.Now.Date;
+                var start = end.AddDays(-TradeHistoryDays + 1);
+                return $"Время сделки {start:yyyy-MM-dd} → {end:yyyy-MM-dd}";
+            }
+        }
 
         public string UsdtAvailableDisplay
         {
@@ -231,25 +459,13 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             set => SetProperty(ref _totalCost, value);
         }
 
-        public bool IsLimitOrder
-        {
-            get => _isLimitOrder;
-            set
-            {
-                if (SetProperty(ref _isLimitOrder, value))
-                {
-                    OnPropertyChanged(nameof(IsMarketOrder));
-                    UpdateTotalCost();
-                    PersistTradingPreferences();
-                }
-            }
-        }
+        public bool IsLimitOrder =>
+            _orderEntryMode == OrderEntryMode.Limit
+            || (_orderEntryMode == OrderEntryMode.Conditional && _conditionalUseLimit);
 
-        public bool IsMarketOrder
-        {
-            get => !_isLimitOrder;
-            set => IsLimitOrder = !value;
-        }
+        public bool IsMarketOrder =>
+            _orderEntryMode == OrderEntryMode.Market
+            || (_orderEntryMode == OrderEntryMode.Conditional && !_conditionalUseLimit);
 
         public bool QuantityInUsdt
         {
@@ -325,6 +541,10 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
         public ICommand ClosePositionMarketCommand { get; }
         public ICommand ClosePositionLimitCommand { get; }
         public ICommand CloseAllPositionsCommand { get; }
+        public ICommand SearchTradeHistoryCommand { get; }
+        public ICommand ResetTradeHistoryFiltersCommand { get; }
+        public ICommand SetTradeHistoryDaysCommand { get; }
+        public ICommand OpenConditionalInfoLinkCommand { get; }
         #endregion
 
         public MainViewModel()
@@ -359,6 +579,17 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             ClosePositionMarketCommand = new RelayCommand(async p => await ClosePositionAsync(p, market: true));
             ClosePositionLimitCommand = new RelayCommand(async p => await ClosePositionAsync(p, market: false));
             CloseAllPositionsCommand = new RelayCommand(async () => await CloseAllPositionsAsync(), () => Positions.Count > 0);
+            SearchTradeHistoryCommand = new RelayCommand(async () => await RefreshTradeHistoryAsync());
+            ResetTradeHistoryFiltersCommand = new RelayCommand(() => ResetTradeHistoryFilters());
+            SetTradeHistoryDaysCommand = new RelayCommand(p =>
+            {
+                if (p is string daysText && int.TryParse(daysText, out var days))
+                {
+                    TradeHistoryDays = days;
+                    OnPropertyChanged(nameof(TradeHistoryPeriodDisplay));
+                }
+            });
+            OpenConditionalInfoLinkCommand = new RelayCommand(_ => OpenConditionalInfoLink());
 
             AppServices.Log.Info("Hermes.BinanceDemoFuturesTerminal запущен.");
             _ = InitializeTerminalAsync();
@@ -388,13 +619,40 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
 
         private void ApplyTradingPreferences(PlatformSettings settings)
         {
-            _isLimitOrder = settings.IsLimitOrder;
+            _orderEntryMode = ParseOrderEntryMode(settings);
+            _conditionalUseLimit = settings.ConditionalUseLimit;
+            _stopWorkingType = ParseStopWorkingType(settings.StopWorkingType);
+            _orderTimeInForce = string.IsNullOrWhiteSpace(settings.OrderTimeInForce) ? "GTC" : settings.OrderTimeInForce;
+            _orderReduceOnly = settings.OrderReduceOnly;
             _quantityInputMode = ParseQuantityInputMode(settings);
+            OnPropertyChanged(nameof(SelectedOrderEntryMode));
             OnPropertyChanged(nameof(IsLimitOrder));
             OnPropertyChanged(nameof(IsMarketOrder));
+            OnPropertyChanged(nameof(IsConditionalOrder));
+            OnPropertyChanged(nameof(IsLimitOrderEntry));
+            OnPropertyChanged(nameof(IsMarketOrderEntry));
+            OnPropertyChanged(nameof(IsConditionalOrderEntry));
+            OnPropertyChanged(nameof(IsConditionalLimit));
+            OnPropertyChanged(nameof(IsConditionalMarket));
+            OnPropertyChanged(nameof(SelectedStopWorkingType));
+            OnPropertyChanged(nameof(OrderTimeInForce));
+            OnPropertyChanged(nameof(OrderReduceOnly));
             NotifyQuantityModeChanged();
             UpdateTotalCost();
         }
+
+        private static OrderEntryMode ParseOrderEntryMode(PlatformSettings settings)
+        {
+            if (Enum.TryParse<OrderEntryMode>(settings.OrderEntryMode, out var mode))
+            {
+                return mode;
+            }
+
+            return settings.IsLimitOrder ? OrderEntryMode.Limit : OrderEntryMode.Market;
+        }
+
+        private static StopWorkingType ParseStopWorkingType(string value) =>
+            Enum.TryParse<StopWorkingType>(value, out var mode) ? mode : StopWorkingType.ContractPrice;
 
         private static QuantityInputMode ParseQuantityInputMode(PlatformSettings settings)
         {
@@ -439,18 +697,27 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
         private void PersistTradingPreferences()
         {
             var settings = AppServices.Settings;
-            if (settings.IsLimitOrder == IsLimitOrder
+            var modeText = _orderEntryMode.ToString();
+            if (settings.OrderEntryMode == modeText
+                && settings.IsLimitOrder == (_orderEntryMode == OrderEntryMode.Limit)
+                && settings.ConditionalUseLimit == _conditionalUseLimit
+                && settings.StopWorkingType == _stopWorkingType.ToString()
+                && settings.OrderTimeInForce == _orderTimeInForce
                 && settings.QuantityInputMode == _quantityInputMode.ToString())
             {
                 return;
             }
 
-            settings.IsLimitOrder = IsLimitOrder;
+            settings.OrderEntryMode = modeText;
+            settings.IsLimitOrder = _orderEntryMode == OrderEntryMode.Limit;
+            settings.ConditionalUseLimit = _conditionalUseLimit;
+            settings.StopWorkingType = _stopWorkingType.ToString();
+            settings.OrderTimeInForce = _orderTimeInForce;
             settings.QuantityInputMode = _quantityInputMode.ToString();
             settings.QuantityInUsdt = _quantityInputMode != QuantityInputMode.Contracts;
             AppServices.SaveSettings(settings);
             AppServices.Log.Info(
-                $"Торговые настройки сохранены: {(IsLimitOrder ? "LIMIT" : "MARKET")}, {_quantityInputMode}.");
+                $"Торговые настройки сохранены: {modeText}, {_quantityInputMode}.");
         }
 
         private void OpenSettings()
@@ -597,6 +864,7 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             if (!string.IsNullOrEmpty(_apiKey) && !string.IsNullOrEmpty(_secretKey))
             {
                 await RefreshOrdersHistoryAsync(symbol);
+                await RefreshTradeHistoryAsync();
             }
         }
         #endregion
@@ -619,9 +887,14 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
                 };
 
                 // Если цена ордера пуста (при переключении пары), автозаполняем текущей ценой для лимитного ордера
-                if (string.IsNullOrEmpty(OrderPrice) && IsLimitOrder)
+                if (string.IsNullOrEmpty(OrderPrice) && (_orderEntryMode == OrderEntryMode.Limit || IsConditionalLimit))
                 {
                     OrderPrice = payload.LastPrice;
+                }
+
+                if (string.IsNullOrEmpty(OrderStopPrice) && IsConditionalOrder)
+                {
+                    OrderStopPrice = payload.LastPrice;
                 }
 
                 if (_applyMinQtyOnNextPrice)
@@ -811,6 +1084,115 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             {
                 await RefreshOrdersHistoryAsync(SelectedSymbol);
             }
+
+            await RefreshTradeHistoryAsync();
+        }
+
+        private async Task RefreshTradeHistoryAsync()
+        {
+            if (string.IsNullOrEmpty(_apiKey) || string.IsNullOrEmpty(_secretKey))
+            {
+                return;
+            }
+
+            AddLog("Загрузка истории сделок...");
+            var startTime = DateTimeOffset.UtcNow.AddDays(-TradeHistoryDays).ToUnixTimeMilliseconds();
+            var symbols = GetTradeHistorySymbols();
+            _tradeHistoryCache.Clear();
+
+            foreach (var symbol in symbols)
+            {
+                var rows = await _apiService.GetUserTradesAsync(symbol, startTime);
+                foreach (var row in rows)
+                {
+                    _tradeHistoryCache.Add(MapUserTrade(row));
+                }
+            }
+
+            RunOnUIThread(ApplyTradeHistoryFilter);
+        }
+
+        private HashSet<string> GetTradeHistorySymbols()
+        {
+            var symbols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (!string.IsNullOrEmpty(SelectedSymbol))
+            {
+                symbols.Add(SelectedSymbol);
+            }
+
+            if (!HideOtherTradeTickers)
+            {
+                foreach (var position in Positions)
+                {
+                    symbols.Add(position.Symbol);
+                }
+
+                foreach (var order in OrderHistory)
+                {
+                    symbols.Add(order.Symbol);
+                }
+
+                foreach (var order in OpenOrders)
+                {
+                    symbols.Add(order.Symbol);
+                }
+            }
+
+            return symbols;
+        }
+
+        private UserTradeModel MapUserTrade(UserTradeResponse raw)
+        {
+            var symbolInfo = _allSymbols.FirstOrDefault(s =>
+                s.Symbol.Equals(raw.Symbol, StringComparison.OrdinalIgnoreCase));
+            return new UserTradeModel
+            {
+                TradeId = raw.Id,
+                OrderId = raw.OrderId,
+                Time = DateTimeOffset.FromUnixTimeMilliseconds(raw.Time).DateTime.ToLocalTime(),
+                Symbol = raw.Symbol,
+                ContractBadge = GetContractBadge(symbolInfo),
+                IsBuy = raw.Side.Equals("BUY", StringComparison.OrdinalIgnoreCase),
+                Price = double.Parse(raw.Price, CultureInfo.InvariantCulture),
+                QuoteQty = double.Parse(raw.QuoteQty, CultureInfo.InvariantCulture),
+                Commission = double.Parse(raw.Commission, CultureInfo.InvariantCulture),
+                CommissionAsset = raw.CommissionAsset,
+                IsMaker = raw.Maker,
+                RealizedPnl = double.Parse(raw.RealizedPnl, CultureInfo.InvariantCulture),
+            };
+        }
+
+        private void ApplyTradeHistoryFilter()
+        {
+            TradeHistory.Clear();
+            IEnumerable<UserTradeModel> query = _tradeHistoryCache;
+            if (HideOtherTradeTickers && !string.IsNullOrEmpty(SelectedSymbol))
+            {
+                query = query.Where(t => t.Symbol.Equals(SelectedSymbol, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (TradeHistorySideFilter.Equals("Buy", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(t => t.IsBuy);
+            }
+            else if (TradeHistorySideFilter.Equals("Sell", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(t => !t.IsBuy);
+            }
+
+            foreach (var trade in query.OrderByDescending(t => t.Time))
+            {
+                TradeHistory.Add(trade);
+            }
+        }
+
+        private void ResetTradeHistoryFilters()
+        {
+            HideOtherTradeTickers = true;
+            TradeHistoryDays = 7;
+            TradeHistorySideFilter = "All";
+            OnPropertyChanged(nameof(TradeHistoryPeriodDisplay));
+            _ = RefreshTradeHistoryAsync();
         }
 
         private async Task RefreshOrdersHistoryAsync(string symbol)
@@ -840,6 +1222,12 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             }
 
             if (string.IsNullOrEmpty(SelectedSymbol)) return;
+
+            if (IsConditionalOrder)
+            {
+                await ExecuteConditionalOrderAsync(side);
+                return;
+            }
 
             var leverageError = await ValidateLeverageBeforeOrderAsync(SelectedSymbol);
             if (leverageError != null)
@@ -898,7 +1286,8 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
 
             try
             {
-                var response = await _apiService.PlaceOrderAsync(SelectedSymbol, side, orderType, qtyText, priceText);
+                var response = await _apiService.PlaceOrderAsync(
+                    SelectedSymbol, side, orderType, qtyText, priceText, timeInForce: _orderTimeInForce);
                 if (response != null)
                 {
                     var protectionErrors = await ApplyProtectionOrdersAsync(
@@ -926,6 +1315,148 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
                 AppServices.Log.Error($"PlaceOrder: {ex.Message}");
                 MessageBox.Show($"Ошибка размещения ордера:\n{ex.Message}", "Ошибка API", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private async Task ExecuteConditionalOrderAsync(string side)
+        {
+            var leverageError = await ValidateLeverageBeforeOrderAsync(SelectedSymbol);
+            if (leverageError != null)
+            {
+                AppServices.Log.Warn(leverageError);
+                MessageBox.Show(leverageError, "Риск-менеджер", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var symbolInfo = GetSelectedSymbolInfo();
+            if (symbolInfo == null)
+            {
+                return;
+            }
+
+            if (!double.TryParse(OrderStopPrice.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out var stopRaw)
+                || stopRaw <= 0)
+            {
+                MessageBox.Show("Введите корректную стоп-цену.", "Неверный ввод", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var stopText = symbolInfo.FormatPrice(stopRaw);
+            var stopPrice = double.Parse(stopText, CultureInfo.InvariantCulture);
+            var currentPrice = GetMarketReferencePrice();
+            if (currentPrice <= 0)
+            {
+                MessageBox.Show("Нет текущей цены для проверки стоп-цены.", "Неверный ввод", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (!ValidateStopTriggerPrice(side, stopPrice, currentPrice, out var stopError))
+            {
+                MessageBox.Show(stopError, "Стоп-цена", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            string? priceText = null;
+            if (IsConditionalLimit)
+            {
+                if (!double.TryParse(OrderPrice.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out var limitRaw)
+                    || limitRaw <= 0)
+                {
+                    MessageBox.Show("Введите корректную цену лимитного ордера.", "Неверный ввод", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                priceText = symbolInfo.FormatPrice(limitRaw);
+            }
+
+            if (!TryResolveContractQuantity(out var qty, out var qtyText, out var error))
+            {
+                MessageBox.Show(error, "Неверный ввод", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var priceForRisk = priceText != null
+                ? double.Parse(priceText, CultureInfo.InvariantCulture)
+                : stopPrice;
+            var notional = RiskManager.EstimateNotionalUsdt(qty, priceForRisk);
+            var positionsList = Positions.ToList();
+            var isNew = !OrderReduceOnly
+                && !positionsList.Any(p => p.Symbol.Equals(SelectedSymbol, StringComparison.OrdinalIgnoreCase));
+            if (!OrderReduceOnly)
+            {
+                var riskError = RiskManager.ValidateOrder(
+                    AppServices.Settings, notional, positionsList, SelectedSymbol, isNew);
+                if (riskError != null)
+                {
+                    AppServices.Log.Warn(riskError);
+                    MessageBox.Show(riskError, "Риск-менеджер", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+            }
+
+            var isLong = side.Equals("BUY", StringComparison.OrdinalIgnoreCase);
+            if (UseOrderSlTp
+                && !TryBuildProtectionPlan(isLong, priceForRisk, out _, out _, out error))
+            {
+                MessageBox.Show(error, "SL / TP", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var orderType = IsConditionalLimit ? "STOP" : "STOP_MARKET";
+            var workingType = _stopWorkingType == StopWorkingType.MarkPrice ? "MARK_PRICE" : "CONTRACT_PRICE";
+            var usdtNote = BuildQuantityLogNote(qtyText);
+            AddLog(
+                $"Отправка условного ордера: {side} {orderType} {qtyText} {SelectedSymbol}{usdtNote} "
+                + $"стоп={stopText} @ {(priceText ?? "MARKET")} ({workingType})");
+
+            try
+            {
+                var response = await _apiService.PlaceStopOrderAsync(
+                    SelectedSymbol,
+                    side,
+                    orderType,
+                    qtyText,
+                    stopText,
+                    priceText,
+                    workingType,
+                    _orderTimeInForce,
+                    OrderReduceOnly);
+
+                if (response != null)
+                {
+                    MessageBox.Show(
+                        $"Условный ордер размещён!\nID: {response.OrderId}\nСтатус: {response.Status}",
+                        "Успех",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+
+                    ApplyDefaultOrderQuantity();
+                    await RefreshAccountDataAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                AppServices.Log.Error($"PlaceConditionalOrder: {ex.Message}");
+                MessageBox.Show($"Ошибка размещения условного ордера:\n{ex.Message}", "Ошибка API", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private static bool ValidateStopTriggerPrice(string side, double stopPrice, double currentPrice, out string error)
+        {
+            var isBuy = side.Equals("BUY", StringComparison.OrdinalIgnoreCase);
+            if (isBuy && stopPrice <= currentPrice)
+            {
+                error = "Для BUY стоп-цена должна быть выше текущей цены.";
+                return false;
+            }
+
+            if (!isBuy && stopPrice >= currentPrice)
+            {
+                error = "Для SELL стоп-цена должна быть ниже текущей цены.";
+                return false;
+            }
+
+            error = string.Empty;
+            return true;
         }
 
         // Отмена открытого ордера
@@ -1001,6 +1532,7 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
                 Side = raw.Side,
                 Type = raw.Type,
                 Price = double.Parse(raw.Price, CultureInfo.InvariantCulture),
+                StopPrice = double.TryParse(raw.StopPrice, NumberStyles.Any, CultureInfo.InvariantCulture, out var sp) ? sp : 0,
                 OrigQty = double.Parse(raw.OrigQty, CultureInfo.InvariantCulture),
                 ExecutedQty = double.Parse(raw.ExecutedQty, CultureInfo.InvariantCulture),
                 Status = raw.Status
@@ -1063,13 +1595,42 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
                 _ => string.Empty,
             };
 
+        private double GetMarketReferencePrice()
+        {
+            if (Ticker != null && Ticker.LastPrice > 0)
+            {
+                return Ticker.LastPrice;
+            }
+
+            if (Bids.Any() && Asks.Any())
+            {
+                return (Bids[0].Price + Asks[0].Price) / 2.0;
+            }
+
+            return 0;
+        }
+
         private double GetOrderPriceEstimate()
         {
-            if (IsLimitOrder
-                && double.TryParse(OrderPrice.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out double limitPrice)
-                && limitPrice > 0)
+            if (IsConditionalOrder
+                && double.TryParse(OrderStopPrice.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out var stopPrice)
+                && stopPrice > 0)
             {
-                return limitPrice;
+                if (IsConditionalLimit
+                    && double.TryParse(OrderPrice.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out var limitPrice)
+                    && limitPrice > 0)
+                {
+                    return limitPrice;
+                }
+
+                return stopPrice;
+            }
+
+            if (IsLimitOrder
+                && double.TryParse(OrderPrice.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out double orderLimitPrice)
+                && orderLimitPrice > 0)
+            {
+                return orderLimitPrice;
             }
 
             if (Ticker != null && Ticker.LastPrice > 0)
@@ -1142,6 +1703,15 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
         }
 
         private void AddLog(string message) => AppServices.Log.Info(message);
+
+        private static void OpenConditionalInfoLink()
+        {
+            Process.Start(new ProcessStartInfo(
+                "https://www.binance.com/ru/support/faq/detail/998e63d2587d4e2fb894b1615de3b288")
+            {
+                UseShellExecute = true,
+            });
+        }
 
         private void NotifyLeverageChanged()
         {

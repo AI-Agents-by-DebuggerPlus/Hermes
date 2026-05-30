@@ -214,14 +214,81 @@ public sealed class OrderModel
     public string Side { get; set; } = string.Empty;
     public string Type { get; set; } = string.Empty;
     public double Price { get; set; }
+    public double StopPrice { get; set; }
     public double OrigQty { get; set; }
     public double ExecutedQty { get; set; }
     public string Status { get; set; } = string.Empty;
 
     public string TimeDisplay => Time.ToString("yyyy-MM-dd HH:mm:ss");
     public string PriceDisplay => Price > 0 ? Price.ToString("N4") : "MARKET";
+    public string StopPriceDisplay => StopPrice > 0 ? StopPrice.ToString("N4") : "—";
     public string AmountDisplay => OrigQty.ToString("N4");
     public string ExecutedDisplay => ExecutedQty.ToString("N4");
     public string SideDisplay => IsBuy ? "LONG" : "SHORT";
     public bool IsBuy => Side.Equals("BUY", StringComparison.OrdinalIgnoreCase);
+}
+
+public sealed class UserTradeResponse
+{
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+
+    [JsonPropertyName("orderId")]
+    public long OrderId { get; set; }
+
+    [JsonPropertyName("symbol")]
+    public string Symbol { get; set; } = string.Empty;
+
+    [JsonPropertyName("side")]
+    public string Side { get; set; } = string.Empty;
+
+    [JsonPropertyName("price")]
+    public string Price { get; set; } = "0";
+
+    [JsonPropertyName("qty")]
+    public string Qty { get; set; } = "0";
+
+    [JsonPropertyName("quoteQty")]
+    public string QuoteQty { get; set; } = "0";
+
+    [JsonPropertyName("commission")]
+    public string Commission { get; set; } = "0";
+
+    [JsonPropertyName("commissionAsset")]
+    public string CommissionAsset { get; set; } = "USDT";
+
+    [JsonPropertyName("realizedPnl")]
+    public string RealizedPnl { get; set; } = "0";
+
+    [JsonPropertyName("time")]
+    public long Time { get; set; }
+
+    [JsonPropertyName("maker")]
+    public bool Maker { get; set; }
+}
+
+public sealed class UserTradeModel
+{
+    public long TradeId { get; set; }
+    public long OrderId { get; set; }
+    public DateTime Time { get; set; }
+    public string Symbol { get; set; } = string.Empty;
+    public string ContractBadge { get; set; } = "Бесср";
+    public bool IsBuy { get; set; }
+    public double Price { get; set; }
+    public double QuoteQty { get; set; }
+    public double Commission { get; set; }
+    public string CommissionAsset { get; set; } = "USDT";
+    public bool IsMaker { get; set; }
+    public double RealizedPnl { get; set; }
+
+    public string OrderIdDisplay => OrderId.ToString(CultureInfo.InvariantCulture);
+    public string TimeDisplay => Time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+    public string SideDisplay => IsBuy ? "Покупка" : "Продать";
+    public string PriceDisplay => Price.ToString("N2", CultureInfo.InvariantCulture);
+    public string QuantityDisplay => $"{QuoteQty.ToString("N1", CultureInfo.InvariantCulture)} USDT";
+    public string CommissionDisplay =>
+        $"{Commission.ToString("N8", CultureInfo.InvariantCulture).TrimEnd('0').TrimEnd('.')} {CommissionAsset}";
+    public string RoleDisplay => IsMaker ? "Мейкер" : "Тейкер";
+    public string RealizedPnlDisplay => RealizedPnl.ToString("N8", CultureInfo.InvariantCulture);
 }

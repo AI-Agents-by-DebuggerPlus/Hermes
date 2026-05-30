@@ -429,7 +429,8 @@ public sealed class BinanceApiService
         string type,
         string quantity,
         string? price = null,
-        bool reduceOnly = false)
+        bool reduceOnly = false,
+        string timeInForce = "GTC")
     {
         if (string.IsNullOrEmpty(ApiKey) || string.IsNullOrEmpty(SecretKey))
         {
@@ -454,7 +455,7 @@ public sealed class BinanceApiService
             }
 
             sb.Append($"&price={price}");
-            sb.Append("&timeInForce=GTC");
+            sb.Append($"&timeInForce={timeInForce.ToUpperInvariant()}");
         }
 
         var url = SignedUrl("/fapi/v1/order", sb.ToString() + "&timestamp={0}", usePost: true);
@@ -474,29 +475,49 @@ public sealed class BinanceApiService
                ?? throw new Exception("Empty order response");
     }
 
-    public async Task<BinanceOrder> PlaceConditionalOrderAsync(
+    public async Task<BinanceOrder> PlaceStopOrderAsync(
         string symbol,
         string side,
         string type,
         string quantity,
-        string stopPrice)
+        string stopPrice,
+        string? price = null,
+        string workingType = "CONTRACT_PRICE",
+        string timeInForce = "GTC",
+        bool reduceOnly = false)
     {
         if (string.IsNullOrEmpty(ApiKey) || string.IsNullOrEmpty(SecretKey))
         {
             throw new InvalidOperationException("API credentials are not set.");
         }
 
+        var normalizedType = type.ToUpperInvariant();
         var sb = new StringBuilder();
         sb.Append($"symbol={symbol.ToUpperInvariant()}");
         sb.Append($"&side={side.ToUpperInvariant()}");
-        sb.Append($"&type={type.ToUpperInvariant()}");
+        sb.Append($"&type={normalizedType}");
         sb.Append($"&quantity={quantity}");
         sb.Append($"&stopPrice={stopPrice}");
-        sb.Append("&reduceOnly=true");
-        sb.Append("&workingType=CONTRACT_PRICE");
+        sb.Append($"&workingType={workingType.ToUpperInvariant()}");
+
+        if (normalizedType is "STOP" or "TAKE_PROFIT")
+        {
+            if (string.IsNullOrEmpty(price))
+            {
+                throw new ArgumentException("Цена обязательна для STOP/TAKE_PROFIT limit");
+            }
+
+            sb.Append($"&price={price}");
+            sb.Append($"&timeInForce={timeInForce.ToUpperInvariant()}");
+        }
+
+        if (reduceOnly)
+        {
+            sb.Append("&reduceOnly=true");
+        }
 
         var url = SignedUrl("/fapi/v1/order", sb.ToString() + "&timestamp={0}", usePost: true);
-        Log($"POST /fapi/v1/order {type} {side} {symbol} stop={stopPrice}");
+        Log($"POST /fapi/v1/order {normalizedType} {side} {symbol} stop={stopPrice}");
         using var request = new HttpRequestMessage(HttpMethod.Post, $"{BaseUrl}/fapi/v1/order");
         request.Headers.Add("X-MBX-APIKEY", ApiKey);
         request.Content = new StringContent(ExtractBody(url), Encoding.UTF8, "application/x-www-form-urlencoded");
@@ -504,13 +525,21 @@ public sealed class BinanceApiService
         var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
-            Log($"ConditionalOrder error: {content}");
+            Log($"StopOrder error: {content}");
             throw new Exception($"API Error: {content}");
         }
 
         return JsonSerializer.Deserialize<BinanceOrder>(content)
-               ?? throw new Exception("Empty conditional order response");
+               ?? throw new Exception("Empty stop order response");
     }
+
+    public Task<BinanceOrder> PlaceConditionalOrderAsync(
+        string symbol,
+        string side,
+        string type,
+        string quantity,
+        string stopPrice) =>
+        PlaceStopOrderAsync(symbol, side, type, quantity, stopPrice, reduceOnly: true);
 
     public async Task CancelConditionalOrdersAsync(string symbol, Func<string, bool> typeFilter)
     {
@@ -589,6 +618,46 @@ public sealed class BinanceApiService
         }
 
         return JsonSerializer.Deserialize<List<BinanceOrder>>(content) ?? [];
+    }
+
+    public async Task<List<UserTradeResponse>> GetUserTradesAsync(
+        string symbol,
+        long? startTime = null,
+        long? endTime = null,
+        int limit = 500)
+    {
+        if (string.IsNullOrEmpty(ApiKey) || string.IsNullOrEmpty(SecretKey) || string.IsNullOrEmpty(symbol))
+        {
+            return [];
+        }
+
+        var sb = new StringBuilder();
+        sb.Append($"symbol={symbol.ToUpperInvariant()}");
+        sb.Append(CultureInfo.InvariantCulture, $"&limit={limit}");
+        if (startTime.HasValue)
+        {
+            sb.Append(CultureInfo.InvariantCulture, $"&startTime={startTime.Value}");
+        }
+
+        if (endTime.HasValue)
+        {
+            sb.Append(CultureInfo.InvariantCulture, $"&endTime={endTime.Value}");
+        }
+
+        sb.Append("&timestamp={0}");
+        var url = SignedUrl("/fapi/v1/userTrades", sb.ToString());
+        Log($"GET /fapi/v1/userTrades {symbol}");
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Add("X-MBX-APIKEY", ApiKey);
+        var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
+        var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            Log($"UserTrades error: {content}");
+            return [];
+        }
+
+        return JsonSerializer.Deserialize<List<UserTradeResponse>>(content) ?? [];
     }
 
     private string SignedUrl(string path, string queryTemplate, bool usePost = false)

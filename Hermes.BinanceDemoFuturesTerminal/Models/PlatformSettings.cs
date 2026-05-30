@@ -19,8 +19,21 @@ public sealed class PlatformSettings
     /// <summary>Max leverage allowed for new exposure checks (informational).</summary>
     public int MaxLeverage { get; set; } = 20;
 
-    /// <summary>True = LIMIT, false = MARKET.</summary>
+    /// <summary>True = LIMIT, false = MARKET. Legacy; use OrderEntryMode when set.</summary>
     public bool IsLimitOrder { get; set; } = true;
+
+    /// <summary>Limit | Market | Conditional</summary>
+    public string OrderEntryMode { get; set; } = "Limit";
+
+    /// <summary>When conditional: limit or market after trigger.</summary>
+    public bool ConditionalUseLimit { get; set; } = true;
+
+    /// <summary>ContractPrice | MarkPrice</summary>
+    public string StopWorkingType { get; set; } = "ContractPrice";
+
+    public string OrderTimeInForce { get; set; } = "GTC";
+
+    public bool OrderReduceOnly { get; set; }
 
     /// <summary>True = quantity in USDT, false = in contracts. Legacy field.</summary>
     public bool QuantityInUsdt { get; set; } = true;

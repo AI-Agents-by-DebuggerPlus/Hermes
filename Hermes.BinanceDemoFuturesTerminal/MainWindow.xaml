@@ -246,6 +246,21 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="DarkHorizontalGridSplitterStyle" TargetType="GridSplitter">
+            <Setter Property="Height" Value="5"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="VerticalAlignment" Value="Stretch"/>
+            <Setter Property="Background" Value="#2B3139"/>
+            <Setter Property="ResizeDirection" Value="Rows"/>
+            <Setter Property="ShowsPreview" Value="False"/>
+            <Setter Property="Cursor" Value="SizeNS"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#474D57"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -310,12 +325,13 @@
                 <ColumnDefinition Width="300"/>
             </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="220"/>
+                <RowDefinition Height="*" MinHeight="120"/>
+                <RowDefinition Height="5"/>
+                <RowDefinition Height="220" MinHeight="80"/>
             </Grid.RowDefinitions>
 
             <!-- LЕВАЯ: ВЫБОР ТОРГОВЫХ ПАР -->
-            <Border Grid.Column="0" Grid.RowSpan="2" Background="{StaticResource BgDark}" BorderBrush="{StaticResource BorderSlate}" BorderThickness="0,0,1,0">
+            <Border Grid.Column="0" Grid.RowSpan="3" Background="{StaticResource BgDark}" BorderBrush="{StaticResource BorderSlate}" BorderThickness="0,0,1,0">
                 <Grid Margin="10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -602,8 +618,181 @@
                 </Grid>
             </Border>
 
-            <!-- ПРАВАЯ: ФОРМА ОРДЕРА -->
-            <Border Grid.Column="3" Grid.Row="0" Background="{StaticResource BgCard}" BorderBrush="{StaticResource BorderSlate}" BorderThickness="1,0,0,0">
+            <!-- Разделитель: график/стакан ↔ нижняя панель (не затрагивает правую колонку) -->
+            <GridSplitter Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                          Style="{StaticResource DarkHorizontalGridSplitterStyle}"/>
+
+            <!-- НИЖНЯЯ ПАНЕЛЬ: ПОЗИЦИИ / ОРДЕРА (под графиком и стаканом) -->
+            <Border Grid.Column="0" Grid.ColumnSpan="3" Grid.Row="2" Background="{StaticResource BgCard}" BorderBrush="{StaticResource BorderSlate}" BorderThickness="0,1,0,0">
+            <TabControl Background="Transparent" BorderThickness="0" Margin="10,5">
+                <TabControl.Resources>
+                    <!-- Кастомная стилизация вкладок в темную тему -->
+                    <Style TargetType="TabItem">
+                        <Setter Property="Header" Value="{Binding Header}"/>
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="Foreground" Value="#848E9C"/>
+                        <Setter Property="FontWeight" Value="Bold"/>
+                        <Setter Property="FontSize" Value="11.5"/>
+                        <Setter Property="Padding" Value="15,6"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="TabItem">
+                                    <Border Name="Border" Background="{TemplateBinding Background}" BorderBrush="{StaticResource BorderSlate}" BorderThickness="0,0,0,2" Margin="0,0,10,0">
+                                        <ContentPresenter x:Name="ContentSite" ContentSource="Header" Margin="{TemplateBinding Padding}"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+                                            <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource CyanActive}"/>
+                                        </Trigger>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Foreground" Value="#EAECEF"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </TabControl.Resources>
+
+                <!-- ВКЛАДКА: АКТИВЫ -->
+                <TabItem Header="{Binding BalancesTabHeader}">
+                    <Grid Margin="0,8,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Button Grid.Row="0" Content="Обновить кошелек" Style="{StaticResource SecondaryBtnStyle}" Command="{Binding RefreshBalancesCommand}" HorizontalAlignment="Left" Width="135" Height="22" FontSize="10" Margin="0,0,0,5"/>
+
+                        <ListView Grid.Row="1" Background="Transparent" BorderThickness="0" ItemsSource="{Binding Balances}" Foreground="{StaticResource TextMain}">
+                            <ListView.View>
+                                <GridView ColumnHeaderContainerStyle="{StaticResource DarkGridViewColumnHeaderStyle}">
+                                    <GridViewColumn Header="Актив" Width="100" DisplayMemberBinding="{Binding Asset}"/>
+                                    <GridViewColumn Header="Доступно" Width="160" DisplayMemberBinding="{Binding FreeDisplay}"/>
+                                    <GridViewColumn Header="В ордерах" Width="160" DisplayMemberBinding="{Binding LockedDisplay}"/>
+                                    <GridViewColumn Header="Всего" Width="160" DisplayMemberBinding="{Binding TotalDisplay}"/>
+                                </GridView>
+                            </ListView.View>
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem" BasedOn="{StaticResource DarkListViewItemStyle}">
+                                    <Setter Property="Height" Value="24"/>
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                        </ListView>
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="{Binding PositionsTabHeader}">
+                    <ctrl:PositionsPanel DataContext="{Binding}"/>
+                </TabItem>
+
+                <TabItem Header="{Binding OpenOrdersTabHeader}">
+                    <Grid Margin="0,8,0,0">
+                        <ListView Background="Transparent" BorderThickness="0" ItemsSource="{Binding OpenOrders}" Foreground="{StaticResource TextMain}">
+                            <ListView.View>
+                                <GridView ColumnHeaderContainerStyle="{StaticResource DarkGridViewColumnHeaderStyle}">
+                                    <GridViewColumn Header="Время" Width="130" DisplayMemberBinding="{Binding TimeDisplay}"/>
+                                    <GridViewColumn Header="Пара" Width="80" DisplayMemberBinding="{Binding Symbol}"/>
+                                    <GridViewColumn Header="Направление" Width="80">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding SideDisplay}" FontWeight="Bold">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource BullishGreen}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsBuy}" Value="False">
+                                                                    <Setter Property="Foreground" Value="{StaticResource BearishRed}"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                    <GridViewColumn Header="Тип" Width="80" DisplayMemberBinding="{Binding Type}"/>
+                                    <GridViewColumn Header="Цена" Width="100" DisplayMemberBinding="{Binding PriceDisplay}"/>
+                                    <GridViewColumn Header="Количество" Width="100" DisplayMemberBinding="{Binding AmountDisplay}"/>
+                                    <GridViewColumn Header="Исполнено" Width="100" DisplayMemberBinding="{Binding ExecutedDisplay}"/>
+                                    <GridViewColumn Header="Статус" Width="100" DisplayMemberBinding="{Binding Status}"/>
+                                    <GridViewColumn Header="Действие" Width="100">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Button Content="Отменить" FontSize="9.5" Background="#2B3139" Foreground="#F6465D" FontWeight="Bold" BorderThickness="0" Padding="6,2" Height="18"
+                                                        Command="{Binding DataContext.CancelOrderCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                </GridView>
+                            </ListView.View>
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem" BasedOn="{StaticResource DarkListViewItemStyle}">
+                                    <Setter Property="Height" Value="25"/>
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                        </ListView>
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="ИСТОРИЯ ОРДЕРОВ">
+                    <Grid Margin="0,8,0,0">
+                        <ListView Background="Transparent" BorderThickness="0" ItemsSource="{Binding OrderHistory}" Foreground="{StaticResource TextMain}">
+                            <ListView.View>
+                                <GridView ColumnHeaderContainerStyle="{StaticResource DarkGridViewColumnHeaderStyle}">
+                                    <GridViewColumn Header="ID Ордера" Width="100" DisplayMemberBinding="{Binding OrderId}"/>
+                                    <GridViewColumn Header="Время" Width="130" DisplayMemberBinding="{Binding TimeDisplay}"/>
+                                    <GridViewColumn Header="Пара" Width="80" DisplayMemberBinding="{Binding Symbol}"/>
+                                    <GridViewColumn Header="Направление" Width="80">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding SideDisplay}" FontWeight="Bold">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource BullishGreen}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsBuy}" Value="False">
+                                                                    <Setter Property="Foreground" Value="{StaticResource BearishRed}"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                    <GridViewColumn Header="Тип" Width="80" DisplayMemberBinding="{Binding Type}"/>
+                                    <GridViewColumn Header="Цена" Width="100" DisplayMemberBinding="{Binding PriceDisplay}"/>
+                                    <GridViewColumn Header="Количество" Width="100" DisplayMemberBinding="{Binding AmountDisplay}"/>
+                                    <GridViewColumn Header="Исполнено" Width="100" DisplayMemberBinding="{Binding ExecutedDisplay}"/>
+                                    <GridViewColumn Header="Статус" Width="110" DisplayMemberBinding="{Binding Status}"/>
+                                </GridView>
+                            </ListView.View>
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem" BasedOn="{StaticResource DarkListViewItemStyle}">
+                                    <Setter Property="Height" Value="25"/>
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                        </ListView>
+                    </Grid>
+                </TabItem>
+
+                <!-- ВКЛАДКА: ИСТОРИЯ СДЕЛОК -->
+                <TabItem Header="{Binding TradeHistoryTabHeader}">
+                    <ctrl:TradeHistoryPanel DataContext="{Binding}"/>
+                </TabItem>
+            </TabControl>
+            </Border>
+
+            <!-- ПРАВАЯ КОЛОНКА: ОРДЕР + АККАУНТ (на всю высоту окна) -->
+            <Grid Grid.Column="3" Grid.Row="0" Grid.RowSpan="3">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+            <!-- ФОРМА ОРДЕРА -->
+            <Border Grid.Row="0" Background="{StaticResource BgCard}" BorderBrush="{StaticResource BorderSlate}" BorderThickness="1,0,0,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="12,10">
                         <TextBlock Text="ОРДЕР" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMain}" Margin="0,0,0,10"/>
@@ -630,9 +819,9 @@
                         <!-- Лимит / Рынок -->
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                             <RadioButton GroupName="OrderType" Content="Лимит" Foreground="{StaticResource TextMain}" FontSize="11" FontWeight="Bold"
-                                         IsChecked="{Binding IsLimitOrder}" Margin="0,0,16,0" Padding="0,4"/>
+                                         IsChecked="{Binding IsLimitOrderEntry}" Margin="0,0,16,0" Padding="0,4"/>
                             <RadioButton GroupName="OrderType" Content="Рынок" Foreground="{StaticResource TextMain}" FontSize="11" FontWeight="Bold"
-                                         IsChecked="{Binding IsMarketOrder}" Padding="0,4"/>
+                                         IsChecked="{Binding IsMarketOrderEntry}" Padding="0,4"/>
                         </StackPanel>
 
                         <!-- Цена -->
@@ -713,169 +902,8 @@
                 </ScrollViewer>
             </Border>
 
-            <!-- НИЖНЯЯ ПАНЕЛЬ: ПОЗИЦИИ / ОРДЕРА (под графиком и стаканом) -->
-            <Border Grid.Column="0" Grid.ColumnSpan="3" Grid.Row="1" Background="{StaticResource BgCard}" BorderBrush="{StaticResource BorderSlate}" BorderThickness="0,1,0,0">
-            <TabControl Background="Transparent" BorderThickness="0" Margin="10,5">
-                <TabControl.Resources>
-                    <!-- Кастомная стилизация вкладок в темную тему -->
-                    <Style TargetType="TabItem">
-                        <Setter Property="Header" Value="{Binding Header}"/>
-                        <Setter Property="Background" Value="Transparent"/>
-                        <Setter Property="Foreground" Value="#848E9C"/>
-                        <Setter Property="FontWeight" Value="Bold"/>
-                        <Setter Property="FontSize" Value="11.5"/>
-                        <Setter Property="Padding" Value="15,6"/>
-                        <Setter Property="Template">
-                            <Setter.Value>
-                                <ControlTemplate TargetType="TabItem">
-                                    <Border Name="Border" Background="{TemplateBinding Background}" BorderBrush="{StaticResource BorderSlate}" BorderThickness="0,0,0,2" Margin="0,0,10,0">
-                                        <ContentPresenter x:Name="ContentSite" ContentSource="Header" Margin="{TemplateBinding Padding}"/>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsSelected" Value="True">
-                                            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
-                                            <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource CyanActive}"/>
-                                        </Trigger>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter Property="Foreground" Value="#EAECEF"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Setter.Value>
-                        </Setter>
-                    </Style>
-                </TabControl.Resources>
-
-                <!-- ВКЛАДКА: АКТИВЫ -->
-                <TabItem Header="{Binding BalancesTabHeader}">
-                    <Grid Margin="0,8,0,0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
-                        <!-- Кнопка обновления баланса -->
-                        <Button Grid.Row="0" Content="Обновить кошелек" Style="{StaticResource SecondaryBtnStyle}" Command="{Binding RefreshBalancesCommand}" HorizontalAlignment="Left" Width="135" Height="22" FontSize="10" Margin="0,0,0,5"/>
-
-                        <ListView Grid.Row="1" Background="Transparent" BorderThickness="0" ItemsSource="{Binding Balances}" Foreground="{StaticResource TextMain}">
-                            <ListView.View>
-                                <GridView ColumnHeaderContainerStyle="{StaticResource DarkGridViewColumnHeaderStyle}">
-                                    <GridViewColumn Header="Актив" Width="100" DisplayMemberBinding="{Binding Asset}"/>
-                                    <GridViewColumn Header="Доступно" Width="160" DisplayMemberBinding="{Binding FreeDisplay}"/>
-                                    <GridViewColumn Header="В ордерах" Width="160" DisplayMemberBinding="{Binding LockedDisplay}"/>
-                                    <GridViewColumn Header="Всего" Width="160" DisplayMemberBinding="{Binding TotalDisplay}"/>
-                                </GridView>
-                            </ListView.View>
-                            <ListView.ItemContainerStyle>
-                                <Style TargetType="ListViewItem" BasedOn="{StaticResource DarkListViewItemStyle}">
-                                    <Setter Property="Height" Value="24"/>
-                                </Style>
-                            </ListView.ItemContainerStyle>
-                        </ListView>
-                    </Grid>
-                </TabItem>
-
-                <!-- ВКЛАДКА: ПОЗИЦИИ -->
-                <TabItem Header="{Binding PositionsTabHeader}">
-                    <ctrl:PositionsPanel DataContext="{Binding}"/>
-                </TabItem>
-
-                <!-- ВКЛАДКА: ОТКРЫТЫЕ ОРДЕРА -->
-                <TabItem Header="{Binding OpenOrdersTabHeader}">
-                    <Grid Margin="0,8,0,0">
-                        <ListView Background="Transparent" BorderThickness="0" ItemsSource="{Binding OpenOrders}" Foreground="{StaticResource TextMain}">
-                            <ListView.View>
-                                <GridView ColumnHeaderContainerStyle="{StaticResource DarkGridViewColumnHeaderStyle}">
-                                    <GridViewColumn Header="Время" Width="130" DisplayMemberBinding="{Binding TimeDisplay}"/>
-                                    <GridViewColumn Header="Пара" Width="80" DisplayMemberBinding="{Binding Symbol}"/>
-                                    <GridViewColumn Header="Направление" Width="80">
-                                        <GridViewColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding SideDisplay}" FontWeight="Bold">
-                                                    <TextBlock.Style>
-                                                        <Style TargetType="TextBlock">
-                                                            <Setter Property="Foreground" Value="{StaticResource BullishGreen}"/>
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsBuy}" Value="False">
-                                                                    <Setter Property="Foreground" Value="{StaticResource BearishRed}"/>
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </TextBlock.Style>
-                                                </TextBlock>
-                                            </DataTemplate>
-                                        </GridViewColumn.CellTemplate>
-                                    </GridViewColumn>
-                                    <GridViewColumn Header="Тип" Width="80" DisplayMemberBinding="{Binding Type}"/>
-                                    <GridViewColumn Header="Цена" Width="100" DisplayMemberBinding="{Binding PriceDisplay}"/>
-                                    <GridViewColumn Header="Количество" Width="100" DisplayMemberBinding="{Binding AmountDisplay}"/>
-                                    <GridViewColumn Header="Исполнено" Width="100" DisplayMemberBinding="{Binding ExecutedDisplay}"/>
-                                    <GridViewColumn Header="Статус" Width="100" DisplayMemberBinding="{Binding Status}"/>
-                                    <GridViewColumn Header="Действие" Width="100">
-                                        <GridViewColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <Button Content="Отменить" FontSize="9.5" Background="#2B3139" Foreground="#F6465D" FontWeight="Bold" BorderThickness="0" Padding="6,2" Height="18"
-                                                        Command="{Binding DataContext.CancelOrderCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                            </DataTemplate>
-                                        </GridViewColumn.CellTemplate>
-                                    </GridViewColumn>
-                                </GridView>
-                            </ListView.View>
-                            <ListView.ItemContainerStyle>
-                                <Style TargetType="ListViewItem" BasedOn="{StaticResource DarkListViewItemStyle}">
-                                    <Setter Property="Height" Value="25"/>
-                                </Style>
-                            </ListView.ItemContainerStyle>
-                        </ListView>
-                    </Grid>
-                </TabItem>
-
-                <!-- ВКЛАДКА: ИСТОРИЯ ОРДЕРОВ -->
-                <TabItem Header="ИСТОРИЯ ОРДЕРОВ">
-                    <Grid Margin="0,8,0,0">
-                        <ListView Background="Transparent" BorderThickness="0" ItemsSource="{Binding OrderHistory}" Foreground="{StaticResource TextMain}">
-                            <ListView.View>
-                                <GridView ColumnHeaderContainerStyle="{StaticResource DarkGridViewColumnHeaderStyle}">
-                                    <GridViewColumn Header="ID Ордера" Width="100" DisplayMemberBinding="{Binding OrderId}"/>
-                                    <GridViewColumn Header="Время" Width="130" DisplayMemberBinding="{Binding TimeDisplay}"/>
-                                    <GridViewColumn Header="Пара" Width="80" DisplayMemberBinding="{Binding Symbol}"/>
-                                    <GridViewColumn Header="Направление" Width="80">
-                                        <GridViewColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding SideDisplay}" FontWeight="Bold">
-                                                    <TextBlock.Style>
-                                                        <Style TargetType="TextBlock">
-                                                            <Setter Property="Foreground" Value="{StaticResource BullishGreen}"/>
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsBuy}" Value="False">
-                                                                    <Setter Property="Foreground" Value="{StaticResource BearishRed}"/>
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </TextBlock.Style>
-                                                </TextBlock>
-                                            </DataTemplate>
-                                        </GridViewColumn.CellTemplate>
-                                    </GridViewColumn>
-                                    <GridViewColumn Header="Тип" Width="80" DisplayMemberBinding="{Binding Type}"/>
-                                    <GridViewColumn Header="Цена" Width="100" DisplayMemberBinding="{Binding PriceDisplay}"/>
-                                    <GridViewColumn Header="Количество" Width="100" DisplayMemberBinding="{Binding AmountDisplay}"/>
-                                    <GridViewColumn Header="Исполнено" Width="100" DisplayMemberBinding="{Binding ExecutedDisplay}"/>
-                                    <GridViewColumn Header="Статус" Width="110" DisplayMemberBinding="{Binding Status}"/>
-                                </GridView>
-                            </ListView.View>
-                            <ListView.ItemContainerStyle>
-                                <Style TargetType="ListViewItem" BasedOn="{StaticResource DarkListViewItemStyle}">
-                                    <Setter Property="Height" Value="25"/>
-                                </Style>
-                            </ListView.ItemContainerStyle>
-                        </ListView>
-                    </Grid>
-                </TabItem>
-            </TabControl>
-            </Border>
-
             <!-- АККАУНТ (под формой ордера) -->
-            <Border Grid.Column="3" Grid.Row="1" Background="{StaticResource BgCard}" BorderBrush="{StaticResource BorderSlate}" BorderThickness="1,1,0,0">
+            <Border Grid.Row="1" Background="{StaticResource BgCard}" BorderBrush="{StaticResource BorderSlate}" BorderThickness="1,1,0,0">
                 <StackPanel Margin="12,10">
                     <TextBlock Text="АККАУНТ" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMain}" Margin="0,0,0,10"/>
                     <Grid Margin="0,0,0,6">
@@ -898,6 +926,7 @@
                             HorizontalAlignment="Stretch" Height="28" FontSize="10"/>
                 </StackPanel>
             </Border>
+            </Grid>
         </Grid>
     </Grid>
 </Window>
