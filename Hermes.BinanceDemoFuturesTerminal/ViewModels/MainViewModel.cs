@@ -73,6 +73,7 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
         private int _exchangeSymbolLeverage = 20;
         private FuturesMarginType _symbolMarginMode = FuturesMarginType.Cross;
         private string _contractQtyPreview = string.Empty;
+        private ChartIntervalOption _selectedChartInterval = ChartIntervalOption.All[0];
         private bool _applyMinQtyOnNextPrice;
 
         #region Свойства
@@ -395,6 +396,56 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             set => SetProperty(ref _tradeHistory, value);
         }
 
+        public IReadOnlyList<ChartIntervalOption> ChartIntervals => ChartIntervalOption.All;
+
+        public int SelectedChartIntervalIndex
+        {
+            get
+            {
+                for (var i = 0; i < ChartIntervalOption.All.Count; i++)
+                {
+                    if (ChartIntervalOption.All[i].ApiInterval == _selectedChartInterval.ApiInterval)
+                    {
+                        return i;
+                    }
+                }
+
+                return 0;
+            }
+            set
+            {
+                if (value < 0 || value >= ChartIntervalOption.All.Count)
+                {
+                    return;
+                }
+
+                var next = ChartIntervalOption.All[value];
+                if (_selectedChartInterval.ApiInterval == next.ApiInterval)
+                {
+                    return;
+                }
+
+                _selectedChartInterval = next;
+                OnPropertyChanged(nameof(SelectedChartIntervalIndex));
+                OnPropertyChanged(nameof(SelectedChartIntervalLabel));
+                PersistChartInterval();
+                _ = ChangeChartIntervalAsync();
+            }
+        }
+
+        private async Task ChangeChartIntervalAsync()
+        {
+            if (string.IsNullOrEmpty(SelectedSymbol))
+            {
+                return;
+            }
+
+            await ReloadChartAsync(SelectedSymbol);
+            await _wsService.UpdateKlineStreamAsync(SelectedSymbol, _selectedChartInterval.StreamSuffix);
+        }
+
+        public string SelectedChartIntervalLabel => _selectedChartInterval.Label;
+
         public bool HideOtherTradeTickers
         {
             get => _hideOtherTradeTickers;
@@ -625,6 +676,7 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             _orderTimeInForce = string.IsNullOrWhiteSpace(settings.OrderTimeInForce) ? "GTC" : settings.OrderTimeInForce;
             _orderReduceOnly = settings.OrderReduceOnly;
             _quantityInputMode = ParseQuantityInputMode(settings);
+            _selectedChartInterval = ChartIntervalOption.Parse(settings.ChartInterval);
             OnPropertyChanged(nameof(SelectedOrderEntryMode));
             OnPropertyChanged(nameof(IsLimitOrder));
             OnPropertyChanged(nameof(IsMarketOrder));
@@ -638,6 +690,8 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             OnPropertyChanged(nameof(OrderTimeInForce));
             OnPropertyChanged(nameof(OrderReduceOnly));
             NotifyQuantityModeChanged();
+            OnPropertyChanged(nameof(SelectedChartIntervalIndex));
+            OnPropertyChanged(nameof(SelectedChartIntervalLabel));
             UpdateTotalCost();
         }
 
@@ -718,6 +772,20 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             AppServices.SaveSettings(settings);
             AppServices.Log.Info(
                 $"Торговые настройки сохранены: {modeText}, {_quantityInputMode}.");
+        }
+
+        private void PersistChartInterval()
+        {
+            var settings = AppServices.Settings;
+            var interval = _selectedChartInterval.ApiInterval;
+            if (settings.ChartInterval == interval)
+            {
+                return;
+            }
+
+            settings.ChartInterval = interval;
+            AppServices.SaveSettings(settings);
+            AppServices.Log.Info($"Таймфрейм графика сохранён: {interval}.");
         }
 
         private void OpenSettings()
@@ -809,6 +877,29 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             }
         }
 
+        private async Task ReloadChartAsync(string? symbol = null)
+        {
+            symbol ??= SelectedSymbol;
+            if (string.IsNullOrEmpty(symbol))
+            {
+                return;
+            }
+
+            var historicalCandles = await _apiService.GetKlinesAsync(
+                symbol,
+                _selectedChartInterval.ApiInterval,
+                _selectedChartInterval.CandleLimit);
+
+            RunOnUIThread(() =>
+            {
+                Candles.Clear();
+                foreach (var candle in historicalCandles)
+                {
+                    Candles.Add(candle);
+                }
+            });
+        }
+
         private async void OnSymbolChangedAsync(string symbol)
         {
             if (string.IsNullOrEmpty(symbol)) return;
@@ -823,8 +914,8 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             Candles.Clear();
             SpreadDisplay = "Спред: Расчет...";
 
-            // 1. Загрузка исторических свечей (1m, 100 штук) через REST
-            var historicalCandles = await _apiService.GetKlinesAsync(symbol, "1m", 100);
+            // 1. Загрузка исторических свечей через REST
+            await ReloadChartAsync(symbol);
             var depthSnapshot = await _apiService.GetDepthAsync(symbol, 20);
             var leverage = 20;
             var marginMode = FuturesMarginType.Cross;
@@ -838,11 +929,6 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
 
             RunOnUIThread(() =>
             {
-                foreach (var candle in historicalCandles)
-                {
-                    Candles.Add(candle);
-                }
-
                 if (depthSnapshot != null)
                 {
                     ApplyDepth(depthSnapshot);
@@ -858,7 +944,7 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             });
 
             // 2. Подписка на стримы в WebSockets
-            await _wsService.SubscribeSymbolAsync(symbol);
+            await _wsService.SubscribeSymbolAsync(symbol, _selectedChartInterval.StreamSuffix);
 
             // 3. Обновление истории ордеров по этой паре
             if (!string.IsNullOrEmpty(_apiKey) && !string.IsNullOrEmpty(_secretKey))

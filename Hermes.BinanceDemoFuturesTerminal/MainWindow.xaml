@@ -385,6 +385,7 @@
             <Grid Grid.Column="1" Grid.Row="0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="50"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
@@ -451,8 +452,59 @@
                     </Grid>
                 </Border>
 
+                <!-- Таймфрейм графика -->
+                <Border Grid.Row="1" Background="#14171C" BorderBrush="{StaticResource BorderSlate}" BorderThickness="0,0,0,1" Padding="10,4">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Интервал" FontSize="10" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <ListBox ItemsSource="{Binding ChartIntervals}"
+                                 SelectedIndex="{Binding SelectedChartIntervalIndex}"
+                                 Background="Transparent" BorderThickness="0"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                            <ListBox.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal"/>
+                                </ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="Margin" Value="0,0,4,0"/>
+                                    <Setter Property="Foreground" Value="#848E9C"/>
+                                    <Setter Property="FontSize" Value="10"/>
+                                    <Setter Property="Cursor" Value="Hand"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListBoxItem">
+                                                <Border x:Name="Chip" Background="#252930" CornerRadius="3" Padding="10,4">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsSelected" Value="True">
+                                                        <Setter TargetName="Chip" Property="Background" Value="#383f49"/>
+                                                        <Setter Property="Foreground" Value="#EAECEF"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="Chip" Property="Background" Value="#383f49"/>
+                                                        <Setter Property="Foreground" Value="#EAECEF"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Label}" FontWeight="SemiBold"/>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </StackPanel>
+                </Border>
+
                 <!-- Кастомный график свечей -->
-                <ctrl:CandlestickChart Grid.Row="1" Candles="{Binding Candles}" Margin="2,2,2,2"/>
+                <ctrl:CandlestickChart Grid.Row="2" Candles="{Binding Candles}" LastPrice="{Binding Ticker.LastPrice, FallbackValue=0}" Margin="0"/>
             </Grid>
 
             <!-- ПРАВАЯ-ЦЕНТР: СТАКАН И СДЕЛКИ -->

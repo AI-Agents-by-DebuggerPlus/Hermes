@@ -51,4 +51,7 @@ public sealed class PlatformSettings
 
     /// <summary>Cross | Isolated</summary>
     public string DefaultMarginType { get; set; } = "Cross";
+
+    /// <summary>Chart kline interval: 1m, 5m, 15m, 1h, 4h, 1d</summary>
+    public string ChartInterval { get; set; } = "1m";
 }

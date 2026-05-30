@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -16,7 +17,8 @@ namespace Hermes.BinanceDemoFuturesTerminal.Services
         private CancellationTokenSource _cts;
         private readonly Action<string> _logger;
         private readonly List<string> _activeStreams = new List<string>();
-        private string _currentSymbol;
+        private string _currentSymbol = string.Empty;
+        private string _currentKlineStream = "kline_1m";
 
         public event Action<WsTickerPayload> OnTickerReceived;
         public event Action<WsDepthPayload> OnDepthReceived;
@@ -63,7 +65,7 @@ namespace Hermes.BinanceDemoFuturesTerminal.Services
         }
 
         // Подписка на стримы конкретной торговой пары
-        public async Task SubscribeSymbolAsync(string symbol)
+        public async Task SubscribeSymbolAsync(string symbol, string klineStreamSuffix = "kline_1m")
         {
             if (string.IsNullOrEmpty(symbol)) return;
             symbol = symbol.ToLower();
@@ -76,36 +78,115 @@ namespace Hermes.BinanceDemoFuturesTerminal.Services
                 return;
             }
 
-            // Отписка от предыдущей пары, если она была выбрана
             if (!string.IsNullOrEmpty(_currentSymbol) && _currentSymbol != symbol)
             {
                 await UnsubscribeSymbolAsync(_currentSymbol);
             }
+            else if (!string.IsNullOrEmpty(_currentSymbol)
+                     && _currentSymbol == symbol
+                     && !string.Equals(_currentKlineStream, klineStreamSuffix, StringComparison.OrdinalIgnoreCase))
+            {
+                await UnsubscribeStreamAsync($"{symbol}@{_currentKlineStream}");
+            }
 
             _currentSymbol = symbol;
+            _currentKlineStream = klineStreamSuffix;
 
             var streams = new List<string>
             {
                 $"{symbol}@ticker",
                 $"{symbol}@depth20@100ms",
                 $"{symbol}@trade",
-                $"{symbol}@kline_1m"
+                $"{symbol}@{klineStreamSuffix}"
             };
+
+            var newStreams = streams.Where(s => !_activeStreams.Contains(s)).ToList();
+            if (newStreams.Count == 0)
+            {
+                return;
+            }
 
             var request = new
             {
                 method = "SUBSCRIBE",
-                @params = streams,
+                @params = newStreams,
                 id = DateTime.Now.Ticks
             };
 
             string json = JsonSerializer.Serialize(request);
-            Log($"Отправка запроса подписки для {symbol.ToUpper()}");
+            Log($"Отправка запроса подписки для {symbol.ToUpper()} ({string.Join(", ", newStreams)})");
             await SendMessageAsync(json);
 
             lock (_activeStreams)
             {
-                _activeStreams.AddRange(streams);
+                _activeStreams.AddRange(newStreams);
+            }
+        }
+
+        public async Task UpdateKlineStreamAsync(string symbol, string klineStreamSuffix)
+        {
+            if (string.IsNullOrEmpty(symbol) || !IsConnected)
+            {
+                return;
+            }
+
+            symbol = symbol.ToLower();
+            if (!string.Equals(_currentSymbol, symbol, StringComparison.OrdinalIgnoreCase))
+            {
+                await SubscribeSymbolAsync(symbol, klineStreamSuffix);
+                return;
+            }
+
+            if (string.Equals(_currentKlineStream, klineStreamSuffix, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            await UnsubscribeStreamAsync($"{symbol}@{_currentKlineStream}");
+            _currentKlineStream = klineStreamSuffix;
+            await SubscribeStreamsAsync([$"{symbol}@{klineStreamSuffix}"]);
+        }
+
+        private async Task SubscribeStreamsAsync(IEnumerable<string> streams)
+        {
+            var list = streams.Where(s => !_activeStreams.Contains(s)).ToList();
+            if (list.Count == 0)
+            {
+                return;
+            }
+
+            var request = new
+            {
+                method = "SUBSCRIBE",
+                @params = list,
+                id = DateTime.Now.Ticks
+            };
+
+            await SendMessageAsync(JsonSerializer.Serialize(request));
+            lock (_activeStreams)
+            {
+                _activeStreams.AddRange(list);
+            }
+        }
+
+        private async Task UnsubscribeStreamAsync(string stream)
+        {
+            if (string.IsNullOrEmpty(stream) || !IsConnected)
+            {
+                return;
+            }
+
+            var request = new
+            {
+                method = "UNSUBSCRIBE",
+                @params = new[] { stream },
+                id = DateTime.Now.Ticks
+            };
+
+            await SendMessageAsync(JsonSerializer.Serialize(request));
+            lock (_activeStreams)
+            {
+                _activeStreams.Remove(stream);
             }
         }
 
@@ -120,7 +201,7 @@ namespace Hermes.BinanceDemoFuturesTerminal.Services
                 $"{symbol}@ticker",
                 $"{symbol}@depth20@100ms",
                 $"{symbol}@trade",
-                $"{symbol}@kline_1m"
+                $"{symbol}@{_currentKlineStream}"
             };
 
             var request = new

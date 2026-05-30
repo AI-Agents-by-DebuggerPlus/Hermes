@@ -17,5 +17,6 @@
   "ApplyDefaultLeverageToAllSymbols": true,
   "DefaultLeverage": 10,
   "ApplyDefaultMarginTypeToAllSymbols": false,
-  "DefaultMarginType": "Cross"
+  "DefaultMarginType": "Cross",
+  "ChartInterval": "15m"
 }
