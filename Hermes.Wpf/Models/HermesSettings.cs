@@ -240,6 +240,14 @@ public sealed class HermesSettings
 
     public string SpotTerminalCliPath { get; set; } = string.Empty;
 
+    /// <summary>Inject Binance Demo Futures bridge into Hermes chat.</summary>
+    public bool FuturesTerminalIntegrationEnabled { get; set; } = true;
+
+    /// <summary>Auto-launch Hermes.BinanceDemoFuturesTerminal.exe when futures heartbeat is stale.</summary>
+    public bool FuturesTerminalAutoLaunch { get; set; } = true;
+
+    public string FuturesTerminalExePath { get; set; } = string.Empty;
+
     /// <summary>Persisted active agent role (enum name).</summary>
     public string PersistedAgentRole { get; set; } = nameof(AgentRole.Universal);
 
@@ -258,6 +266,12 @@ public sealed class HermesSettings
 
     /// <summary>Run SupplementStockTracker.RunDailyCheckIfNeededAsync at application startup.</summary>
     public bool BiohackerStockCheckOnStartup { get; set; } = true;
+
+    /// <summary>Plain-text trading safety rules injected into trading-mode agent prompt (stricter-wins over terminal risk manager).</summary>
+    public string TradingSafetyRulesText { get; set; } =
+        "Маржа на сделку — не более 1% депозита (даже если в риск-менеджере терминала больше).\n"
+        + "Максимальный убыток за день — 50 USDT. После лимита — только close_position, без новых входов.\n"
+        + "Только BTCUSDT и ETHUSDT для открытия новых позиций.";
 
     /// <summary>Export significant trading events to vault Knowledge/Trading/Episodes.</summary>
     public bool TradingExperienceExportEnabled { get; set; } = true;

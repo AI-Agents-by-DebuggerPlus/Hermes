@@ -7,8 +7,10 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels;
 public sealed class AdjustMarginModeViewModel : ObservableObject
 {
     private FuturesMarginType _selectedMarginMode;
+    private FuturesMarginType _confirmedMarginMode;
     private bool _isBusy;
     private bool _applyToAllSymbols;
+    private bool _confirmedApplyToAllSymbols;
 
     public AdjustMarginModeViewModel(
         string symbol,
@@ -19,10 +21,11 @@ public sealed class AdjustMarginModeViewModel : ObservableObject
     {
         Symbol = symbol;
         ContractBadge = contractBadge;
-        InitialMarginMode = currentMarginMode;
         HasOpenPositionOrOrder = hasOpenPositionOrOrder;
         _selectedMarginMode = currentMarginMode;
+        _confirmedMarginMode = currentMarginMode;
         _applyToAllSymbols = applyToAllSymbolsDefault;
+        _confirmedApplyToAllSymbols = applyToAllSymbolsDefault;
 
         SelectCrossCommand = new RelayCommand(
             _ => SelectedMarginMode = FuturesMarginType.Cross,
@@ -40,15 +43,13 @@ public sealed class AdjustMarginModeViewModel : ObservableObject
 
     public string Symbol { get; }
     public string ContractBadge { get; }
-    public FuturesMarginType InitialMarginMode { get; }
     public bool HasOpenPositionOrOrder { get; }
-    public FuturesMarginType? ConfirmedMarginMode { get; private set; }
 
     public bool CanSelectMode => !HasOpenPositionOrOrder && !IsBusy;
 
     public bool CanConfirm =>
         !IsBusy && !HasOpenPositionOrOrder &&
-        (SelectedMarginMode != InitialMarginMode || ApplyToAllSymbols);
+        (SelectedMarginMode != _confirmedMarginMode || ApplyToAllSymbols != _confirmedApplyToAllSymbols);
 
     public bool ApplyToAllSymbols
     {
@@ -121,7 +122,8 @@ public sealed class AdjustMarginModeViewModel : ObservableObject
 
     public void MarkConfirmed()
     {
-        ConfirmedMarginMode = SelectedMarginMode;
+        _confirmedMarginMode = SelectedMarginMode;
+        _confirmedApplyToAllSymbols = ApplyToAllSymbols;
     }
 
     private void NotifySelectionChanged()

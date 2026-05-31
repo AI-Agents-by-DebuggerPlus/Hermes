@@ -290,7 +290,27 @@
                     <GridViewColumn Header="Количество" Width="100" DisplayMemberBinding="{Binding QuantityDisplay}"/>
                     <GridViewColumn Header="Комиссия" Width="130" DisplayMemberBinding="{Binding CommissionDisplay}"/>
                     <GridViewColumn Header="Роль" Width="70" DisplayMemberBinding="{Binding RoleDisplay}"/>
-                    <GridViewColumn Header="Реализ. PnL" Width="120" DisplayMemberBinding="{Binding RealizedPnlDisplay}"/>
+                    <GridViewColumn Header="Реализ. PnL (USDT)" Width="130">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding RealizedPnlDisplay}" FontSize="11">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="#848E9C"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsRealizedPnlPositive}" Value="True">
+                                                    <Setter Property="Foreground" Value="#0ECB81"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsRealizedPnlNegative}" Value="True">
+                                                    <Setter Property="Foreground" Value="#F6465D"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
                 </GridView>
             </ListView.View>
             <ListView.ItemContainerStyle>

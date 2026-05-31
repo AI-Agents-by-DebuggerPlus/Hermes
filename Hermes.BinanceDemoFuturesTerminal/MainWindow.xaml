@@ -146,6 +146,27 @@
             </Style.Triggers>
         </Style>
 
+        <Style x:Key="DarkLinkBtnStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#02A4FF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <ContentPresenter/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Foreground" Value="#38bdf8"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
         <!-- Стиль для полей ввода -->
         <Style x:Key="DarkTextBoxStyle" TargetType="TextBox">
             <Setter Property="Background" Value="#20242B"/>
@@ -836,16 +857,17 @@
             </TabControl>
             </Border>
 
-            <!-- ПРАВАЯ КОЛОНКА: ОРДЕР + АККАУНТ (на всю высоту окна) -->
+            <!-- ПРАВАЯ КОЛОНКА: ОРДЕР + ИТОГИ + АККАУНТ -->
             <Grid Grid.Column="3" Grid.Row="0" Grid.RowSpan="3">
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
             <!-- ФОРМА ОРДЕРА -->
             <Border Grid.Row="0" Background="{StaticResource BgCard}" BorderBrush="{StaticResource BorderSlate}" BorderThickness="1,0,0,0">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="520">
                     <StackPanel Margin="12,10">
                         <TextBlock Text="ОРДЕР" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMain}" Margin="0,0,0,10"/>
 
@@ -868,33 +890,128 @@
                             </TextBlock>
                         </Grid>
 
-                        <!-- Лимит / Рынок -->
+                        <!-- Лимит / Рынок / Условные -->
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                             <RadioButton GroupName="OrderType" Content="Лимит" Foreground="{StaticResource TextMain}" FontSize="11" FontWeight="Bold"
-                                         IsChecked="{Binding IsLimitOrderEntry}" Margin="0,0,16,0" Padding="0,4"/>
+                                         IsChecked="{Binding IsLimitOrderEntry}" Margin="0,0,12,0" Padding="0,4"/>
                             <RadioButton GroupName="OrderType" Content="Рынок" Foreground="{StaticResource TextMain}" FontSize="11" FontWeight="Bold"
-                                         IsChecked="{Binding IsMarketOrderEntry}" Padding="0,4"/>
+                                         IsChecked="{Binding IsMarketOrderEntry}" Margin="0,0,12,0" Padding="0,4"/>
+                            <RadioButton GroupName="OrderType" Content="Условные" Foreground="{StaticResource TextMain}" FontSize="11" FontWeight="Bold"
+                                         IsChecked="{Binding IsConditionalOrderEntry}" Padding="0,4"/>
                         </StackPanel>
 
-                        <!-- Цена -->
-                        <TextBlock Text="Цена" FontSize="10" Foreground="{StaticResource TextMuted}" Margin="0,0,0,4"/>
-                        <Grid Height="30" Margin="0,0,0,8">
-                            <TextBox FontSize="11.5" Style="{StaticResource DarkTextBoxStyle}"
-                                     Text="{Binding OrderPrice, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsLimitOrder}"/>
-                            <TextBlock Text="РЫНОЧНАЯ" Foreground="{StaticResource TextMuted}" FontSize="10" FontWeight="Bold"
-                                       HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" IsHitTestVisible="False">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
+                        <!-- Стоп-цена (условные) -->
+                        <StackPanel Margin="0,0,0,8">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsConditionalOrder}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <TextBlock Text="Стоп-цена" FontSize="10" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center"/>
+                                <Button x:Name="ConditionalInfoBtn" Content="ℹ" Command="{Binding ToggleConditionalInfoCommand}" Width="18" Height="18" Margin="4,0,0,0"
+                                        FontSize="10" Background="Transparent" Foreground="{StaticResource TextMuted}" BorderThickness="0" Cursor="Hand"/>
+                            </StackPanel>
+                            <TextBox FontSize="11.5" Style="{StaticResource DarkTextBoxStyle}" Height="30"
+                                     Text="{Binding OrderStopPrice, UpdateSourceTrigger=PropertyChanged}"/>
+                            <Popup IsOpen="{Binding IsConditionalInfoOpen}" StaysOpen="False" AllowsTransparency="True"
+                                   PlacementTarget="{Binding ElementName=ConditionalInfoBtn}" Placement="Bottom" VerticalOffset="4">
+                                <Border Background="#181A20" BorderBrush="#2B3139" BorderThickness="1" CornerRadius="6"
+                                        Padding="10" MaxWidth="280">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding ConditionalOrderInfo}" Foreground="{StaticResource TextMain}"
+                                                   FontSize="10" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                                        <Button Content="Подробнее" Style="{StaticResource DarkLinkBtnStyle}"
+                                                Command="{Binding OpenConditionalInfoLinkCommand}" HorizontalAlignment="Left"/>
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
+                        </StackPanel>
+
+                        <!-- Цена (лимит / условный лимит) -->
+                        <StackPanel Margin="0,0,0,8">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding IsConditionalOrder}" Value="True"/>
+                                                <Condition Binding="{Binding IsConditionalMarket}" Value="True"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <TextBlock Text="Цена" FontSize="10" Foreground="{StaticResource TextMuted}" Margin="0,0,0,4"/>
+                            <Grid Height="30">
+                                <TextBox FontSize="11.5" Style="{StaticResource DarkTextBoxStyle}"
+                                         Text="{Binding OrderPrice, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsLimitOrder}"/>
+                                <TextBlock Text="РЫНОЧНАЯ" Foreground="{StaticResource TextMuted}" FontSize="10" FontWeight="Bold"
+                                           HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" IsHitTestVisible="False">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsMarketOrder}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- Параметры условного ордера -->
+                        <StackPanel Margin="0,0,0,8">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsConditionalOrder}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <TextBlock Text="Исполнение после триггера" FontSize="10" Foreground="{StaticResource TextMuted}" Margin="0,0,0,4"/>
+                            <ComboBox SelectedIndex="{Binding ConditionalExecutionModeIndex}" FontSize="11" Height="28" Margin="0,0,0,6">
+                                <ComboBoxItem Content="Лимитный"/>
+                                <ComboBoxItem Content="Рыночный"/>
+                            </ComboBox>
+                            <TextBlock Text="Working type" FontSize="10" Foreground="{StaticResource TextMuted}" Margin="0,0,0,4"/>
+                            <ComboBox SelectedIndex="{Binding StopWorkingTypeIndex}" FontSize="11" Height="28" Margin="0,0,0,6">
+                                <ComboBoxItem Content="Contract price"/>
+                                <ComboBoxItem Content="Mark price"/>
+                            </ComboBox>
+                            <CheckBox Content="Reduce only" Foreground="{StaticResource TextMain}" FontSize="10"
+                                      IsChecked="{Binding OrderReduceOnly}" Margin="0,0,0,6"/>
+                            <StackPanel>
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
                                         <Setter Property="Visibility" Value="Collapsed"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsMarketOrder}" Value="True">
+                                            <DataTrigger Binding="{Binding IsConditionalLimit}" Value="True">
                                                 <Setter Property="Visibility" Value="Visible"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </Grid>
+                                </StackPanel.Style>
+                                <TextBlock Text="Time in force" FontSize="10" Foreground="{StaticResource TextMuted}" Margin="0,0,0,4"/>
+                                <ComboBox SelectedIndex="{Binding OrderTimeInForceIndex}" FontSize="11" Height="28">
+                                    <ComboBoxItem Content="GTC"/>
+                                    <ComboBoxItem Content="IOC"/>
+                                    <ComboBoxItem Content="FOK"/>
+                                </ComboBox>
+                            </StackPanel>
+                        </StackPanel>
 
                         <!-- Количество -->
                         <TextBlock Text="{Binding QuantityLabel}" FontSize="10" Foreground="{StaticResource TextMuted}" Margin="0,0,0,4"/>
@@ -954,8 +1071,14 @@
                 </ScrollViewer>
             </Border>
 
+            <!-- ИТОГИ PnL / КОМИССИИ -->
+            <Border Grid.Row="1" Background="{StaticResource BgDark}" BorderBrush="{StaticResource BorderSlate}"
+                    BorderThickness="1,0,0,0" Padding="12,8">
+                <ctrl:TradeStatsSummaryPanel DataContext="{Binding}" VerticalAlignment="Top"/>
+            </Border>
+
             <!-- АККАУНТ (под формой ордера) -->
-            <Border Grid.Row="1" Background="{StaticResource BgCard}" BorderBrush="{StaticResource BorderSlate}" BorderThickness="1,1,0,0">
+            <Border Grid.Row="2" Background="{StaticResource BgCard}" BorderBrush="{StaticResource BorderSlate}" BorderThickness="1,1,0,0">
                 <StackPanel Margin="12,10">
                     <TextBlock Text="АККАУНТ" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMain}" Margin="0,0,0,10"/>
                     <Grid Margin="0,0,0,6">

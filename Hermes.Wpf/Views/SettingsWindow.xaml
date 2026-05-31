@@ -507,7 +507,7 @@
                         <TextBlock Grid.Row="16"
                                    Grid.Column="0"
                                    VerticalAlignment="Top"
-                                   Text="Trading episodes"
+                                   Text="Трейдинг"
                                    TextWrapping="Wrap" />
                         <StackPanel Grid.Row="16"
                                     Grid.Column="1"
@@ -529,6 +529,19 @@
                                          Margin="8,0,0,0"
                                          Text="{Binding TradingExperienceDrawdownThreshold, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
+                            <TextBlock Margin="0,16,0,4"
+                                       FontWeight="SemiBold"
+                                       Text="Правила безопасности агента (режим трейдинга)" />
+                            <TextBlock Opacity="0.72"
+                                       TextWrapping="Wrap"
+                                       Text="Plain text. Агент сверяет ордер с правилами и snapshot; если правило строже риск-менеджера терминала — действует строже. Пустое поле = блок отключён." />
+                            <TextBox Margin="0,6,0,0"
+                                     MinHeight="100"
+                                     MaxHeight="180"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto"
+                                     Text="{Binding TradingSafetyRulesText, UpdateSourceTrigger=PropertyChanged}" />
                         </StackPanel>
 
                         <TextBlock Grid.Row="18"

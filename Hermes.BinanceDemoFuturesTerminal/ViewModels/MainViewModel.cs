@@ -15,7 +15,7 @@ using Hermes.BinanceDemoFuturesTerminal.Views;
 
 namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
 {
-    public class MainViewModel : ObservableObject
+    public partial class MainViewModel : ObservableObject
     {
         private readonly BinanceApiService _apiService;
         private readonly BinanceWebSocketService _wsService;
@@ -50,6 +50,11 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
         private ObservableCollection<OrderModel> _orderHistory = new ObservableCollection<OrderModel>();
         private ObservableCollection<UserTradeModel> _tradeHistory = new ObservableCollection<UserTradeModel>();
         private readonly List<UserTradeModel> _tradeHistoryCache = [];
+        private readonly List<UserTradeModel> _tradeStatsSource = [];
+        private readonly HashSet<string> _knownTradedSymbols = new(StringComparer.OrdinalIgnoreCase);
+        private readonly TradeStatsLoader _tradeStatsLoader;
+        private bool _tradeStatsLoading;
+        private int _tradeStatsFillCount;
         private bool _hideOtherTradeTickers = true;
         private int _tradeHistoryDays = 7;
         private string _tradeHistorySideFilter = "All";
@@ -396,6 +401,20 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             set => SetProperty(ref _tradeHistory, value);
         }
 
+        public ObservableCollection<TradeStatsPeriodRow> TradeStatsRows { get; } = [];
+
+        public bool TradeStatsLoading
+        {
+            get => _tradeStatsLoading;
+            private set => SetProperty(ref _tradeStatsLoading, value);
+        }
+
+        public string TradeStatsStatusText => TradeStatsLoading
+            ? "загрузка…"
+            : _tradeStatsFillCount > 0
+                ? $"{_tradeStatsFillCount} fills · USDT-M"
+                : "нет сделок · USDT-M";
+
         public IReadOnlyList<ChartIntervalOption> ChartIntervals => ChartIntervalOption.All;
 
         public int SelectedChartIntervalIndex
@@ -596,6 +615,7 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
         public ICommand ResetTradeHistoryFiltersCommand { get; }
         public ICommand SetTradeHistoryDaysCommand { get; }
         public ICommand OpenConditionalInfoLinkCommand { get; }
+        public ICommand ToggleConditionalInfoCommand { get; }
         #endregion
 
         public MainViewModel()
@@ -603,6 +623,7 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             Action<string> uiLogger = message => AppServices.Log.Info(message);
 
             _apiService = new BinanceApiService(uiLogger);
+            _tradeStatsLoader = new TradeStatsLoader(_apiService, msg => AppServices.Log.Info(msg));
             _wsService = new BinanceWebSocketService(uiLogger);
 
             _wsService.OnConnectionStatusChanged += status => WsStatus = status;
@@ -641,8 +662,11 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
                 }
             });
             OpenConditionalInfoLinkCommand = new RelayCommand(_ => OpenConditionalInfoLink());
+            ToggleConditionalInfoCommand = new RelayCommand(_ => IsConditionalInfoOpen = !IsConditionalInfoOpen);
 
             AppServices.Log.Info("Hermes.BinanceDemoFuturesTerminal запущен.");
+            InitializeBridge();
+            InitializeTradeStatsPlaceholders();
             _ = InitializeTerminalAsync();
         }
 
@@ -1172,6 +1196,8 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             }
 
             await RefreshTradeHistoryAsync();
+            await RefreshTradeStatsAsync();
+            NotifyBridgePublish();
         }
 
         private async Task RefreshTradeHistoryAsync()
@@ -1188,14 +1214,127 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
 
             foreach (var symbol in symbols)
             {
+                _knownTradedSymbols.Add(symbol);
                 var rows = await _apiService.GetUserTradesAsync(symbol, startTime);
                 foreach (var row in rows)
                 {
+                    _knownTradedSymbols.Add(row.Symbol);
                     _tradeHistoryCache.Add(MapUserTrade(row));
                 }
             }
 
             RunOnUIThread(ApplyTradeHistoryFilter);
+        }
+
+        private async Task RefreshTradeStatsAsync()
+        {
+            if (string.IsNullOrEmpty(_apiKey) || string.IsNullOrEmpty(_secretKey))
+            {
+                AppServices.Log.Warn("[trade-stats] skip: API keys not configured");
+                return;
+            }
+
+            TradeStatsLoading = true;
+            AppServices.Log.Info("[trade-stats] refresh started");
+            try
+            {
+                var seedSymbols = GetTradeStatsSeedSymbols();
+                AppServices.Log.Info(
+                    $"[trade-stats] seed symbols: [{string.Join(", ", seedSymbols.OrderBy(s => s))}]");
+
+                var result = await _tradeStatsLoader.LoadAsync(seedSymbols).ConfigureAwait(false);
+
+                foreach (var trade in result.Trades)
+                {
+                    _knownTradedSymbols.Add(trade.Symbol);
+                }
+
+                _tradeStatsSource.Clear();
+                _tradeStatsSource.AddRange(result.Trades);
+                _tradeStatsFillCount = result.Trades.Count;
+
+                var rows = TradeStatsCalculator.Build(
+                    result.Trades,
+                    result.IncomeRecords,
+                    msg => AppServices.Log.Info(msg));
+
+                RunOnUIThread(() => ApplyTradeStatsRows(rows));
+                AppServices.Log.Info(
+                    $"[trade-stats] refresh done fills={result.Trades.Count} symbols={result.SymbolCount} "
+                    + $"incomeRows={result.IncomeRowCount}");
+            }
+            catch (Exception ex)
+            {
+                AppServices.Log.Warn($"[trade-stats] refresh failed: {ex.Message}");
+                AppServices.Log.Warn($"[trade-stats] stack: {ex.StackTrace}");
+            }
+            finally
+            {
+                RunOnUIThread(() =>
+                {
+                    TradeStatsLoading = false;
+                    OnPropertyChanged(nameof(TradeStatsStatusText));
+                });
+            }
+        }
+
+        private void ApplyTradeStatsRows(IReadOnlyList<TradeStatsPeriodRow> rows)
+        {
+            TradeStatsRows.Clear();
+            foreach (var row in rows)
+            {
+                TradeStatsRows.Add(row);
+                AppServices.Log.Info(
+                    $"[trade-stats] UI «{row.PeriodLabel}»: pnl={row.RealizedPnl:F6} comm={row.Commission:F6} "
+                    + $"(display {row.PnlDisplay} / {row.CommissionDisplay})");
+            }
+
+            OnPropertyChanged(nameof(TradeStatsStatusText));
+        }
+
+        private HashSet<string> GetTradeStatsSeedSymbols()
+        {
+            var symbols = new HashSet<string>(_knownTradedSymbols, StringComparer.OrdinalIgnoreCase);
+            if (!string.IsNullOrEmpty(SelectedSymbol))
+            {
+                symbols.Add(SelectedSymbol);
+            }
+
+            foreach (var position in Positions)
+            {
+                symbols.Add(position.Symbol);
+            }
+
+            foreach (var order in OrderHistory)
+            {
+                symbols.Add(order.Symbol);
+            }
+
+            foreach (var order in OpenOrders)
+            {
+                symbols.Add(order.Symbol);
+            }
+
+            foreach (var trade in _tradeHistoryCache)
+            {
+                symbols.Add(trade.Symbol);
+            }
+
+            return symbols;
+        }
+
+        private void InitializeTradeStatsPlaceholders()
+        {
+            TradeStatsRows.Clear();
+            foreach (var label in new[] { "День", "Неделя", "Месяц", "Все время" })
+            {
+                TradeStatsRows.Add(new TradeStatsPeriodRow
+                {
+                    PeriodLabel = label,
+                    RealizedPnl = 0,
+                    Commission = 0,
+                });
+            }
         }
 
         private HashSet<string> GetTradeHistorySymbols()
@@ -1350,7 +1489,13 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             var isNew = !positionsList.Any(p =>
                 p.Symbol.Equals(SelectedSymbol, StringComparison.OrdinalIgnoreCase));
             var riskError = RiskManager.ValidateOrder(
-                AppServices.Settings, notional, positionsList, SelectedSymbol, isNew);
+                AppServices.Settings,
+                notional,
+                RiskManager.GetWalletBalanceUsdt(Balances),
+                EffectiveLeverage,
+                positionsList,
+                SelectedSymbol,
+                isNew);
             if (riskError != null)
             {
                 AppServices.Log.Warn(riskError);
@@ -1366,9 +1511,10 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             }
 
             string orderType = IsLimitOrder ? "LIMIT" : "MARKET";
-            var usdtNote = BuildQuantityLogNote(qtyText);
             var protectionNote = BuildProtectionLogNote(stopLossPrice, takeProfitPrice);
-            AddLog($"Отправка ордера: {side} {orderType} {qtyText} {SelectedSymbol}{usdtNote} @ {(priceText ?? "MARKET")}{protectionNote}");
+            AddLog(
+                OrderVolumeUsdtHelper.FormatOrderLog(side, orderType, SelectedSymbol, notional, priceText ?? "MARKET")
+                + protectionNote);
 
             try
             {
@@ -1470,7 +1616,13 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             if (!OrderReduceOnly)
             {
                 var riskError = RiskManager.ValidateOrder(
-                    AppServices.Settings, notional, positionsList, SelectedSymbol, isNew);
+                    AppServices.Settings,
+                    notional,
+                    RiskManager.GetWalletBalanceUsdt(Balances),
+                    EffectiveLeverage,
+                    positionsList,
+                    SelectedSymbol,
+                    isNew);
                 if (riskError != null)
                 {
                     AppServices.Log.Warn(riskError);
@@ -1489,10 +1641,9 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
 
             var orderType = IsConditionalLimit ? "STOP" : "STOP_MARKET";
             var workingType = _stopWorkingType == StopWorkingType.MarkPrice ? "MARK_PRICE" : "CONTRACT_PRICE";
-            var usdtNote = BuildQuantityLogNote(qtyText);
             AddLog(
-                $"Отправка условного ордера: {side} {orderType} {qtyText} {SelectedSymbol}{usdtNote} "
-                + $"стоп={stopText} @ {(priceText ?? "MARKET")} ({workingType})");
+                OrderVolumeUsdtHelper.FormatOrderLog(side, orderType, SelectedSymbol, notional, priceText ?? stopText)
+                + $" стоп={stopText} ({workingType})");
 
             try
             {
@@ -1670,15 +1821,6 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
                 QuantityInputMode.UsdtOrderSize => input,
                 QuantityInputMode.UsdtInitialMargin => input * EffectiveLeverage,
                 _ => input,
-            };
-
-        private string BuildQuantityLogNote(string qtyText) =>
-            _quantityInputMode switch
-            {
-                QuantityInputMode.UsdtInitialMargin => $" ({OrderQuantity} USDT маржа @ {LeverageDisplay} → {qtyText} контр.)",
-                QuantityInputMode.UsdtOrderSize => $" ({OrderQuantity} USDT → {qtyText} контр.)",
-                QuantityInputMode.Contracts => $" ({OrderQuantity} {SelectedBaseAsset} → {qtyText} контр.)",
-                _ => string.Empty,
             };
 
         private double GetMarketReferencePrice()
@@ -2075,15 +2217,28 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             });
         }
 
-        private async Task<(bool Success, string? Error)> ApplyMarginTypeAsync(
+        private async Task<(bool Success, string? Error, bool MarginChanged)> ApplyMarginTypeAsync(
             string symbol,
             FuturesMarginType marginType,
             bool applyToAllSymbols)
         {
-            var (success, error) = await _apiService.SetMarginTypeAsync(symbol, marginType);
-            if (!success)
+            var currentMode = await _apiService.GetSymbolMarginTypeAsync(symbol);
+            var marginChanged = currentMode != marginType;
+
+            if (marginChanged)
             {
-                return (false, error);
+                var (success, error) = await _apiService.SetMarginTypeAsync(symbol, marginType);
+                if (!success)
+                {
+                    if (BinanceApiService.IsMarginTypeUnchangedError(error))
+                    {
+                        marginChanged = false;
+                    }
+                    else
+                    {
+                        return (false, error, false);
+                    }
+                }
             }
 
             var settings = AppServices.Settings;
@@ -2097,11 +2252,7 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
 
             if (applyToAllSymbols)
             {
-                var bulkError = await ApplyMarginTypeToAllSymbolsAsync(marginType);
-                if (bulkError != null)
-                {
-                    error = bulkError;
-                }
+                await ApplyMarginTypeToAllSymbolsAsync(marginType);
             }
 
             RunOnUIThread(() =>
@@ -2109,14 +2260,23 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
                 _symbolMarginMode = marginType;
                 NotifyMarginModeChanged();
             });
-            AddLog(applyToAllSymbols
-                ? $"Режим маржи {marginType.ToMarginLabel()} установлен для всех контрактов (по умолчанию)."
-                : $"Режим маржи {symbol} изменён на {marginType.ToButtonLabel()}.");
+
+            if (marginChanged)
+            {
+                AddLog(applyToAllSymbols
+                    ? $"Режим маржи {marginType.ToMarginLabel()} установлен для всех контрактов (по умолчанию)."
+                    : $"Режим маржи {symbol} изменён на {marginType.ToButtonLabel()}.");
+            }
+            else if (applyToAllSymbols)
+            {
+                AddLog($"Режим маржи {marginType.ToMarginLabel()} сохранён по умолчанию для всех контрактов.");
+            }
+
             await RefreshAccountDataAsync();
-            return (true, error);
+            return (true, null, marginChanged);
         }
 
-        private async Task<string?> ApplyMarginTypeToAllSymbolsAsync(FuturesMarginType marginType)
+        private async Task ApplyMarginTypeToAllSymbolsAsync(FuturesMarginType marginType)
         {
             var openOrders = await _apiService.GetOpenOrdersAsync();
             var blockedSymbols = Positions
@@ -2125,21 +2285,29 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             var failures = new List<string>();
-            foreach (var sym in _allSymbols.Select(s => s.Symbol).Distinct(StringComparer.OrdinalIgnoreCase))
+            foreach (var symbolInfo in _allSymbols
+                         .Where(s => s.Status.Equals("TRADING", StringComparison.OrdinalIgnoreCase))
+                         .Where(s => s.QuoteAsset.Equals("USDT", StringComparison.OrdinalIgnoreCase))
+                         .DistinctBy(s => s.Symbol, StringComparer.OrdinalIgnoreCase))
             {
+                var sym = symbolInfo.Symbol;
                 if (blockedSymbols.Contains(sym))
                 {
                     continue;
                 }
 
                 var (ok, err) = await _apiService.SetMarginTypeAsync(sym, marginType);
-                if (!ok)
+                if (!ok && !BinanceApiService.IsMarginTypeUnchangedError(err))
                 {
                     failures.Add($"{sym}: {err ?? "ошибка API"}");
+                    AppServices.Log.Warn($"Режим маржи {sym}: {err ?? "ошибка API"}");
                 }
             }
 
-            return failures.Count > 0 ? string.Join(Environment.NewLine, failures) : null;
+            if (failures.Count > 0)
+            {
+                AddLog($"Режим маржи: не удалось для {failures.Count} контрактов (см. журнал).");
+            }
         }
 
         private static string GetContractBadge(SymbolInfo? symbolInfo)
@@ -2173,7 +2341,7 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
 
             var symbolInfo = _allSymbols.FirstOrDefault(s =>
                 s.Symbol.Equals(position.Symbol, StringComparison.OrdinalIgnoreCase));
-            if (!TryResolveCloseQuantity(position, symbolInfo, out _, out var qtyText, out var error))
+            if (!TryResolveCloseQuantity(position, symbolInfo, out var qty, out var qtyText, out var error))
             {
                 MessageBox.Show(error, "Закрытие позиции", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
@@ -2194,12 +2362,20 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
 
             var side = position.IsLong ? "SELL" : "BUY";
             var orderType = market ? "MARKET" : "LIMIT";
-            AddLog($"Закрытие позиции: {side} {orderType} {qtyText} {position.Symbol} (reduceOnly)");
+            var closeNotional = qty * (position.MarkPrice > 0 ? position.MarkPrice : GetOrderPriceEstimate());
+            AddLog(OrderVolumeUsdtHelper.FormatOrderLog(side, orderType, position.Symbol, closeNotional, priceText) + " (reduceOnly)");
 
             try
             {
-                await _apiService.PlaceOrderAsync(position.Symbol, side, orderType, qtyText, priceText, reduceOnly: true);
-                AddLog($"Позиция {position.Symbol} закрыта ({orderType}).");
+                var startMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - 2000;
+                var response = await _apiService.PlaceOrderAsync(position.Symbol, side, orderType, qtyText, priceText, reduceOnly: true);
+                var pnl = response is not null
+                    ? await CloseRealizedPnlPoller.PollOrderPnlAsync(_apiService, position.Symbol, response.OrderId, startMs)
+                    : null;
+                var pnlNote = pnl.HasValue
+                    ? $" · PnL: {OrderVolumeUsdtHelper.FormatSignedPnl(pnl.Value)}"
+                    : string.Empty;
+                AddLog($"Позиция {position.Symbol} закрыта ({orderType}){pnlNote}.");
                 await RefreshAccountDataAsync();
             }
             catch (Exception ex)
@@ -2322,6 +2498,22 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             if (symbolInfo == null)
             {
                 return;
+            }
+
+            if (_quantityInputMode == QuantityInputMode.UsdtOrderSize)
+            {
+                var defaultUsdt = AppServices.Settings.DefaultAgentOrderUsdt;
+                if (defaultUsdt > 0)
+                {
+                    var wallet = RiskManager.GetWalletBalanceUsdt(Balances);
+                    var capped = OrderVolumeUsdtHelper.CapNotionalUsdt(
+                        defaultUsdt,
+                        AppServices.Settings,
+                        wallet,
+                        EffectiveLeverage);
+                    OrderQuantity = capped.ToString("F2", CultureInfo.InvariantCulture);
+                    return;
+                }
             }
 
             var price = GetOrderPriceEstimate();

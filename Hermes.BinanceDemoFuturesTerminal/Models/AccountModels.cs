@@ -206,6 +206,33 @@ public sealed class BinanceOrder
     public long UpdateTime { get; set; }
 }
 
+public sealed class BinanceAlgoOrderResponse
+{
+    [JsonPropertyName("algoId")]
+    public long AlgoId { get; set; }
+
+    [JsonPropertyName("orderType")]
+    public string OrderType { get; set; } = string.Empty;
+
+    [JsonPropertyName("symbol")]
+    public string Symbol { get; set; } = string.Empty;
+
+    [JsonPropertyName("side")]
+    public string Side { get; set; } = string.Empty;
+
+    [JsonPropertyName("quantity")]
+    public string Quantity { get; set; } = "0";
+
+    [JsonPropertyName("algoStatus")]
+    public string AlgoStatus { get; set; } = string.Empty;
+
+    [JsonPropertyName("triggerPrice")]
+    public string TriggerPrice { get; set; } = "0";
+
+    [JsonPropertyName("price")]
+    public string Price { get; set; } = "0";
+}
+
 public sealed class OrderModel
 {
     public long OrderId { get; set; }
@@ -290,5 +317,25 @@ public sealed class UserTradeModel
     public string CommissionDisplay =>
         $"{Commission.ToString("N8", CultureInfo.InvariantCulture).TrimEnd('0').TrimEnd('.')} {CommissionAsset}";
     public string RoleDisplay => IsMaker ? "Мейкер" : "Тейкер";
-    public string RealizedPnlDisplay => RealizedPnl.ToString("N8", CultureInfo.InvariantCulture);
+    public string RealizedPnlDisplay
+    {
+        get
+        {
+            if (Math.Abs(RealizedPnl) < 1e-12)
+            {
+                return "0 USDT";
+            }
+
+            var text = Math.Abs(RealizedPnl).ToString("F2", CultureInfo.InvariantCulture);
+            if (text.Contains('.'))
+            {
+                text = text.TrimEnd('0').TrimEnd('.');
+            }
+
+            return RealizedPnl >= 0 ? $"+{text} USDT" : $"-{text} USDT";
+        }
+    }
+
+    public bool IsRealizedPnlPositive => RealizedPnl > 1e-12;
+    public bool IsRealizedPnlNegative => RealizedPnl < -1e-12;
 }

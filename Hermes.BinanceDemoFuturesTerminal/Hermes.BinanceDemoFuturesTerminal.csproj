@@ -9,5 +9,8 @@
     <RootNamespace>Hermes.BinanceDemoFuturesTerminal</RootNamespace>
     <AssemblyName>Hermes.BinanceDemoFuturesTerminal</AssemblyName>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Hermes.Terminals.Shared\Hermes.Terminals.Shared.csproj" />
+  </ItemGroup>
 
 </Project>

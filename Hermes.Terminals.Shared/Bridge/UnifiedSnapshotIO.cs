@@ -67,6 +67,7 @@ public static class UnifiedSnapshotIO
             TimestampUtc = DateTimeOffset.UtcNow,
             TradingPlatform = snapshot.TradingPlatform,
             SpotTerminal = snapshot.SpotTerminal,
+            FuturesTerminal = snapshot.FuturesTerminal,
             Agent = snapshot.Agent,
             Skills = snapshot.Skills,
         };

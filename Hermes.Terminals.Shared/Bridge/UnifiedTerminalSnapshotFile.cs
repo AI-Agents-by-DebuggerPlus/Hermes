@@ -10,6 +10,7 @@ public sealed class UnifiedTerminalSnapshotFile
     public DateTimeOffset TimestampUtc { get; init; }
     public TradingPlatformSnapshotFile? TradingPlatform { get; init; }
     public SpotTerminalSnapshotSection? SpotTerminal { get; init; }
+    public FuturesTerminalSnapshotSection? FuturesTerminal { get; init; }
     public AgentSnapshotSection? Agent { get; init; }
     public SkillsSnapshotSection? Skills { get; init; }
 }

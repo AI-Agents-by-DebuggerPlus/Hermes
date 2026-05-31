@@ -19,6 +19,8 @@ public sealed class TradingPlatformCommand
     public string? OrderId { get; set; }
     public string? StrategyId { get; set; }
     public bool? Enabled { get; set; }
+    public int? Leverage { get; set; }
+    public decimal? QuantityUsdt { get; set; }
     public string? RequestedBy { get; set; }
 }
 

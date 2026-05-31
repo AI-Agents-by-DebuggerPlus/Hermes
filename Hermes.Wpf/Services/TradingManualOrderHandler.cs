@@ -2,15 +2,20 @@ using Hermes.TradingPlatform.Shared.Bridge;
 
 namespace Hermes.Wpf.Services;
 
-/// <summary>Local chat flow: open long/short → ask price → market/limit order via SpotTerminal bridge.</summary>
+/// <summary>Local chat flow: open long/short in plain Russian → futures (or spot) bridge.</summary>
 internal sealed class TradingManualOrderHandler
 {
+    private readonly FuturesTerminalBridgeService _futures;
     private readonly SpotTerminalBridgeService _spot;
     private readonly LogService _log;
     private ManualOrderDraft? _pending;
 
-    public TradingManualOrderHandler(SpotTerminalBridgeService spot, LogService log)
+    public TradingManualOrderHandler(
+        FuturesTerminalBridgeService futures,
+        SpotTerminalBridgeService spot,
+        LogService log)
     {
+        _futures = futures;
         _spot = spot;
         _log = log;
     }
@@ -24,7 +29,7 @@ internal sealed class TradingManualOrderHandler
         Func<string, string, Task> postHermesReplyAsync,
         Func<string, string, Task> appendSystemLogAsync)
     {
-        if (!tradingModeEnabled || !_spot.IsActiveForSession)
+        if (!tradingModeEnabled || (!_futures.IsActiveForSession && !_spot.IsActiveForSession))
         {
             return false;
         }
@@ -52,9 +57,9 @@ internal sealed class TradingManualOrderHandler
             {
                 await postHermesReplyAsync(
                         projectName,
-                        "Не удалось определить инструмент. Пример: «открой лонг BTCUSDT по рыночной» или «открой лонг по биткоину».")
+                        "Не удалось определить инструмент. Пример: «открой лонг по биткоину по рынку» или «открой шорт ETH на 100 USDT по рыночной».")
                     .ConfigureAwait(false);
-                _log.LogWarn("[spot-open] trade intent but symbol not resolved");
+                _log.LogWarn("[trade-open] trade intent but symbol not resolved");
                 return true;
             }
 
@@ -66,9 +71,11 @@ internal sealed class TradingManualOrderHandler
             _pending = draft;
             var ask =
                 $"По какой цене открыть {TradingManualOrderParser.FormatSideRu(draft.Side)} по {draft.Symbol}? "
-                + $"Объём {draft.Quantity}. Напишите «по рыночной», цену лимита или стопа; «нет» — отмена.";
+                + $"Объём {FormatUsdtAmount(draft.QuantityUsdt ?? ResolveDefaultOrderUsdt())}. "
+                + "Напишите «по рынку» / «по рыночной», цену лимита или «нет» для отмены.";
             await postHermesReplyAsync(projectName, ask).ConfigureAwait(false);
-            _log.LogInfo($"[spot-open] awaiting price symbol={draft.Symbol} side={draft.Side} qty={draft.Quantity}");
+            _log.LogInfo(
+                $"[trade-open] awaiting price symbol={draft.Symbol} side={draft.Side} qty_usdt={draft.QuantityUsdt ?? ResolveDefaultOrderUsdt()}");
             return true;
         }
 
@@ -115,29 +122,74 @@ internal sealed class TradingManualOrderHandler
             return true;
         }
 
-        if (!await _spot.EnsureTerminalReadyAsync(force: true).ConfigureAwait(false))
+        var useFutures = PreferFutures();
+        var bridgeReady = useFutures
+            ? await _futures.EnsureTerminalReadyAsync(force: true).ConfigureAwait(false)
+            : await _spot.EnsureTerminalReadyAsync(force: true).ConfigureAwait(false);
+
+        if (!bridgeReady)
         {
-            await postHermesReplyAsync(projectName, SpotTerminalStatusReplyFormatter.TerminalUnavailableMessage())
+            await postHermesReplyAsync(
+                    projectName,
+                    useFutures
+                        ? FuturesTerminalStatusReplyFormatter.TerminalUnavailableMessage()
+                        : SpotTerminalStatusReplyFormatter.TerminalUnavailableMessage())
                 .ConfigureAwait(false);
             return true;
         }
 
-        var cmd = TradingManualOrderParser.BuildCommand(draft, price);
+        var cmd = TradingManualOrderParser.BuildCommand(
+            draft,
+            price,
+            ResolveDefaultOrderUsdt());
         _log.LogInfo(
-            $"[spot-open] place_order {cmd.Symbol} {cmd.Side} {cmd.OrderType} qty={cmd.Quantity} price={cmd.Price}");
-        await appendSystemLogAsync(projectName, $"[spot-open] enqueue {cmd.OrderType} {cmd.Symbol} {cmd.Side}")
+            $"[trade-open] place_order {cmd.Symbol} {cmd.Side} {cmd.OrderType} qty_usdt={cmd.QuantityUsdt} price={cmd.Price} futures={useFutures}");
+
+        await postHermesReplyAsync(projectName, TradingExecutionMessages.FormatCommandSent(cmd, useFutures))
+            .ConfigureAwait(false);
+        await appendSystemLogAsync(projectName, $"[trade-open] enqueue {cmd.OrderType} {cmd.Symbol} {cmd.Side}")
             .ConfigureAwait(false);
 
-        var result = await SpotTradingCommandExecutor.ExecuteAsync(_spot, cmd).ConfigureAwait(false);
-        var line = TradingPlatformIntentParser.UserFacingLine(result.Ok, result.Detail);
-        await postHermesReplyAsync(projectName, line).ConfigureAwait(false);
-        await appendSystemLogAsync(projectName, $"[spot-open] ok={result.Ok} {result.Detail}").ConfigureAwait(false);
+        var result = useFutures
+            ? await FuturesTradingCommandExecutor.ExecuteAsync(_futures, cmd).ConfigureAwait(false)
+            : await SpotTradingCommandExecutor.ExecuteAsync(_spot, cmd).ConfigureAwait(false);
+
+        await postHermesReplyAsync(
+                projectName,
+                TradingExecutionMessages.FormatCommandResult(result.Ok, result.Detail, cmd, useFutures))
+            .ConfigureAwait(false);
+        await appendSystemLogAsync(projectName, $"[trade-open] ok={result.Ok} {result.Detail}").ConfigureAwait(false);
         return true;
     }
 
+    private bool PreferFutures() => _futures.IsActiveForSession;
+
     private IReadOnlyList<string>? KnownSymbols()
     {
+        var futures = _futures.TryReadFuturesSection();
+        if (futures is not null)
+        {
+            var list = new List<string>();
+            if (!string.IsNullOrWhiteSpace(futures.SelectedSymbol))
+            {
+                list.Add(futures.SelectedSymbol);
+            }
+
+            list.AddRange(futures.Positions.Select(p => p.Symbol));
+            list.AddRange(futures.OpenOrders.Select(o => o.Symbol));
+            if (list.Count > 0)
+            {
+                return list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            }
+        }
+
         var spot = _spot.TryReadSpotSection();
         return spot?.Tickers.Select(t => t.Symbol).ToList();
     }
+
+    private decimal ResolveDefaultOrderUsdt() =>
+        RiskBasedQuantityCalculator.ResolveDefaultUsdt(_futures.TryReadFuturesSection());
+
+    private static string FormatUsdtAmount(decimal usdt) =>
+        $"{usdt.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)} USDT";
 }

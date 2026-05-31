@@ -8,11 +8,11 @@ namespace Hermes.BinanceDemoFuturesTerminal.Views;
 public partial class AdjustMarginModeWindow : Window
 {
     private readonly AdjustMarginModeViewModel _viewModel;
-    private readonly Func<FuturesMarginType, bool, Task<(bool Success, string? Error)>> _applyAsync;
+    private readonly Func<FuturesMarginType, bool, Task<(bool Success, string? Error, bool MarginChanged)>> _applyAsync;
 
     public AdjustMarginModeWindow(
         AdjustMarginModeViewModel viewModel,
-        Func<FuturesMarginType, bool, Task<(bool Success, string? Error)>> applyAsync)
+        Func<FuturesMarginType, bool, Task<(bool Success, string? Error, bool MarginChanged)>> applyAsync)
     {
         InitializeComponent();
         _viewModel = viewModel;
@@ -37,7 +37,9 @@ public partial class AdjustMarginModeWindow : Window
         _viewModel.IsBusy = true;
         try
         {
-            var (success, error) = await _applyAsync(_viewModel.SelectedMarginMode, _viewModel.ApplyToAllSymbols);
+            var (success, error, marginChanged) = await _applyAsync(
+                _viewModel.SelectedMarginMode,
+                _viewModel.ApplyToAllSymbols);
             if (!success)
             {
                 MessageBox.Show(
@@ -49,8 +51,11 @@ public partial class AdjustMarginModeWindow : Window
             }
 
             _viewModel.MarkConfirmed();
-            DialogResult = true;
-            Close();
+            if (marginChanged)
+            {
+                DialogResult = true;
+                Close();
+            }
         }
         finally
         {

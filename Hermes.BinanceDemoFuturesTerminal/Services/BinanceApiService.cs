@@ -322,8 +322,9 @@ public sealed class BinanceApiService
         Log($"POST /fapi/v1/marginType {symbol} {marginType.ToApiValue()}");
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, url);
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"{BaseUrl}/fapi/v1/marginType");
             request.Headers.Add("X-MBX-APIKEY", ApiKey);
+            request.Content = new StringContent(ExtractBody(url), Encoding.UTF8, "application/x-www-form-urlencoded");
             var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
             var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
             if (response.IsSuccessStatusCode)
@@ -340,6 +341,10 @@ public sealed class BinanceApiService
             return (false, ex.Message);
         }
     }
+
+    public static bool IsMarginTypeUnchangedError(string? error) =>
+        !string.IsNullOrWhiteSpace(error)
+        && error.Contains("No need to change margin type", StringComparison.OrdinalIgnoreCase);
 
     private static string ParseApiErrorMessage(string content)
     {
@@ -412,8 +417,9 @@ public sealed class BinanceApiService
         var url = SignedUrl("/fapi/v1/leverage", $"symbol={symbol.ToUpperInvariant()}&leverage={leverage}&timestamp={{0}}");
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, url);
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"{BaseUrl}/fapi/v1/leverage");
             request.Headers.Add("X-MBX-APIKEY", ApiKey);
+            request.Content = new StringContent(ExtractBody(url), Encoding.UTF8, "application/x-www-form-urlencoded");
             var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
             return response.IsSuccessStatusCode;
         }
@@ -492,6 +498,107 @@ public sealed class BinanceApiService
         }
 
         var normalizedType = type.ToUpperInvariant();
+        if (normalizedType is "STOP_MARKET" or "STOP" or "TAKE_PROFIT_MARKET" or "TAKE_PROFIT")
+        {
+            return await PlaceAlgoConditionalOrderAsync(
+                symbol,
+                side,
+                normalizedType,
+                quantity,
+                stopPrice,
+                price,
+                workingType,
+                timeInForce,
+                reduceOnly).ConfigureAwait(false);
+        }
+
+        return await PlaceLegacyStopOrderAsync(
+            symbol,
+            side,
+            normalizedType,
+            quantity,
+            stopPrice,
+            price,
+            workingType,
+            timeInForce,
+            reduceOnly).ConfigureAwait(false);
+    }
+
+    private async Task<BinanceOrder> PlaceAlgoConditionalOrderAsync(
+        string symbol,
+        string side,
+        string type,
+        string quantity,
+        string triggerPrice,
+        string? price,
+        string workingType,
+        string timeInForce,
+        bool reduceOnly)
+    {
+        var sb = new StringBuilder();
+        sb.Append("algoType=CONDITIONAL");
+        sb.Append($"&symbol={symbol.ToUpperInvariant()}");
+        sb.Append($"&side={side.ToUpperInvariant()}");
+        sb.Append($"&type={type}");
+        sb.Append($"&quantity={quantity}");
+        sb.Append($"&triggerPrice={triggerPrice}");
+        sb.Append($"&workingType={workingType.ToUpperInvariant()}");
+
+        if (type is "STOP" or "TAKE_PROFIT")
+        {
+            if (string.IsNullOrEmpty(price))
+            {
+                throw new ArgumentException("Цена обязательна для STOP/TAKE_PROFIT limit");
+            }
+
+            sb.Append($"&price={price}");
+            sb.Append($"&timeInForce={timeInForce.ToUpperInvariant()}");
+        }
+
+        if (reduceOnly)
+        {
+            sb.Append("&reduceOnly=true");
+        }
+
+        var url = SignedUrl("/fapi/v1/algoOrder", sb.ToString() + "&timestamp={0}", usePost: true);
+        Log($"POST /fapi/v1/algoOrder {type} {side} {symbol} trigger={triggerPrice}");
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{BaseUrl}/fapi/v1/algoOrder");
+        request.Headers.Add("X-MBX-APIKEY", ApiKey);
+        request.Content = new StringContent(ExtractBody(url), Encoding.UTF8, "application/x-www-form-urlencoded");
+        var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
+        var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            Log($"AlgoOrder error: {content}");
+            throw new Exception($"API Error: {content}");
+        }
+
+        var algo = JsonSerializer.Deserialize<BinanceAlgoOrderResponse>(content)
+                   ?? throw new Exception("Empty algo order response");
+        return new BinanceOrder
+        {
+            OrderId = algo.AlgoId,
+            Symbol = algo.Symbol,
+            Side = algo.Side,
+            Type = algo.OrderType,
+            OrigQty = algo.Quantity,
+            Status = algo.AlgoStatus,
+            StopPrice = algo.TriggerPrice,
+            Price = algo.Price,
+        };
+    }
+
+    private async Task<BinanceOrder> PlaceLegacyStopOrderAsync(
+        string symbol,
+        string side,
+        string normalizedType,
+        string quantity,
+        string stopPrice,
+        string? price,
+        string workingType,
+        string timeInForce,
+        bool reduceOnly)
+    {
         var sb = new StringBuilder();
         sb.Append($"symbol={symbol.ToUpperInvariant()}");
         sb.Append($"&side={side.ToUpperInvariant()}");
@@ -548,6 +655,58 @@ public sealed class BinanceApiService
         {
             await CancelOrderAsync(symbol, order.OrderId).ConfigureAwait(false);
         }
+
+        var algoOrders = await GetOpenAlgoOrdersAsync(symbol).ConfigureAwait(false);
+        foreach (var algo in algoOrders.Where(o => typeFilter(o.OrderType)))
+        {
+            await CancelAlgoOrderAsync(symbol, algo.AlgoId).ConfigureAwait(false);
+        }
+    }
+
+    public async Task<List<BinanceAlgoOrderResponse>> GetOpenAlgoOrdersAsync(string? symbol = null)
+    {
+        if (string.IsNullOrEmpty(ApiKey) || string.IsNullOrEmpty(SecretKey))
+        {
+            return [];
+        }
+
+        var query = string.IsNullOrEmpty(symbol)
+            ? "timestamp={0}"
+            : $"symbol={symbol.ToUpperInvariant()}&timestamp={{0}}";
+        var url = SignedUrl("/fapi/v1/openAlgoOrders", query);
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Add("X-MBX-APIKEY", ApiKey);
+        var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
+        var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            Log($"OpenAlgoOrders error: {content}");
+            return [];
+        }
+
+        return JsonSerializer.Deserialize<List<BinanceAlgoOrderResponse>>(content) ?? [];
+    }
+
+    public async Task<bool> CancelAlgoOrderAsync(string symbol, long algoId)
+    {
+        if (string.IsNullOrEmpty(ApiKey) || string.IsNullOrEmpty(SecretKey))
+        {
+            return false;
+        }
+
+        var query = $"symbol={symbol.ToUpperInvariant()}&algoId={algoId}&timestamp={{0}}";
+        var url = SignedUrl("/fapi/v1/algoOrder", query);
+        using var request = new HttpRequestMessage(HttpMethod.Delete, url);
+        request.Headers.Add("X-MBX-APIKEY", ApiKey);
+        var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
+        var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            Log($"CancelAlgoOrder error: {content}");
+            return false;
+        }
+
+        return true;
     }
 
     public async Task<BinanceOrder?> CancelOrderAsync(string symbol, long orderId)
@@ -620,11 +779,44 @@ public sealed class BinanceApiService
         return JsonSerializer.Deserialize<List<BinanceOrder>>(content) ?? [];
     }
 
+    public async Task<List<UserTradeResponse>> GetUserTradesSinceAsync(
+        string symbol,
+        long startTimeMs,
+        int pageSize = 1000,
+        CancellationToken ct = default)
+    {
+        var all = new List<UserTradeResponse>();
+        long? fromId = null;
+
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+            var batch = await GetUserTradesAsync(symbol, startTimeMs, fromId: fromId, limit: pageSize, ct: ct)
+                .ConfigureAwait(false);
+            if (batch.Count == 0)
+            {
+                break;
+            }
+
+            all.AddRange(batch);
+            if (batch.Count < pageSize)
+            {
+                break;
+            }
+
+            fromId = batch.Max(t => t.Id) + 1;
+        }
+
+        return all;
+    }
+
     public async Task<List<UserTradeResponse>> GetUserTradesAsync(
         string symbol,
         long? startTime = null,
         long? endTime = null,
-        int limit = 500)
+        long? fromId = null,
+        int limit = 500,
+        CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(ApiKey) || string.IsNullOrEmpty(SecretKey) || string.IsNullOrEmpty(symbol))
         {
@@ -633,7 +825,7 @@ public sealed class BinanceApiService
 
         var sb = new StringBuilder();
         sb.Append($"symbol={symbol.ToUpperInvariant()}");
-        sb.Append(CultureInfo.InvariantCulture, $"&limit={limit}");
+        sb.Append(CultureInfo.InvariantCulture, $"&limit={Math.Clamp(limit, 1, 1000)}");
         if (startTime.HasValue)
         {
             sb.Append(CultureInfo.InvariantCulture, $"&startTime={startTime.Value}");
@@ -644,13 +836,18 @@ public sealed class BinanceApiService
             sb.Append(CultureInfo.InvariantCulture, $"&endTime={endTime.Value}");
         }
 
+        if (fromId.HasValue)
+        {
+            sb.Append(CultureInfo.InvariantCulture, $"&fromId={fromId.Value}");
+        }
+
         sb.Append("&timestamp={0}");
         var url = SignedUrl("/fapi/v1/userTrades", sb.ToString());
         Log($"GET /fapi/v1/userTrades {symbol}");
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Add("X-MBX-APIKEY", ApiKey);
-        var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
-        var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+        var response = await _httpClient.SendAsync(request, ct).ConfigureAwait(false);
+        var content = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
             Log($"UserTrades error: {content}");
@@ -658,6 +855,67 @@ public sealed class BinanceApiService
         }
 
         return JsonSerializer.Deserialize<List<UserTradeResponse>>(content) ?? [];
+    }
+
+    public async Task<List<FuturesIncomeRecord>> GetIncomeSinceAsync(
+        long startTimeMs,
+        string? incomeType = null,
+        CancellationToken ct = default)
+    {
+        var all = new List<FuturesIncomeRecord>();
+        for (var page = 1; page <= 100; page++)
+        {
+            ct.ThrowIfCancellationRequested();
+            var batch = await GetIncomePageAsync(startTimeMs, incomeType, page, ct).ConfigureAwait(false);
+            if (batch.Count == 0)
+            {
+                break;
+            }
+
+            all.AddRange(batch);
+            Log($"GET /fapi/v1/income page={page} rows={batch.Count} total={all.Count}");
+            if (batch.Count < 1000)
+            {
+                break;
+            }
+        }
+
+        return all;
+    }
+
+    private async Task<List<FuturesIncomeRecord>> GetIncomePageAsync(
+        long startTimeMs,
+        string? incomeType,
+        int page,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(ApiKey) || string.IsNullOrEmpty(SecretKey))
+        {
+            return [];
+        }
+
+        var sb = new StringBuilder();
+        sb.Append(CultureInfo.InvariantCulture, $"startTime={startTimeMs}");
+        sb.Append(CultureInfo.InvariantCulture, $"&limit=1000&page={page}");
+        if (!string.IsNullOrWhiteSpace(incomeType))
+        {
+            sb.Append($"&incomeType={incomeType}");
+        }
+
+        sb.Append("&timestamp={0}");
+        var url = SignedUrl("/fapi/v1/income", sb.ToString());
+        Log($"GET /fapi/v1/income page={page} type={incomeType ?? "ALL"}");
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Add("X-MBX-APIKEY", ApiKey);
+        var response = await _httpClient.SendAsync(request, ct).ConfigureAwait(false);
+        var content = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            Log($"Income error: {content}");
+            return [];
+        }
+
+        return JsonSerializer.Deserialize<List<FuturesIncomeRecord>>(content) ?? [];
     }
 
     private string SignedUrl(string path, string queryTemplate, bool usePost = false)

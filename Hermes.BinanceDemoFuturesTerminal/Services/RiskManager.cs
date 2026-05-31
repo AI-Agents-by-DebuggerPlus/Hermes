@@ -4,9 +4,41 @@ namespace Hermes.BinanceDemoFuturesTerminal.Services;
 
 public static class RiskManager
 {
+    public static double GetWalletBalanceUsdt(IEnumerable<BalanceModel> balances) =>
+        balances.FirstOrDefault(b => b.Asset.Equals("USDT", StringComparison.OrdinalIgnoreCase))?.Total ?? 0;
+
+    public static double ComputeMaxOrderMarginUsdt(double walletBalanceUsdt, PlatformSettings settings)
+    {
+        if (!settings.RiskManagementEnabled || settings.MaxOrderMarginPercent <= 0)
+        {
+            return double.MaxValue;
+        }
+
+        return walletBalanceUsdt * settings.MaxOrderMarginPercent / 100.0;
+    }
+
+    public static double ComputeMaxOrderNotionalUsdt(
+        double walletBalanceUsdt,
+        int leverage,
+        PlatformSettings settings)
+    {
+        var maxMargin = ComputeMaxOrderMarginUsdt(walletBalanceUsdt, settings);
+        if (maxMargin <= 0 || double.IsPositiveInfinity(maxMargin))
+        {
+            return double.MaxValue;
+        }
+
+        return maxMargin * Math.Max(leverage, 1);
+    }
+
+    public static double EstimateOrderMarginUsdt(double orderNotionalUsdt, int leverage) =>
+        orderNotionalUsdt / Math.Max(leverage, 1);
+
     public static string? ValidateOrder(
         PlatformSettings settings,
         double orderNotionalUsdt,
+        double walletBalanceUsdt,
+        int orderLeverage,
         IReadOnlyList<PositionModel> openPositions,
         string symbol,
         bool isNewPosition)
@@ -21,9 +53,16 @@ public static class RiskManager
             return "Номинал ордера должен быть больше 0 USDT.";
         }
 
-        if (settings.MaxOrderUsdt > 0 && orderNotionalUsdt > settings.MaxOrderUsdt)
+        if (settings.MaxOrderMarginPercent > 0 && walletBalanceUsdt > 0)
         {
-            return $"Риск: номинал ордера {orderNotionalUsdt:N2} USDT превышает лимит {settings.MaxOrderUsdt:N2} USDT.";
+            var orderMargin = EstimateOrderMarginUsdt(orderNotionalUsdt, orderLeverage);
+            var maxMargin = ComputeMaxOrderMarginUsdt(walletBalanceUsdt, settings);
+            if (orderMargin > maxMargin + 1e-8)
+            {
+                return
+                    $"Риск: маржа ордера {orderMargin:N2} USDT превышает лимит {maxMargin:N2} USDT "
+                    + $"({settings.MaxOrderMarginPercent.ToString("0.##")}% от депозита {walletBalanceUsdt:N2} USDT).";
+            }
         }
 
         var currentExposure = openPositions.Sum(p => Math.Abs(p.Size) * p.MarkPrice);

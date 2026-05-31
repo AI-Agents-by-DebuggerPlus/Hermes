@@ -23,8 +23,9 @@ public static class HermesPlatformKnowledgeInstructions
         + "**Ответы пользователю:** если спрашивают «как работает память/навыки/самообучение в Hermes» — опирайся на этот блок и при необходимости на vault-заметку `Knowledge/Hermes/Experience_and_Skills_Logic.md`. Не утверждай, что функции из старых README уже есть в WPF, если их нет в списке выше.\n"
         + "Подробный отчёт в репозитории: `Docs/Report/Experience_And_Skills_Logic_Report.md`.\n\n"
         + "**Hermes Binance Demo Spot Terminal:** `Hermes.BinanceDemoSpotTerminal.exe` (Spot Demo, demo-api.binance.com).\n"
-        + "**Hermes Binance Demo Futures Terminal:** `Hermes.BinanceDemoFuturesTerminal.exe` (USDT-M Futures Demo, demo-fapi.binance.com).\n"
-        + "Ключи для обоих — Binance → Demo Trading → API Management. Legacy `Hermes.SpotTerminal` и `Hermes.TradingPlatform.exe` в основном решении отключены.";
+        + "**Hermes Binance Demo Futures Terminal:** `Hermes.BinanceDemoFuturesTerminal.exe` (USDT-M Futures Demo, demo-fapi.binance.com). "
+        + "В режиме трейдинга Hermes читает snapshot (балансы, позиции, ордера) и исполняет JSON-команды `{\"skill\":\"trading\",\"market\":\"futures\",...}` через file-bridge.\n"
+        + "Legacy `Hermes.SpotTerminal` и `Hermes.TradingPlatform.exe` в основном решении отключены.";
 
     /// <summary>Vault note body (without YAML) — synced when repo report is unavailable.</summary>
     public static string VaultMarkdownBody =>

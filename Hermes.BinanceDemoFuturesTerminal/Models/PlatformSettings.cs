@@ -7,8 +7,8 @@ public sealed class PlatformSettings
 
     public bool RiskManagementEnabled { get; set; } = true;
 
-    /// <summary>Max notional per single order (USDT).</summary>
-    public double MaxOrderUsdt { get; set; } = 500;
+    /// <summary>Max initial margin per order as % of wallet balance (USDT).</summary>
+    public double MaxOrderMarginPercent { get; set; } = 1;
 
     /// <summary>Max total open position notional across symbols (USDT).</summary>
     public double MaxTotalExposureUsdt { get; set; } = 2000;
@@ -18,6 +18,9 @@ public sealed class PlatformSettings
 
     /// <summary>Max leverage allowed for new exposure checks (informational).</summary>
     public int MaxLeverage { get; set; } = 20;
+
+    /// <summary>Default order notional (USDT) when agent/user omits volume.</summary>
+    public double DefaultAgentOrderUsdt { get; set; } = 50;
 
     /// <summary>True = LIMIT, false = MARKET. Legacy; use OrderEntryMode when set.</summary>
     public bool IsLimitOrder { get; set; } = true;

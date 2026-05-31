@@ -5,17 +5,23 @@ namespace Hermes.Wpf.Services;
 
 internal static class TradingPlatformIntentParser
 {
-    internal static bool TryConsumeIntent(string assistantText, out TradingPlatformCommand? command, out bool queryOnly)
+    internal static bool TryConsumeIntent(
+        string assistantText,
+        out TradingPlatformCommand? command,
+        out bool queryOnly,
+        out string? market)
     {
         command = null;
         queryOnly = false;
+        market = null;
         foreach (var json in EnumerateJsonCandidates(assistantText ?? string.Empty))
         {
-            if (!TryParse(json, out var cmd, out var query))
+            if (!TryParse(json, out var cmd, out var query, out var parsedMarket))
             {
                 continue;
             }
 
+            market = parsedMarket;
             if (query)
             {
                 queryOnly = true;
@@ -29,6 +35,12 @@ internal static class TradingPlatformIntentParser
         return false;
     }
 
+    internal static bool TryConsumeIntent(string assistantText, out TradingPlatformCommand? command, out bool queryOnly)
+    {
+        var found = TryConsumeIntent(assistantText, out command, out queryOnly, out _);
+        return found;
+    }
+
     internal static string UserFacingLine(bool ok, string detail)
     {
         var text = TryExtractResultMessage(detail) ?? detail.Trim();
@@ -36,11 +48,13 @@ internal static class TradingPlatformIntentParser
         {
             text = ok
                 ? "команда выполнена"
-                : "нет ответа от SpotTerminal (запустите Hermes.SpotTerminal.exe)";
+                : "нет ответа от торгового терминала (запустите Binance Demo Futures Terminal)";
         }
 
         return ok ? $"[trading] {text}" : $"[trading] Ошибка: {text}";
     }
+
+    internal static string? TryExtractResultMessagePublic(string detail) => TryExtractResultMessage(detail);
 
     private static string? TryExtractResultMessage(string detail)
     {
@@ -65,10 +79,11 @@ internal static class TradingPlatformIntentParser
         return null;
     }
 
-    private static bool TryParse(string json, out TradingPlatformCommand? command, out bool queryOnly)
+    private static bool TryParse(string json, out TradingPlatformCommand? command, out bool queryOnly, out string? market)
     {
         command = null;
         queryOnly = false;
+        market = null;
         try
         {
             using var doc = JsonDocument.Parse(json);
@@ -78,6 +93,8 @@ internal static class TradingPlatformIntentParser
             {
                 return false;
             }
+
+            market = NullIfEmpty(ReadString(root, "market"));
 
             var action = ReadString(root, "action");
             if (action.Equals("query", StringComparison.OrdinalIgnoreCase))
@@ -93,11 +110,13 @@ internal static class TradingPlatformIntentParser
                 Side = NullIfEmpty(ReadString(root, "side")),
                 OrderType = NullIfEmpty(ReadString(root, "order_type")),
                 Quantity = ReadDecimal(root, "quantity"),
+                QuantityUsdt = ReadDecimal(root, "quantity_usdt") ?? ReadDecimal(root, "quantity"),
                 Price = ReadDecimal(root, "price"),
                 ReduceOnly = ReadBool(root, "reduce_only"),
                 OrderId = NullIfEmpty(ReadString(root, "order_id")),
                 StrategyId = NullIfEmpty(ReadString(root, "strategy_id")),
                 Enabled = ReadBool(root, "enabled"),
+                Leverage = ReadInt(root, "leverage"),
                 RequestedBy = "Hermes.Wpf",
             };
             return !string.IsNullOrWhiteSpace(command.Action);
@@ -106,6 +125,27 @@ internal static class TradingPlatformIntentParser
         {
             return false;
         }
+    }
+
+    private static int? ReadInt(JsonElement root, string name)
+    {
+        if (!root.TryGetProperty(name, out var el))
+        {
+            return null;
+        }
+
+        return el.ValueKind switch
+        {
+            JsonValueKind.Number when el.TryGetInt32(out var i) => i,
+            JsonValueKind.String when int.TryParse(el.GetString(), out var parsed) => parsed,
+            _ => null,
+        };
+    }
+
+    private static bool TryParse(string json, out TradingPlatformCommand? command, out bool queryOnly)
+    {
+        var ok = TryParse(json, out command, out queryOnly, out _);
+        return ok;
     }
 
     private static IEnumerable<string> EnumerateJsonCandidates(string text)

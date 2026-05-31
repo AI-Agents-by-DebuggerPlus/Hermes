@@ -55,6 +55,7 @@ public sealed class SettingsViewModel : BaseViewModel
     private string _lastScreenshotBrowsePath = string.Empty;
     private bool _tradingPlatformIntegrationEnabled = true;
     private bool _tradingPlatformAutoLaunchTerminal;
+    private string _tradingSafetyRulesText = string.Empty;
     private string _inAppAssistantOpenRouterApiKey = string.Empty;
     private string _inAppAssistantOpenRouterModel = "openrouter/free";
     private string _settingsStatusText =
@@ -117,6 +118,7 @@ public sealed class SettingsViewModel : BaseViewModel
         _desktopVisionUseAnnotatedImage = settings.DesktopVisionUseAnnotatedImage;
         _tradingPlatformIntegrationEnabled = settings.TradingPlatformIntegrationEnabled;
         _tradingPlatformAutoLaunchTerminal = settings.TradingPlatformAutoLaunchTerminal;
+        _tradingSafetyRulesText = settings.TradingSafetyRulesText ?? string.Empty;
         _inAppAssistantOpenRouterApiKey = settings.InAppAssistantOpenRouterApiKey ?? string.Empty;
         _inAppAssistantOpenRouterModel = string.IsNullOrWhiteSpace(settings.InAppAssistantOpenRouterModel)
             ? "openrouter/free"
@@ -631,6 +633,16 @@ public sealed class SettingsViewModel : BaseViewModel
         {
             _settings.TradingPlatformAutoLaunchTerminal = value;
             SetProperty(ref _tradingPlatformAutoLaunchTerminal, value);
+        }
+    }
+
+    public string TradingSafetyRulesText
+    {
+        get => _tradingSafetyRulesText;
+        set
+        {
+            _settings.TradingSafetyRulesText = value ?? string.Empty;
+            SetProperty(ref _tradingSafetyRulesText, value ?? string.Empty);
         }
     }
 

@@ -124,11 +124,11 @@ public sealed class AdjustLeverageViewModel : ObservableObject
                 if (Settings.MaxLeverage < SymbolMaxLeverage)
                 {
                     return
-                        $"• Риск-менеджер терминала ограничивает «Макс. плечо (проверка)» до {Settings.MaxLeverage}x (макс. на бирже — {SymbolMaxLeverage}x). Ордер будет отклонён, если плечо выше лимита или номинал превышает «Макс. номинал ордера (USDT)» / «Макс. суммарная экспозиция (USDT)».";
+                        $"• Риск-менеджер терминала ограничивает «Макс. плечо (проверка)» до {Settings.MaxLeverage}x (макс. на бирже — {SymbolMaxLeverage}x). Ордер будет отклонён, если плечо выше лимита или маржа превышает «Макс. маржа на сделку (% депозита)» / «Макс. суммарная экспозиция (USDT)».";
                 }
 
                 return
-                    $"• Риск-менеджер включён: «Макс. плечо (проверка)» — {Settings.MaxLeverage}x, «Макс. номинал ордера (USDT)» — {Settings.MaxOrderUsdt:N0}, «Макс. суммарная экспозиция (USDT)» — {Settings.MaxTotalExposureUsdt:N0}.";
+                    $"• Риск-менеджер включён: «Макс. плечо (проверка)» — {Settings.MaxLeverage}x, «Макс. маржа на сделку» — {Settings.MaxOrderMarginPercent.ToString("0.##", CultureInfo.InvariantCulture)}% депозита, «Макс. суммарная экспозиция (USDT)» — {Settings.MaxTotalExposureUsdt:N0}.";
             }
 
             return
