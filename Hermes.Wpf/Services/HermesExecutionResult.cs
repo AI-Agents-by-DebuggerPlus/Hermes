@@ -11,5 +11,14 @@ public sealed class HermesExecutionResult
     /// <summary>Last raw stderr line (before the <c>[stderr]</c> terminal prefix).</summary>
     public string? LastStderrLine { get; init; }
 
+    /// <summary>Hermes CLI session id from <c>session_id:</c> line (quiet chat mode).</summary>
+    public string? SessionId { get; init; }
+
+    /// <summary>Assistant text with CLI session metadata stripped.</summary>
+    public string DisplayText { get; init; } = string.Empty;
+
     public bool Success => ExitCode == 0;
+
+    public string EffectiveDisplayText =>
+        string.IsNullOrWhiteSpace(DisplayText) ? "(пустой ответ)" : DisplayText;
 }

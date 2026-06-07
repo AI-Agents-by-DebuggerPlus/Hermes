@@ -18,6 +18,8 @@ public sealed class HistoryService
         Directory.CreateDirectory(_historyRoot);
     }
 
+    public string GetHistoryFilePath(string projectName) => BuildProjectHistoryFilePath(projectName);
+
     public async Task SaveAsync(SessionHistory sessionHistory)
     {
         var filePath = BuildProjectHistoryFilePath(sessionHistory.ProjectName);

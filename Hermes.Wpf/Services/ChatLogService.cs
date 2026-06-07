@@ -5,7 +5,7 @@ using Hermes.TradingPlatform.Shared.Infrastructure;
 
 namespace Hermes.Wpf.Services;
 
-/// <summary>Per-project chat transcript under Logs/Hermes.Wpf/{project}/chat_{session}.log.</summary>
+/// <summary>Per-project chat transcript under Docs/Logs/HermesWpfChat/{project}/chat_{session}.log.</summary>
 public sealed class ChatLogService
 {
     private readonly object _sync = new();
@@ -18,7 +18,7 @@ public sealed class ChatLogService
     public ChatLogService(LogService logService)
     {
         _sessionStamp = logService.SessionStamp;
-        Directory.CreateDirectory(HermesLogPaths.LogsRoot);
+        Directory.CreateDirectory(HermesLogPaths.ChatLogsRoot);
     }
 
     public string CurrentChatLogPath => _lastChatLogPath ?? "(no chat logged yet)";
@@ -43,7 +43,7 @@ public sealed class ChatLogService
 
     private string CreateChatLogFile(string projectFolder)
     {
-        var dir = HermesLogPaths.GetProjectDirectory(
+        var dir = HermesLogPaths.GetChatProjectDirectory(
             projectFolder == HermesLogPaths.AppFolderName ? null : projectFolder);
         var path = Path.Combine(dir, $"chat_{_sessionStamp}.log");
         File.AppendAllText(
@@ -55,5 +55,8 @@ public sealed class ChatLogService
     }
 
     private static void PruneOldChatLogs(string projectDirectory) =>
-        SessionLogPruner.PruneDirectory(projectDirectory, "chat_*.log");
+        SessionLogPruner.PruneDirectory(
+            projectDirectory,
+            "chat_*.log",
+            HermesLogPaths.RetainedLogSessionCount);
 }

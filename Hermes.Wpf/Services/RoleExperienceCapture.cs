@@ -1,7 +1,6 @@
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using Hermes.Wpf.Models;
 
 namespace Hermes.Wpf.Services;
@@ -20,27 +19,49 @@ public sealed class RoleExperienceCapture
         _settings = settings;
     }
 
-    public Task<bool> TryCaptureAsync(MemoryDraft draft, AgentRole activeRole, string vaultPath)
+    public Task<bool> TryCaptureAsync(MemoryDraft draft, AgentRole activeRole, string vaultPath) =>
+        TryCaptureAsync(draft, activeRole, vaultPath, null);
+
+    public Task<bool> CaptureIfNeededAsync(
+        MemoryDraft draft,
+        AgentRole activeRole,
+        string vaultPath,
+        LocalCaptureOptions? options = null) =>
+        TryCaptureAsync(draft, activeRole, vaultPath, options);
+
+    public Task<bool> TryCaptureAsync(
+        MemoryDraft draft,
+        AgentRole activeRole,
+        string vaultPath,
+        LocalCaptureOptions? options)
     {
         if (string.IsNullOrWhiteSpace(vaultPath) || !Directory.Exists(vaultPath))
         {
             return Task.FromResult(false);
         }
 
-        return Task.FromResult(TryCaptureCore(draft, activeRole, vaultPath));
+        return Task.FromResult(TryCaptureCore(draft, activeRole, vaultPath, options));
     }
 
-    private bool TryCaptureCore(MemoryDraft draft, AgentRole activeRole, string vaultPath)
+    private bool TryCaptureCore(MemoryDraft draft, AgentRole activeRole, string vaultPath, LocalCaptureOptions? options)
     {
         var settings = _settings();
-        if (!settings.RoleAutoCapture || activeRole == AgentRole.Universal)
+        var force = options?.ForceRoleCaptureWhenDisabled == true;
+        if (!force && !settings.RoleAutoCapture)
         {
             return false;
         }
 
+        if (!force && activeRole == AgentRole.Universal)
+        {
+            return false;
+        }
+
+        var minImportance = options?.MinImportanceOverride ?? settings.RoleAutoCaptureMinImportance;
         var contentLen = (draft.Problem?.Length ?? 0) + (draft.Solution?.Length ?? 0);
-        if (draft.Importance < settings.RoleAutoCaptureMinImportance
-            || contentLen < settings.RoleAutoCaptureMinLength)
+        var minLen = options?.BypassMinLength == true ? 24 : settings.RoleAutoCaptureMinLength;
+
+        if (draft.Importance < minImportance || contentLen < minLen)
         {
             return false;
         }
@@ -77,6 +98,12 @@ public sealed class RoleExperienceCapture
             draft.Tags.Add("auto-captured");
         }
 
+        if (options?.BypassMinLength == true
+            && !draft.Tags.Contains("local-handler", StringComparer.OrdinalIgnoreCase))
+        {
+            draft.Tags.Add("local-handler");
+        }
+
         var roleTag = GetRoleTag(activeRole);
         if (!draft.Tags.Contains(roleTag, StringComparer.OrdinalIgnoreCase))
         {
@@ -91,7 +118,7 @@ public sealed class RoleExperienceCapture
         var body = _extractor.GenerateMarkdown(draft);
         File.WriteAllText(path, body, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 
-        var title = draft.Problem.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        var title = (draft.Problem ?? string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .FirstOrDefault() ?? "memory";
         _log.LogInfo($"[role-capture] Auto-saved {type} memory for role {activeRole}: {title}");
         return true;
@@ -104,6 +131,7 @@ public sealed class RoleExperienceCapture
             AgentRole.Developer => "development",
             AgentRole.EnglishTutor => "english",
             AgentRole.PersonalManager => "productivity",
+            AgentRole.UtilitiesManager => "utilities",
             AgentRole.Biohacker => "health",
             _ => "universal",
         };
@@ -115,13 +143,14 @@ public sealed class RoleExperienceCapture
             AgentRole.Developer => Path.Combine("Knowledge", "Development"),
             AgentRole.EnglishTutor => Path.Combine("Knowledge", "English"),
             AgentRole.PersonalManager => Path.Combine("Knowledge", "Productivity"),
+            AgentRole.UtilitiesManager => Path.Combine("Knowledge", "Utilities"),
             AgentRole.Biohacker => Path.Combine("Health", "Journal"),
             _ => Path.Combine("Knowledge", "General"),
         };
 
     private static string ComputeDedupHash(MemoryDraft draft)
     {
-        var sample = ((draft.Problem ?? string.Empty) + (draft.Solution ?? string.Empty));
+        var sample = (draft.Problem ?? string.Empty) + (draft.Solution ?? string.Empty);
         if (sample.Length > 200)
         {
             sample = sample[..200];

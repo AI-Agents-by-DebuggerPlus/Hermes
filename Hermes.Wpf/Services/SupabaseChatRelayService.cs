@@ -95,9 +95,10 @@ public sealed class SupabaseChatRelayService
             .ToList();
     }
 
-    /// <summary>Insert assistant/Hermes line as <see cref="SupabaseHermesEchoTracker"/> consumes echoed rows.</summary>
+    /// <summary>Insert chat line as <see cref="SupabaseHermesEchoTracker"/> consumes echoed Hermes rows.</summary>
     public async Task InsertAssistantRowAsync(
         string senderDisplayName,
+        string recipientDisplayName,
         string content,
         CancellationToken cancellationToken = default,
         bool logPublish = true)
@@ -108,11 +109,14 @@ public sealed class SupabaseChatRelayService
         var currentUserId = CurrentUserId
                             ?? throw new InvalidOperationException("Supabase session has no user id.");
 
+        var recipient = string.IsNullOrWhiteSpace(recipientDisplayName) ? "Unknown" : recipientDisplayName.Trim();
+
         await _client!.From<SupabaseMessageInsertRow>()
             .Insert(new SupabaseMessageInsertRow
                 {
                     SenderId = currentUserId,
                     SenderName = senderDisplayName,
+                    RecipientName = recipient,
                     Content = content,
                     CreatedAt = _settings.SupabaseUseLocalCreatedAt ? DateTimeOffset.Now : DateTimeOffset.UtcNow
                 },
@@ -120,7 +124,8 @@ public sealed class SupabaseChatRelayService
 
         if (logPublish)
         {
-            _log.LogInfo($"[supabase] Published row (sender_name={senderDisplayName}, chars={content.Length}).");
+            _log.LogInfo(
+                $"[supabase] Published row (sender_name={senderDisplayName}, recipient_name={recipient}, chars={content.Length}).");
         }
     }
 

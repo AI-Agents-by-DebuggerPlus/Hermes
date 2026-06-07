@@ -1,4 +1,5 @@
-# Register Windows Task Scheduler (run PowerShell as Administrator once).
+# Register Windows Task Scheduler — invoke only from Hermes CLI (schtasks terminal tool or wpf_local reni_water_schtasks_register).
+# Do NOT run manually bypassing CLI if you want Hermes to remember tool usage.
 $ErrorActionPreference = "Stop"
 $here = (Resolve-Path $PSScriptRoot).Path
 $submitPs1 = Join-Path $here "run_submit.ps1"

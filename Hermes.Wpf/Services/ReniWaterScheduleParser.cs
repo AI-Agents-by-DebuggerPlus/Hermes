@@ -25,10 +25,10 @@ public sealed record ReniWaterScheduleRequest(
         new(
             ReniWaterScheduleAction.Monthly,
             null,
-            ReniWaterScheduleSkill.DefaultWindowStartDay,
-            ReniWaterScheduleSkill.DefaultWindowEndDay,
-            ReniWaterScheduleSkill.DefaultHour,
-            ReniWaterScheduleSkill.DefaultMinute);
+            ReniWaterScheduleDefaults.DefaultWindowStartDay,
+            ReniWaterScheduleDefaults.DefaultWindowEndDay,
+            ReniWaterScheduleDefaults.DefaultHour,
+            ReniWaterScheduleDefaults.DefaultMinute);
 }
 
 /// <summary>Parse Russian chat phrases for in-app water-meter scheduling (no Windows Task Scheduler).</summary>
@@ -124,8 +124,8 @@ public static partial class ReniWaterScheduleParser
             return false;
         }
 
-        var windowStart = ReniWaterScheduleSkill.DefaultWindowStartDay;
-        var windowEnd = ReniWaterScheduleSkill.DefaultWindowEndDay;
+        var windowStart = ReniWaterScheduleDefaults.DefaultWindowStartDay;
+        var windowEnd = ReniWaterScheduleDefaults.DefaultWindowEndDay;
 
         var range = WindowRangeRegex().Match(t);
         if (range.Success)
@@ -149,7 +149,7 @@ public static partial class ReniWaterScheduleParser
             }
         }
 
-        var (hour, minute) = ParseTimeFromText(t, defaultHour: ReniWaterScheduleSkill.DefaultHour);
+        var (hour, minute) = ParseTimeFromText(t, defaultHour: ReniWaterScheduleDefaults.DefaultHour);
         request = new ReniWaterScheduleRequest(
             ReniWaterScheduleAction.Monthly,
             null,

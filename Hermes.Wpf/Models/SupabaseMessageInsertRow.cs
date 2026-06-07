@@ -16,6 +16,9 @@ public sealed class SupabaseMessageInsertRow : BaseModel
     [Column("sender_name")]
     public string SenderName { get; set; } = string.Empty;
 
+    [Column("recipient_name")]
+    public string RecipientName { get; set; } = string.Empty;
+
     [Column("content")]
     public string Content { get; set; } = string.Empty;
 

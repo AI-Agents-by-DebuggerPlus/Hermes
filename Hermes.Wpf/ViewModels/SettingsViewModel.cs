@@ -32,6 +32,15 @@ public sealed class SettingsViewModel : BaseViewModel
     private bool _supabaseImportFullHistoryOnConnect;
     private string _supabaseHermesSenderName = "Hermes";
     private string _supabaseLocalSenderName = "Desktop";
+    private bool _supabaseFilterInboundByRecipient = true;
+    private string _supabaseInboundRecipientName = "Hermes";
+    private string _supabaseHermesOutboundRecipientName = "Android";
+    private string _supabaseLocalOutboundRecipientName = "Hermes";
+    private bool _whatsAppWebEnabled = true;
+    private string _whatsAppContactDisplayName = "My Fido";
+    private bool _whatsAppTextMarkerEnabled = true;
+    private string _whatsAppTextMarker = "[gemini]";
+    private bool _whatsAppAllowSingleCharMessages;
     private string _externalBrainMemoryPath = string.Empty;
     private bool _externalBrainInjectIntoPrompt = true;
     private bool _externalBrainVectorRetrievalEnabled = true;
@@ -92,6 +101,25 @@ public sealed class SettingsViewModel : BaseViewModel
         _supabaseLocalSenderName = string.IsNullOrWhiteSpace(settings.SupabaseLocalSenderName)
             ? "Desktop"
             : settings.SupabaseLocalSenderName.Trim();
+        _supabaseFilterInboundByRecipient = settings.SupabaseFilterInboundByRecipient;
+        _supabaseInboundRecipientName = string.IsNullOrWhiteSpace(settings.SupabaseInboundRecipientName)
+            ? "Hermes"
+            : settings.SupabaseInboundRecipientName.Trim();
+        _supabaseHermesOutboundRecipientName = string.IsNullOrWhiteSpace(settings.SupabaseHermesOutboundRecipientName)
+            ? "Android"
+            : settings.SupabaseHermesOutboundRecipientName.Trim();
+        _supabaseLocalOutboundRecipientName = string.IsNullOrWhiteSpace(settings.SupabaseLocalOutboundRecipientName)
+            ? "Hermes"
+            : settings.SupabaseLocalOutboundRecipientName.Trim();
+        _whatsAppWebEnabled = settings.WhatsAppWebEnabled;
+        _whatsAppContactDisplayName = string.IsNullOrWhiteSpace(settings.WhatsAppContactDisplayName)
+            ? "My Fido"
+            : settings.WhatsAppContactDisplayName.Trim();
+        _whatsAppTextMarkerEnabled = settings.WhatsAppTextMarkerEnabled;
+        _whatsAppTextMarker = string.IsNullOrWhiteSpace(settings.WhatsAppTextMarker)
+            ? "[gemini]"
+            : settings.WhatsAppTextMarker.Trim();
+        _whatsAppAllowSingleCharMessages = settings.WhatsAppAllowSingleCharMessages;
         _externalBrainMemoryPath = settings.ExternalBrainMemoryPath ?? string.Empty;
         _externalBrainInjectIntoPrompt = settings.ExternalBrainInjectIntoPrompt;
         _externalBrainVectorRetrievalEnabled = settings.ExternalBrainVectorRetrievalEnabled;
@@ -381,6 +409,63 @@ public sealed class SettingsViewModel : BaseViewModel
         }
     }
 
+    public bool WhatsAppWebEnabled
+    {
+        get => _whatsAppWebEnabled;
+        set
+        {
+            _settings.WhatsAppWebEnabled = value;
+            SetProperty(ref _whatsAppWebEnabled, value);
+        }
+    }
+
+    public string WhatsAppContactDisplayName
+    {
+        get => _whatsAppContactDisplayName;
+        set
+        {
+            var v = string.IsNullOrWhiteSpace(value) ? "My Fido" : value.Trim();
+            _settings.WhatsAppContactDisplayName = v;
+            SetProperty(ref _whatsAppContactDisplayName, v);
+        }
+    }
+
+    public bool WhatsAppTextMarkerEnabled
+    {
+        get => _whatsAppTextMarkerEnabled;
+        set
+        {
+            _settings.WhatsAppTextMarkerEnabled = value;
+            if (SetProperty(ref _whatsAppTextMarkerEnabled, value))
+            {
+                RaisePropertyChanged(nameof(WhatsAppTextMarker));
+            }
+        }
+    }
+
+    public string WhatsAppTextMarker
+    {
+        get => _whatsAppTextMarker;
+        set
+        {
+            var v = value ?? string.Empty;
+            _settings.WhatsAppTextMarker = v;
+            SetProperty(ref _whatsAppTextMarker, v);
+        }
+    }
+
+    public bool WhatsAppAllowSingleCharMessages
+    {
+        get => _whatsAppAllowSingleCharMessages;
+        set
+        {
+            if (SetProperty(ref _whatsAppAllowSingleCharMessages, value))
+            {
+                _settings.WhatsAppAllowSingleCharMessages = value;
+            }
+        }
+    }
+
     public string SupabaseUrl
     {
         get => _supabaseUrl;
@@ -469,6 +554,49 @@ public sealed class SettingsViewModel : BaseViewModel
             var v = string.IsNullOrWhiteSpace(value) ? "Desktop" : value.Trim();
             _settings.SupabaseLocalSenderName = v;
             SetProperty(ref _supabaseLocalSenderName, v);
+        }
+    }
+
+    public bool SupabaseFilterInboundByRecipient
+    {
+        get => _supabaseFilterInboundByRecipient;
+        set
+        {
+            _settings.SupabaseFilterInboundByRecipient = value;
+            SetProperty(ref _supabaseFilterInboundByRecipient, value);
+        }
+    }
+
+    public string SupabaseInboundRecipientName
+    {
+        get => _supabaseInboundRecipientName;
+        set
+        {
+            var v = string.IsNullOrWhiteSpace(value) ? "Hermes" : value.Trim();
+            _settings.SupabaseInboundRecipientName = v;
+            SetProperty(ref _supabaseInboundRecipientName, v);
+        }
+    }
+
+    public string SupabaseHermesOutboundRecipientName
+    {
+        get => _supabaseHermesOutboundRecipientName;
+        set
+        {
+            var v = string.IsNullOrWhiteSpace(value) ? "Android" : value.Trim();
+            _settings.SupabaseHermesOutboundRecipientName = v;
+            SetProperty(ref _supabaseHermesOutboundRecipientName, v);
+        }
+    }
+
+    public string SupabaseLocalOutboundRecipientName
+    {
+        get => _supabaseLocalOutboundRecipientName;
+        set
+        {
+            var v = string.IsNullOrWhiteSpace(value) ? "Hermes" : value.Trim();
+            _settings.SupabaseLocalOutboundRecipientName = v;
+            SetProperty(ref _supabaseLocalOutboundRecipientName, v);
         }
     }
 

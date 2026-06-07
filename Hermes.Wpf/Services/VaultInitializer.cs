@@ -16,6 +16,8 @@ public static class VaultInitializer
         ("Knowledge/Development", "Development and architecture knowledge."),
         ("Knowledge/English", "English tutor vocabulary and lessons."),
         ("Knowledge/Productivity", "Tasks, goals, habits."),
+        ("Knowledge/Utilities", "Household utilities: Reni Water, ЖКХ automations."),
+        ("Procedures/Utilities/ReniWater", "Reni vodokanal submit procedures and learning journal."),
         ("Knowledge/Hermes", "Platform documentation synced from Hermes.Wpf."),
         ("Procedures/Trading", "Trading procedures and playbooks."),
         ("Procedures/Dev", "Development workflows."),

@@ -13,7 +13,7 @@ public static class SkillGenerationInstructions
         + "\"script_extension\":\"ps1|py\",\"outbound_prompt_block\":\"<инструкция для будущих чатов; опционально>\","
         + "\"test_command\":\"<команда smoke-теста; опционально>\"}\n"
         + "Правила: id — латиница, цифры, подчёркивание (3–48 символов). kind=script — исполняемый файл; kind=prompt — только блок в промпт; "
-        + "kind=intent — запуск через JSON {\"skill\":\"run_generated\",\"id\":\"…\"}.\n"
-        + "Для запуска уже сохранённого навыка по просьбе пользователя: {\"skill\":\"run_generated\",\"id\":\"<id>\"}.\n"
+        + "kind=intent — запуск через JSON {\"skill\":\"wpf_local\",\"action\":\"…\"} (Windows tools внутри skill) или {\"skill\":\"run_generated\",\"id\":\"…\"}.\n"
+        + "Для Windows-автоматизации (Reni Water и др.) — wpf_local, не run_generated.\n"
         + "Если сообщение не про сохранение/запуск навыка — не выводи этот JSON.";
 }

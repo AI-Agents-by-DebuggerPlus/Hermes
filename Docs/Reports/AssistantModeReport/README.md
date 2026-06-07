@@ -40,6 +40,7 @@
 | [03_Skill_Generation.md](./03_Skill_Generation.md) | Кристаллизация, catalog, resolver, sandbox, исполнение |
 | [04_Reni_Water_Case_Study.md](./04_Reni_Water_Case_Study.md) | Реализация водоканала, расписание, триггеры, разрывы с learning |
 | [05_Gaps_And_Recommendations.md](./05_Gaps_And_Recommendations.md) | Пробелы, влияние trading/assistant mode, предложения |
+| [06_Implementation.md](./06_Implementation.md) | Реализованный learning loop для Reni Water |
 
 ---
 

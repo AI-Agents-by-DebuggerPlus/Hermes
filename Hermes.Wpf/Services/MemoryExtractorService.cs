@@ -200,6 +200,59 @@ public sealed class MemoryExtractorService
         return null;
     }
 
+    /// <summary>Structured draft from a built-in local automation (Reni Water, etc.).</summary>
+    public MemoryDraft ExtractFromLocalExecution(LocalExecutionRecord record)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        return new MemoryDraft
+        {
+            Type = record.Success ? "procedural" : "episodic",
+            Problem = record.UserTask ?? string.Empty,
+            Solution = record.AssistantSummary ?? string.Empty,
+            Reusable = record.AssistantSummary ?? string.Empty,
+            Tags = InferLocalTags(record),
+            Project = record.ProjectName ?? string.Empty,
+            Importance = record.Success ? 5 : 4,
+            TimestampUtc = DateTime.UtcNow,
+        };
+    }
+
+    /// <summary>Extract, write to vault, return draft for role capture.</summary>
+    public async Task<(MemoryDraft? Draft, string? VaultPath)> ExtractAndSaveAsync(
+        MemoryDraft draft,
+        string vaultRoot,
+        ExternalBrainWriteService writer,
+        string? subfolderOverride = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        await Task.Yield();
+        if (!ShouldSave(draft))
+        {
+            return (null, null);
+        }
+
+        var path = writer.TryWriteMemory(draft, vaultRoot, subfolderOverride);
+        return (draft, path);
+    }
+
+    private static List<string> InferLocalTags(LocalExecutionRecord record)
+    {
+        var tags = new List<string> { "hermes", "local-automation" };
+        switch (record.Kind)
+        {
+            case LocalAutomationKind.ReniWaterSubmit:
+            case LocalAutomationKind.ReniWaterAck:
+            case LocalAutomationKind.ReniWaterSchedule:
+            case LocalAutomationKind.ReniWaterSessionCheck:
+                tags.AddRange(["utilities", "reni", "vodokanal", "reni_water"]);
+                break;
+        }
+
+        tags.Add(record.Success ? "success" : "failure");
+        return tags.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
     private static string Classify(string task, string result)
     {
         if (Explainish.IsMatch(task))

@@ -21,6 +21,7 @@ public sealed class SupabaseTestChatViewModel : BaseViewModel
     private string _anonKeyEdit = string.Empty;
     private bool _useAnonymousAuth = true;
     private string _testSenderName = "HermesTest";
+    private string _testRecipientName = "Hermes";
     private string _draft = string.Empty;
     private string _status = "Отключено. Укажите URL и anon key, затем «Подключиться».";
     private bool _connectBusy;
@@ -67,6 +68,12 @@ public sealed class SupabaseTestChatViewModel : BaseViewModel
     {
         get => _testSenderName;
         set => SetProperty(ref _testSenderName, string.IsNullOrWhiteSpace(value) ? "HermesTest" : value.Trim());
+    }
+
+    public string TestRecipientName
+    {
+        get => _testRecipientName;
+        set => SetProperty(ref _testRecipientName, string.IsNullOrWhiteSpace(value) ? "Hermes" : value.Trim());
     }
 
     public string DraftMessage
@@ -185,7 +192,7 @@ public sealed class SupabaseTestChatViewModel : BaseViewModel
         try
         {
             _log.LogInfo($"[supabase-test] Sending row sender_name={TestSenderName}, chars={text.Length}");
-            await _relay.InsertAssistantRowAsync(TestSenderName, text, CancellationToken.None, logPublish: false);
+            await _relay.InsertAssistantRowAsync(TestSenderName, TestRecipientName, text, CancellationToken.None, logPublish: false);
             DraftMessage = string.Empty;
             await PullAllAsync(isInitial: false);
         }
@@ -214,8 +221,9 @@ public sealed class SupabaseTestChatViewModel : BaseViewModel
                 }
 
                 var who = string.IsNullOrWhiteSpace(m.SenderName) ? "?" : m.SenderName.Trim();
+                var to = string.IsNullOrWhiteSpace(m.RecipientName) ? "?" : m.RecipientName.Trim();
                 var line =
-                    $"{m.CreatedAt:yyyy-MM-dd HH:mm:ss} [{who}] {m.Content?.ReplaceLineEndings(" ") ?? string.Empty}";
+                    $"{m.CreatedAt:yyyy-MM-dd HH:mm:ss} [{who} → {to}] {m.Content?.ReplaceLineEndings(" ") ?? string.Empty}";
                 Lines.Add(line);
             }
 

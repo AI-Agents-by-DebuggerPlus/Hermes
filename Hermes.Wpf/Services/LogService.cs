@@ -28,7 +28,7 @@ public sealed class LogService
         if (pruned > 0)
         {
             LogInfo(
-                $"[logs] pruned {pruned} old session/chat file(s); keeping latest {SessionLogPruner.DefaultKeepLatestSessions} per folder.");
+                $"[logs] pruned {pruned} old session/chat file(s); keeping latest {HermesLogPaths.RetainedLogSessionCount} per folder.");
         }
     }
 
@@ -107,13 +107,17 @@ public sealed class LogService
             $"hermes_session_{SessionStamp}.log");
 
     private static void PruneOldSessionLogs(string projectDirectory) =>
-        SessionLogPruner.PruneDirectory(projectDirectory, "hermes_session_*.log");
+        SessionLogPruner.PruneDirectory(
+            projectDirectory,
+            "hermes_session_*.log",
+            HermesLogPaths.RetainedLogSessionCount);
 
     private static int PruneAllWpfSessionLogs()
     {
         var wpfRoot = HermesLogsPaths.GetAppDirectory(HermesLogsPaths.AppHermesWpf);
         return SessionLogPruner.PruneAppTree(
             wpfRoot,
-            ["hermes_session_*.log", "chat_*.log"]);
+            ["hermes_session_*.log", "chat_*.log"],
+            HermesLogPaths.RetainedLogSessionCount);
     }
 }

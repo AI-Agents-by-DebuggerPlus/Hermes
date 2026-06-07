@@ -116,6 +116,11 @@ public partial class SettingsWindow : Window
         {
             await vm.SaveToDiskAsync();
         }
+
+        if (Owner is MainWindow { DataContext: MainViewModel mainVm })
+        {
+            mainVm.ApplyWhatsAppMonitoringSettings();
+        }
     }
 
     private async void SaveOpenRouterSection_OnClick(object sender, RoutedEventArgs e)

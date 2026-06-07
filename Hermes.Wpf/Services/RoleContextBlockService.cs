@@ -56,6 +56,7 @@ public sealed class RoleContextBlockService
             AgentRole.Developer => "dotnet, code, wpf",
             AgentRole.EnglishTutor => "english, vocabulary",
             AgentRole.PersonalManager => "task, productivity",
+            AgentRole.UtilitiesManager => "utilities, vodokanal, reni water, жкх",
             _ => "general",
         };
 }

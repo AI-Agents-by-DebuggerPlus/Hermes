@@ -67,15 +67,18 @@ public partial class ChatView : UserControl
             return;
         }
 
-        Dispatcher.BeginInvoke(
-            () =>
-            {
-                MessagesListBox.UpdateLayout();
-                var last = MessagesListBox.Items[^1];
-                MessagesListBox.ScrollIntoView(last);
-                FindScrollViewer(MessagesListBox)?.ScrollToEnd();
-            },
-            DispatcherPriority.Loaded);
+        void DoScroll()
+        {
+            MessagesListBox.UpdateLayout();
+            var last = MessagesListBox.Items[^1];
+            MessagesListBox.ScrollIntoView(last);
+            FindScrollViewer(MessagesListBox)?.ScrollToEnd();
+        }
+
+        Dispatcher.BeginInvoke(DoScroll, DispatcherPriority.Loaded);
+        // Long assistant replies (OpenRouter) finish layout after first pass.
+        Dispatcher.BeginInvoke(DoScroll, DispatcherPriority.Render);
+        Dispatcher.BeginInvoke(DoScroll, DispatcherPriority.ApplicationIdle);
     }
 
     private static ScrollViewer? FindScrollViewer(DependencyObject root)

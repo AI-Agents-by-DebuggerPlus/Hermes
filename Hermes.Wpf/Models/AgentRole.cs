@@ -8,5 +8,7 @@ public enum AgentRole
     Trader,
     EnglishTutor,
     PersonalManager,
+    /// <summary>Household utilities, ЖКХ, scheduled automations (Reni Water, etc.).</summary>
+    UtilitiesManager,
     Biohacker,
 }

@@ -42,6 +42,86 @@
                         </Style>
                     </TextBlock.Style>
                 </TextBlock>
+                <StackPanel Margin="0,6,0,0" Orientation="Horizontal">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsWhatsAppChatStatusVisible}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <Ellipse Width="8"
+                             Height="8"
+                             Margin="0,0,8,0"
+                             VerticalAlignment="Center"
+                             ToolTip="WhatsApp Web — готовность парсинга новых сообщений">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Setter Property="Fill" Value="#D29922" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding WhatsAppIndicatorState}" Value="Ready">
+                                        <Setter Property="Fill" Value="#3FB950" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding WhatsAppIndicatorState}" Value="Stalled">
+                                        <Setter Property="Fill" Value="#F85149" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding WhatsAppIndicatorState}" Value="Qr">
+                                        <Setter Property="Fill" Value="#F85149" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding WhatsAppIndicatorState}" Value="Error">
+                                        <Setter Property="Fill" Value="#F85149" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+                    <TextBlock VerticalAlignment="Center"
+                               FontSize="12"
+                               Foreground="#9CA3AF"
+                               Text="WhatsApp:"
+                               ToolTip="Статус мониторинга WhatsApp Web (My Fido → Hermes chat)" />
+                    <TextBlock Margin="6,0,12,0"
+                               VerticalAlignment="Center"
+                               FontSize="12"
+                               Foreground="#EAECEF"
+                               Text="{Binding WhatsAppStatusText}"
+                               TextWrapping="Wrap" />
+                    <Button Padding="6,2"
+                            VerticalAlignment="Center"
+                            Background="Transparent"
+                            BorderBrush="#30343D"
+                            Command="{Binding ShowWhatsAppWebWindowCommand}"
+                            Content="Окно"
+                            Cursor="Hand"
+                            FontSize="11"
+                            Foreground="#25D366"
+                            ToolTip="Открыть окно WhatsApp Web (QR, зависание)" />
+                    <Button Margin="6,0,0,0"
+                            Padding="6,2"
+                            VerticalAlignment="Center"
+                            Background="Transparent"
+                            BorderBrush="#30343D"
+                            Command="{Binding RunWhatsAppParseProbeCommand}"
+                            Content="Тест"
+                            Cursor="Hand"
+                            FontSize="11"
+                            Foreground="#F0B90B"
+                            ToolTip="Отправить тестовое сообщение в WhatsApp и проверить, что парсинг видит его в DOM" />
+                    <Button Margin="6,0,0,0"
+                            Padding="6,2"
+                            VerticalAlignment="Center"
+                            Background="Transparent"
+                            BorderBrush="#30343D"
+                            Command="{Binding RestartWhatsAppWebCommand}"
+                            Content="↻"
+                            Cursor="Hand"
+                            FontSize="11"
+                            Foreground="#848E9C"
+                            ToolTip="Перезапустить монитор WhatsApp Web" />
+                </StackPanel>
             </StackPanel>
 
             <ListBox x:Name="MessagesListBox"
@@ -219,6 +299,12 @@
                      PreviewKeyDown="MessageInputTextBox_OnPreviewKeyDown"
                      Text="{Binding Chat.UserInput, UpdateSourceTrigger=PropertyChanged}" />
             <StackPanel Grid.Row="11" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Margin="0,0,8,0"
+                        Padding="10,6"
+                        FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
+                        Content="New CLI session"
+                        Command="{Binding ResetCliSessionCommand}"
+                        ToolTip="Сбросить Hermes CLI --resume для проекта (новый контекст без старых 128+ сообщений)" />
                 <Button Margin="0,0,8,0"
                         Padding="10,6"
                         FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"

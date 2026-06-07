@@ -25,6 +25,10 @@ public static class ReniWaterSubmitTriggers
         "показаний воды",
         "показания рени",
         "водоканал показания",
+        "reni water",
+        "введи показания",
+        "ввести показания",
+        "показания водоканал",
     ];
 
     public static bool MatchesSubmit(string message)

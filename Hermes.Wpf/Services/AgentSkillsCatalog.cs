@@ -63,10 +63,9 @@ public static class AgentSkillsCatalog
             Category = "Быт",
             Title = "Показания воды — Рені (Водоканал)",
             Summary =
-                "Hermes.Wpf запускает scripts\\reni_water\\run_submit.ps1 (Playwright): копирует «Показник на початок місяця» в «Новий показник», скриншот в HermesScreenShots. " +
-                "Кнопки на вкладке «Навыки», статусная строка в чате при ожидании подтверждения. В чате без Hermes CLI: «Передай показания», «показания воды», «принял»/«понял» (если есть pending_ack). " +
-                "По умолчанию: один раз в месяц с 1-го по 5-е число (09:00; догон при запуске Hermes.Wpf). "
-                + "«Передавать показания каждый месяц» — включить. «Передай показания» — сразу. Отмена: «отмени расписание показаний».",
+                "Hermes CLI сам создаёт skill в ~/.hermes/skills/ после того как пользователь дал URL, шаги и учётные данные. "
+                + "Задачи и прогресс — в ~/.hermes/memories/MEMORY.md (см. AGENTS.md в папке проекта). "
+                + "Повторное выполнение — через resume сессии и память CLI, без WPF bootstrap-skills.",
         },
         new AgentSkillCard
         {
@@ -99,7 +98,7 @@ public static class AgentSkillsCatalog
             Summary =
                 "Hermes может сохранять переиспользуемые навыки: JSON {\"skill\":\"skill_save\",…} или маркеры HERMES_SKILL_CRYSTALLIZE_BEGIN/END. "
                 + "Файлы: manifest.json, SKILL.md, run.ps1|run.py в %AppData%\\HermesWpf\\skills; зеркало WSL ~/.hermes/skills. "
-                + "Запуск: фразы-триггеры (script) или {\"skill\":\"run_generated\",\"id\":\"…\"}.",
+                + "Запуск: kind=intent → wpf_local JSON; kind=script → run_generated; skill_save для новых навыков.",
         },
     ];
 }

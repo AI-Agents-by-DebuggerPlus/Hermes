@@ -33,6 +33,7 @@ public sealed class SkillGenerationService
         SkillSavePayload payload,
         string sourceTurn,
         ExternalBrainService? brain = null,
+        bool skipSandbox = false,
         CancellationToken cancellationToken = default)
     {
         var settings = _settings();
@@ -41,7 +42,8 @@ public sealed class SkillGenerationService
             return (false, "[skill] Генерация навыков отключена в Settings.");
         }
 
-        if (settings.SkillSandboxBeforeSave
+        if (!skipSandbox
+            && settings.SkillSandboxBeforeSave
             && string.Equals(payload.Kind, "script", StringComparison.OrdinalIgnoreCase))
         {
             _log.LogInfo("[skill-sandbox] Executing task in sandbox…");
@@ -140,6 +142,15 @@ public sealed class SkillGenerationService
         _log.LogInfo($"[skill-gen] Skill '{payload.Id}' successfully generated and saved → {folder}");
         return (true, SkillCrystallizeIntentParser.UserFacingSaveLine(payload, tested, testOk));
     }
+
+    /// <summary>Upsert skill from built-in local automation (optional sandbox skip).</summary>
+    public Task<(bool Ok, string UserMessage)> TrySaveBuiltInAutomationAsync(
+        SkillSavePayload payload,
+        string sourceTurn,
+        ExternalBrainService? brain,
+        bool skipSandbox = false,
+        CancellationToken cancellationToken = default) =>
+        TrySaveAsync(payload, sourceTurn, brain, skipSandbox, cancellationToken);
 
     private static async Task WriteManifestAsync(
         string folder,

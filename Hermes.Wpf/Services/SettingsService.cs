@@ -59,6 +59,16 @@ public sealed class SettingsService
             : settings.SupabaseLocalSenderName.Trim();
         settings.SupabasePollIntervalSeconds =
             Math.Clamp(settings.SupabasePollIntervalSeconds, 1, 120);
+        settings.WhatsAppContactDisplayName = string.IsNullOrWhiteSpace(settings.WhatsAppContactDisplayName)
+            ? "My Fido"
+            : settings.WhatsAppContactDisplayName.Trim();
+        settings.WhatsAppPollIntervalMs = Math.Clamp(settings.WhatsAppPollIntervalMs, 500, 60_000);
+        settings.WhatsAppTextMarker = (settings.WhatsAppTextMarker ?? string.Empty).Trim();
+        if (settings.WhatsAppTextMarkerEnabled && settings.WhatsAppTextMarker.Length == 0)
+        {
+            settings.WhatsAppTextMarker = "[gemini]";
+        }
+
         settings.ExternalBrainMemoryPath ??= string.Empty;
         settings.ExternalBrainMaxContextItems =
             Math.Clamp(settings.ExternalBrainMaxContextItems, 1, 20);

@@ -70,6 +70,7 @@ public partial class MainWindow : Window
         // before Supabase snapshot/hydration so LoadProjectHistoryAsync does not clear imported rows.
         await Task.Delay(400);
         await vm.InitializeSupabaseRelayAsync();
+        await vm.InitializeWhatsAppWebAsync();
 
         if (_settings.IsFirstRun)
         {
@@ -84,7 +85,9 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel vm)
         {
             vm.ShutdownFlashcardSkillBeforeRelay();
+            await vm.SaveCurrentProjectHistoryAsync();
             await vm.ShutdownSupabaseRelayAsync();
+            await vm.ShutdownWhatsAppWebAsync();
         }
 
         if (_settings is not null)
@@ -316,7 +319,9 @@ public partial class MainWindow : Window
                     vm.SyncPlatformKnowledgeToVault("settings");
                     vm.ReloadAppearanceFromSettings();
                     vm.ReloadGeneratedSkillsCatalog();
+                    vm.ApplyWhatsAppMonitoringSettings();
                     await vm.RestartSupabaseRelayAsync();
+                    await vm.RestartWhatsAppWebAsync();
                 }
 
                 _externalBrainService?.RestartWatcherAndReload("settings");

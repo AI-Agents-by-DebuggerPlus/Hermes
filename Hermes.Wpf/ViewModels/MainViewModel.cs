@@ -17,7 +17,9 @@ using Hermes.TradingPlatform.Shared.Bridge;
 using Hermes.Wpf.Commands;
 using Hermes.Wpf.Models;
 using Hermes.Wpf.Services;
+using Hermes.Wpf.Services.WhatsAppWeb;
 using Hermes.Wpf.Skills;
+using Hermes.Wpf.Views;
 
 namespace Hermes.Wpf.ViewModels;
 
@@ -53,6 +55,7 @@ public sealed class MainViewModel : BaseViewModel
     private readonly SettingsService _settingsService;
     private readonly LogService _logService;
     private readonly ChatLogService _chatLogService;
+    private readonly WhatsAppWebLogService _whatsAppLogService;
     private readonly ExternalBrainService _externalBrain;
     private readonly WslAgentMemorySyncService _wslAgentMemorySync;
     private readonly HermesPlatformKnowledgeSyncService _platformKnowledgeSync;
@@ -76,7 +79,14 @@ public sealed class MainViewModel : BaseViewModel
 
     public HermesGalleryPublisher GalleryPublisher => _hermesGalleryPublisher;
     private readonly ReniWaterScriptService _reniWater;
-    private readonly ReniWaterScheduleSkill _reniWaterSchedule;
+    private readonly ReniWaterSchTasksService _reniSchTasks;
+    private readonly ExternalBrainWriteService _externalBrainWriter;
+    private readonly LocalExecutionLearningService _localLearning;
+    private readonly ReniWaterExecutionCoordinator _reniWaterCoordinator;
+    private readonly WpfLocalActionExecutor _wpfLocalExecutor;
+    private readonly CliLearningFollowUpService _cliFollowUp;
+    private readonly HermesCliSessionStore _cliSessionStore = new();
+    private readonly ProjectAgentsBootstrapService _projectAgentsBootstrap;
     private readonly GeneratedSkillCatalogService _generatedSkillCatalog;
     private readonly GeneratedSkillRunner _generatedSkillRunner;
     private readonly SkillGenerationService _skillGeneration;
@@ -92,7 +102,6 @@ public sealed class MainViewModel : BaseViewModel
     public GeneratedSkillsViewModel GeneratedSkills { get; }
     private readonly DispatcherTimer _watchdogTimer;
     private readonly DispatcherTimer _reniWaterPollTimer;
-    private readonly DispatcherTimer _reniWaterScheduleTimer;
     private bool _reniWaterBusy;
     private bool _isReniWaterStatusBarVisible;
     private string _reniWaterStatusText = string.Empty;
@@ -122,6 +131,12 @@ public sealed class MainViewModel : BaseViewModel
     private bool _supabasePollingEnabled;
 
     private bool _supabaseRelayToggleBusy;
+
+    private WhatsAppWebWindow? _whatsAppWindow;
+    private WhatsAppWebReader? _whatsAppReader;
+    private WhatsAppWebMonitorService? _whatsAppMonitor;
+    private WhatsAppMonitorReadiness _whatsAppReadiness = WhatsAppMonitorReadiness.Off;
+    private string _whatsAppStatusText = string.Empty;
 
     private bool _agentActivityTracking;
     private bool _agentActivityAssumeExecuting;
@@ -162,6 +177,7 @@ public sealed class MainViewModel : BaseViewModel
     {
         _logService = logService;
         _chatLogService = chatLogService;
+        _whatsAppLogService = new WhatsAppWebLogService(logService);
         _hermesService = hermesService;
         _projectService = projectService;
         _historyService = historyService;
@@ -198,10 +214,7 @@ public sealed class MainViewModel : BaseViewModel
         _tradingExperienceExporter.AttachToBridge(_tradingBridge);
         _reniWater = new ReniWaterScriptService(logService, () => Settings);
         _reniWater.OutputReceived += line => AppendTerminal($"[reni-water] {line}");
-        _reniWaterSchedule = new ReniWaterScheduleSkill(
-            logService,
-            () => Settings,
-            () => RunReniWaterSubmitUiAsync());
+        _reniSchTasks = new ReniWaterSchTasksService(logService, () => Settings);
         _generatedSkillRunner = new GeneratedSkillRunner(_logService);
         var skillSandbox = new SkillSandboxService(_logService, _generatedSkillRunner);
         _skillVaultSync = new GeneratedSkillVaultSyncService(_logService);
@@ -214,6 +227,25 @@ public sealed class MainViewModel : BaseViewModel
             _generatedSkillRunner,
             skillSandbox,
             _skillVaultSync);
+        _externalBrainWriter = new ExternalBrainWriteService(logService);
+        _projectAgentsBootstrap = new ProjectAgentsBootstrapService(logService);
+        _localLearning = new LocalExecutionLearningService(
+            logService,
+            () => Settings,
+            _memoryExtractor,
+            _roleExperienceCapture,
+            _externalBrainWriter,
+            _externalBrain,
+            _wslAgentMemorySync,
+            reason => { _ = PersistSettingsQuietAsync(); });
+        _reniWaterCoordinator = new ReniWaterExecutionCoordinator(_reniWater, _localLearning, logService);
+        _wpfLocalExecutor = new WpfLocalActionExecutor(
+            () => Settings,
+            _reniWaterCoordinator,
+            _reniWater,
+            _reniSchTasks,
+            _localLearning);
+        _cliFollowUp = new CliLearningFollowUpService(_hermesService, logService, () => Settings);
         _chatFontSize = ClampChatFontForUi(Settings.ChatFontSize);
         Settings.ChatFontSize = _chatFontSize;
         Chat = new ChatViewModel();
@@ -283,6 +315,7 @@ public sealed class MainViewModel : BaseViewModel
             }
 
             _logService.SetActiveProject(Projects.SelectedProject.Name);
+            _projectAgentsBootstrap.EnsureProjectHermesArtifacts(Projects.SelectedProject.WindowsPath);
             RefreshChatModeStatusUi();
             _ = PublishSessionContextToSupabaseIfChangedAsync("project-selected");
 
@@ -315,6 +348,16 @@ public sealed class MainViewModel : BaseViewModel
             async _ => await RunDesktopScreenCaptureWithBusyAsync().ConfigureAwait(true),
             _ => !_isBusy);
         SaveExperienceCommand = new RelayCommand(_ => _saveExperienceOpener?.Invoke());
+        ResetCliSessionCommand = new RelayCommand(
+            _ => ResetCliSessionForCurrentProject(),
+            _ => CanExecuteProjectCommand());
+        ShowWhatsAppWebWindowCommand = new RelayCommand(_ => ShowWhatsAppWebWindow(), _ => Settings.WhatsAppWebEnabled);
+        RestartWhatsAppWebCommand = new RelayCommand(
+            async _ => await RestartWhatsAppWebAsync(),
+            _ => Settings.WhatsAppWebEnabled && !_isBusy);
+        RunWhatsAppParseProbeCommand = new RelayCommand(
+            async _ => await RunWhatsAppParseProbeManualAsync(),
+            _ => Settings.WhatsAppWebEnabled && _whatsAppMonitor is not null && !_isBusy);
         ExportEnglishTutorProgressCommand = new RelayCommand(_ => ExportEnglishTutorProgress(), _ => true);
         LaunchBinanceDemoSpotCommand = new RelayCommand(_ => LaunchBinanceDemoSpotManual());
         LaunchBinanceDemoFuturesCommand = new RelayCommand(_ => LaunchBinanceDemoFuturesManual());
@@ -328,19 +371,19 @@ public sealed class MainViewModel : BaseViewModel
         ApplyAgentRoleToLegacySettings(_roleManager.CurrentRole);
 
         SubmitReniWaterCommand = new RelayCommand(
-            async _ => await RunReniWaterSubmitUiAsync(),
+            async _ => await SendMessageTextAsync("Передай показания водоканала").ConfigureAwait(true),
             _ => !_isBusy && !_reniWaterBusy);
         AckReniWaterCommand = new RelayCommand(
-            async _ => await RunReniWaterAckUiAsync(),
+            async _ => await SendMessageTextAsync("Принял показания Reni Water").ConfigureAwait(true),
             _ => !_isBusy && !_reniWaterBusy);
         LoginReniWaterCommand = new RelayCommand(
-            _ => RunReniWaterLoginUi(),
-            _ => !_reniWaterBusy);
+            async _ => await SendMessageTextAsync("Открой вход Reni Water").ConfigureAwait(true),
+            _ => !_isBusy && !_reniWaterBusy);
         ViewReniWaterScreenshotCommand = new RelayCommand(
             _ => ShowReniWaterScreenshotInChat(),
             _ => _canViewReniWaterScreenshot);
         CheckReniWaterSessionCommand = new RelayCommand(
-            async _ => await RunReniWaterCheckSessionUiAsync(),
+            async _ => await SendMessageTextAsync("Проверь сессию Reni Water").ConfigureAwait(true),
             _ => !_isBusy && !_reniWaterBusy);
 
         _hermesService.OutputReceived += OnHermesProcessOutputLine;
@@ -370,11 +413,8 @@ public sealed class MainViewModel : BaseViewModel
         _reniWaterPollTimer.Start();
         RefreshReniWaterPendingUi();
 
-        _reniWaterScheduleTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
-        _reniWaterScheduleTimer.Tick += async (_, _) => await _reniWaterSchedule.TickAsync();
-        _reniWaterScheduleTimer.Start();
-
-        _ = RunReniWaterStartupCatchUpAsync();
+        _reniSchTasks.ClearDeprecatedInAppScheduleFields();
+        _ = PersistSettingsQuietAsync();
 
         LogStartupBanner();
         _logService.LogInfo($"Session initialized. Active log: {_logService.CurrentLogFilePath}");
@@ -390,7 +430,8 @@ public sealed class MainViewModel : BaseViewModel
         _logService.LogInfo($"[startup] Hermes.Wpf version={ver}, WSL distro (settings)={Settings.WslDistro}");
         _logService.LogInfo($"[startup] Logs root: {HermesLogPaths.LogsRoot}");
         _logService.LogInfo($"[startup] Session log: {_logService.CurrentLogFilePath}");
-        _logService.LogInfo($"[startup] Chat logs: per-project chat_{_logService.SessionStamp}.log under Logs root");
+        _logService.LogInfo($"[startup] Chat logs: {HermesLogPaths.ChatLogsRoot}");
+        _logService.LogInfo($"[startup] WhatsApp logs: {_whatsAppLogService.CurrentLogFilePath}");
 
         var ws = Settings.WorkspaceRootWindowsPath?.Trim();
         if (!string.IsNullOrEmpty(ws))
@@ -424,6 +465,30 @@ public sealed class MainViewModel : BaseViewModel
     }
 
     public Task InitializeSupabaseRelayAsync() => StartSupabaseRelayCoreAsync();
+
+    public Task InitializeWhatsAppWebAsync() => StartWhatsAppWebCoreAsync();
+
+    public Task ShutdownWhatsAppWebAsync() => StopWhatsAppWebCoreAsync();
+
+    public async Task RestartWhatsAppWebAsync()
+    {
+        await StopWhatsAppWebCoreAsync().ConfigureAwait(true);
+        await StartWhatsAppWebCoreAsync().ConfigureAwait(true);
+    }
+
+    public void ApplyWhatsAppMonitoringSettings()
+    {
+        if (_whatsAppMonitor is null)
+        {
+            return;
+        }
+
+        _whatsAppMonitor.ApplyForwardingOptions(
+            Settings.GetEffectiveWhatsAppMinTextLength(),
+            Settings.GetEffectiveWhatsAppTextMarker());
+        _whatsAppLogService.LogInfo(
+            $"[whatsapp] Settings synced: allow1char={Settings.WhatsAppAllowSingleCharMessages}, minText={Settings.GetEffectiveWhatsAppMinTextLength()}");
+    }
 
     /// <summary>When Settings closes or relay options change.</summary>
     public async Task RestartSupabaseRelayAsync()
@@ -715,6 +780,7 @@ public sealed class MainViewModel : BaseViewModel
         if (!Settings.EnglishTutorModeEnabled)
         {
             blocks.Add(ChatBehaviorDefaults.HermesWpfClientCapabilitiesRu);
+            blocks.Add(BuiltInSkillsPromptInstructions.OutboundBlockRu);
         }
 
         if (!string.IsNullOrWhiteSpace(externalBrainContextBlock))
@@ -1045,6 +1111,119 @@ public sealed class MainViewModel : BaseViewModel
         }
     }
 
+    /// <summary>
+    /// Default agent chat: Hermes CLI only — no WPF prompt injection, chat parsing, or parallel memory/skills.
+    /// </summary>
+    private bool IsPureHermesAgentChatTurn() =>
+        !Settings.AssistantModeEnabled
+        && !Settings.TradingModeEnabled
+        && !Settings.EnglishTutorModeEnabled
+        && _flashcardSkill.Status == FlashcardStatus.Idle;
+
+    private async Task<HermesExecutionResult> SendHermesChatWithSessionAsync(
+        string projectName,
+        string payload,
+        string wslPath,
+        int timeout,
+        bool continueCliSession = true)
+    {
+        var resumeId = continueCliSession ? _cliSessionStore.GetSessionId(projectName) : null;
+        if (continueCliSession)
+        {
+            _logService.LogInfo(resumeId is null
+                ? "[agent] CLI session new"
+                : $"[agent] CLI session resume={resumeId}");
+        }
+
+        async Task<HermesExecutionResult> InvokeAsync(string? sessionId) =>
+            await _hermesService
+                .SendMessageAsync(payload, wslPath, Settings, timeout, sessionId)
+                .ConfigureAwait(true);
+
+        var result = await InvokeAsync(resumeId).ConfigureAwait(true);
+
+        if (!result.Success
+            && continueCliSession
+            && resumeId is not null
+            && HermesChatResponseParser.IsSessionNotFound(result.CombinedText))
+        {
+            _logService.LogWarn($"[agent] CLI session {resumeId} not found — starting new session");
+            _cliSessionStore.ClearSessionId(projectName);
+            result = await InvokeAsync(null).ConfigureAwait(true);
+        }
+
+        if (result.Success && continueCliSession && !string.IsNullOrWhiteSpace(result.SessionId))
+        {
+            _cliSessionStore.SetSessionId(projectName, result.SessionId);
+        }
+
+        return result;
+    }
+
+    private void ResetCliSessionForCurrentProject()
+    {
+        if (Projects.SelectedProject is not { Name: var name })
+        {
+            return;
+        }
+
+        ResetCliSessionForProject(name);
+        PostCliSessionResetReply(name);
+    }
+
+    private void ResetCliSessionForProject(string projectName)
+    {
+        _cliSessionStore.ClearSessionId(projectName);
+        _logService.LogInfo($"[agent] CLI --resume session cleared for project «{projectName}»");
+    }
+
+    private void PostCliSessionResetReply(string projectName)
+    {
+        PostLocalHermesReply(
+            projectName,
+            "CLI-сессия Hermes сброшена. Следующее сообщение начнёт новый контекст (без --resume).",
+            publishToSupabase: false);
+    }
+
+    private async Task ExecutePureCliAgentTurnAsync(string projectName, string userPayload, string wslPath)
+    {
+        var payload = (userPayload ?? string.Empty).Trim();
+        if (payload.Length == 0)
+        {
+            return;
+        }
+
+        _logService.LogInfo("[agent] pure CLI pass-through (no WPF prompt blocks, no post-parse, no WPF memory)");
+
+        _projectAgentsBootstrap.EnsureProjectHermesArtifacts(
+            Projects.SelectedProject?.WindowsPath ?? projectName);
+
+        var timeout = ClampChatTimeout(Settings.ChatTimeoutSeconds);
+        var result = await SendHermesChatWithSessionAsync(projectName, payload, wslPath, timeout)
+            .ConfigureAwait(true);
+
+        if (!result.Success)
+        {
+            var hint = PickUserFacingHermesSummary(result);
+            AppendTerminal($"[hermes] exit {result.ExitCode}: {hint}", isError: true);
+            var errBubble = $"Ошибка CLI (exit {result.ExitCode}): {hint}";
+            Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = errBubble });
+            _chatLogService.AppendMessage(projectName, "Hermes", errBubble);
+            await PublishAssistantTurnToSupabaseIfPossibleAsync(errBubble);
+            await TrySaveHistoryAfterTurnAsync(projectName);
+            return;
+        }
+
+        var displayResponse = string.IsNullOrWhiteSpace(result.EffectiveDisplayText)
+            ? "(пустой ответ)"
+            : result.EffectiveDisplayText;
+        Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = displayResponse });
+        _chatLogService.AppendMessage(projectName, "Hermes", displayResponse);
+        await PublishAssistantTurnToSupabaseIfPossibleAsync(displayResponse);
+        await TrySaveHistoryAfterTurnAsync(projectName);
+        RequestChatScrollToBottom();
+    }
+
     private static bool ShouldInjectDesktopContext(string text)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -1162,6 +1341,15 @@ public sealed class MainViewModel : BaseViewModel
     /// <summary>Opens the memory editor — assign handler via <c>AttachSaveExperienceOpener</c> from the main window.</summary>
     public ICommand SaveExperienceCommand { get; }
 
+    /// <summary>Clears Hermes CLI <c>--resume</c> id for the selected project.</summary>
+    public ICommand ResetCliSessionCommand { get; }
+
+    public ICommand ShowWhatsAppWebWindowCommand { get; }
+
+    public ICommand RestartWhatsAppWebCommand { get; }
+
+    public ICommand RunWhatsAppParseProbeCommand { get; }
+
     public ICommand ExportEnglishTutorProgressCommand { get; }
 
     public ICommand LaunchBinanceDemoSpotCommand { get; }
@@ -1201,8 +1389,6 @@ public sealed class MainViewModel : BaseViewModel
     {
         _flashcardSkill.Dispose();
         _reniWaterPollTimer.Stop();
-        _reniWaterScheduleTimer.Stop();
-        _reniWaterSchedule.Dispose();
     }
 
     public bool IsFlashcardStatusBarVisible
@@ -1312,16 +1498,21 @@ public sealed class MainViewModel : BaseViewModel
     public async Task OnChatWindowOpenedAsync()
     {
         RefreshChatModeStatusUi();
-        if (_futuresBridge.IsActiveForSession && (Settings.FuturesTerminalAutoLaunch || Settings.TradingModeEnabled))
-        {
-            _ = _futuresBridge.EnsureTerminalReadyAsync(force: Settings.TradingModeEnabled);
-            _logService.LogInfo("[futures-bridge] auto-launch on chat open");
-        }
 
-        if (_spotBridge.IsActiveForSession && Settings.SpotTerminalIntegrationEnabled && Settings.SpotTerminalAutoLaunch)
+        // Trading terminals are for trading mode only — not in default agent mode.
+        if (Settings.TradingModeEnabled)
         {
-            _ = _spotBridge.EnsureTerminalReadyAsync(force: Settings.TradingModeEnabled);
-            _logService.LogInfo("[spot-bridge] auto-launch on chat open");
+            if (_futuresBridge.IsActiveForSession && Settings.FuturesTerminalAutoLaunch)
+            {
+                _ = _futuresBridge.EnsureTerminalReadyAsync(force: true);
+                _logService.LogInfo("[futures-bridge] auto-launch on chat open (trading mode)");
+            }
+
+            if (_spotBridge.IsActiveForSession && Settings.SpotTerminalIntegrationEnabled && Settings.SpotTerminalAutoLaunch)
+            {
+                _ = _spotBridge.EnsureTerminalReadyAsync(force: true);
+                _logService.LogInfo("[spot-bridge] auto-launch on chat open (trading mode)");
+            }
         }
 
         if (_startupModeNoticePending && Projects.SelectedProject is { Name: var projectName })
@@ -1535,7 +1726,12 @@ public sealed class MainViewModel : BaseViewModel
 
             try
             {
-                await _supabaseRelay.InsertAssistantRowAsync(label, content, CancellationToken.None, logPublish: false)
+                await _supabaseRelay.InsertAssistantRowAsync(
+                        label,
+                        CanonicalHermesOutboundRecipient(),
+                        content,
+                        CancellationToken.None,
+                        logPublish: false)
                     .ConfigureAwait(true);
                 _supabaseEchoTracker.RegisterAfterSuccessfulPublish(label, content);
                 _lastPublishedSessionFingerprint = fingerprint;
@@ -1597,7 +1793,7 @@ public sealed class MainViewModel : BaseViewModel
             }
 
             var label = CanonicalHermesSenderName();
-            await _supabaseRelay.InsertAssistantRowAsync(label, json, cancellationToken);
+            await _supabaseRelay.InsertAssistantRowAsync(label, CanonicalHermesOutboundRecipient(), json, cancellationToken);
             _supabaseEchoTracker.RegisterAfterSuccessfulPublish(label, json);
             _logService.LogInfo($"[flashcards] опубликована карточка (chars={json.Length}).");
             return true;
@@ -1620,6 +1816,26 @@ public sealed class MainViewModel : BaseViewModel
     {
         get => _isAgentChatStatusBarVisible;
         private set => SetProperty(ref _isAgentChatStatusBarVisible, value);
+    }
+
+    /// <summary>Chat header dot: Ready / Waiting / Stalled / Qr / Error / Off.</summary>
+    public string WhatsAppIndicatorState => _whatsAppReadiness switch
+    {
+        WhatsAppMonitorReadiness.Ready => "Ready",
+        WhatsAppMonitorReadiness.Stalled => "Stalled",
+        WhatsAppMonitorReadiness.QrRequired => "Qr",
+        WhatsAppMonitorReadiness.Error => "Error",
+        WhatsAppMonitorReadiness.Off => "Off",
+        _ => "Waiting",
+    };
+
+    public bool IsWhatsAppChatStatusVisible =>
+        Settings.WhatsAppWebEnabled && _whatsAppReadiness != WhatsAppMonitorReadiness.Off;
+
+    public string WhatsAppStatusText
+    {
+        get => _whatsAppStatusText;
+        private set => SetProperty(ref _whatsAppStatusText, value);
     }
 
     /// <summary>Ellipse style in main window: Live / Idle / Off.</summary>
@@ -1715,6 +1931,7 @@ public sealed class MainViewModel : BaseViewModel
     public async Task LoadProjectHistoryAsync(HermesProject project, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var historyPath = _historyService.GetHistoryFilePath(project.Name);
         var history = await _historyService.LoadAsync(project.Name);
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -1726,7 +1943,30 @@ public sealed class MainViewModel : BaseViewModel
             Chat.Messages.Add(ChatMessageImageParser.Normalize(message));
         }
 
+        _logService.LogInfo(
+            $"[history] Loaded {history.Messages.Count} message(s) for «{project.Name}» from {historyPath}" +
+            (history.Messages.Count == 0 ? " (empty or new session)" : string.Empty));
+
         RequestChatScrollToBottom();
+    }
+
+    public async Task SaveCurrentProjectHistoryAsync()
+    {
+        if (Projects.SelectedProject is not { Name: var projectName })
+        {
+            return;
+        }
+
+        try
+        {
+            await SaveHistoryAsync(projectName).ConfigureAwait(true);
+            _logService.LogInfo(
+                $"[history] Saved {Chat.Messages.Count} message(s) for «{projectName}» on shutdown");
+        }
+        catch (Exception ex)
+        {
+            _logService.LogError($"[history] Shutdown save failed ({projectName}): {ex.Message}");
+        }
     }
 
     private bool CanExecuteProjectCommand() => !_isBusy && Projects.SelectedProject is not null;
@@ -1757,6 +1997,10 @@ public sealed class MainViewModel : BaseViewModel
             if (status.State != ConnectionState.Error)
             {
                 _lastLoggedConnectionFingerprint = null;
+                if (status.State == ConnectionState.Connected)
+                {
+                    _ = _hermesService.WarmUpWslHomeAsync(Settings);
+                }
             }
             else
             {
@@ -1802,6 +2046,7 @@ public sealed class MainViewModel : BaseViewModel
         Projects.Projects.Add(project);
         Projects.SelectedProject = project;
         Projects.NewProjectPath = string.Empty;
+        _projectAgentsBootstrap.EnsureProjectHermesArtifacts(project.WindowsPath);
         AppendTerminal($"Project added: {project.Name}");
         CommandManager.InvalidateRequerySuggested();
     }
@@ -1912,27 +2157,7 @@ public sealed class MainViewModel : BaseViewModel
             }
             else
             {
-                _logService.LogInfo("[agent] Пауза: входящее из Supabase уже в чате, Hermes не вызывается.");
-            }
-
-            if (await TryHandleReniWaterLocalAsync(agentUserPayload, project.Name).ConfigureAwait(true))
-            {
-                return;
-            }
-
-            if (await TryHandleDesktopScreenCaptureLocalAsync(agentUserPayload, project.Name).ConfigureAwait(true))
-            {
-                return;
-            }
-
-            if (await TryHandleDesktopDescribeFromCacheAsync(agentUserPayload, project.Name).ConfigureAwait(true))
-            {
-                return;
-            }
-
-            if (await TryHandleDesktopWindowFocusAsync(agentUserPayload, project.Name).ConfigureAwait(true))
-            {
-                return;
+                _logService.LogInfo("[agent] Пауза: входящее remote-сообщение уже в чате, Hermes не вызывается.");
             }
 
             return;
@@ -1953,12 +2178,20 @@ public sealed class MainViewModel : BaseViewModel
 
         try
         {
-            if (TryHandleLocalFlashcardsViewMode(agentUserPayload, project.Name))
+            if (IsPureHermesAgentChatTurn())
             {
+                if (CliSessionResetTriggers.Matches(agentUserPayload))
+                {
+                    ResetCliSessionForProject(project.Name);
+                    PostCliSessionResetReply(project.Name);
+                    return;
+                }
+
+                await ExecutePureCliAgentTurnAsync(project.Name, agentUserPayload, wslPath).ConfigureAwait(true);
                 return;
             }
 
-            if (await TryHandleReniWaterLocalAsync(agentUserPayload, project.Name).ConfigureAwait(true))
+            if (TryHandleLocalFlashcardsViewMode(agentUserPayload, project.Name))
             {
                 return;
             }
@@ -1990,11 +2223,6 @@ public sealed class MainViewModel : BaseViewModel
             }
 
             if (await TryHandleDesktopWindowFocusAsync(agentUserPayload, project.Name).ConfigureAwait(true))
-            {
-                return;
-            }
-
-            if (await TryHandleGeneratedSkillLocalAsync(agentUserPayload, project.Name).ConfigureAwait(true))
             {
                 return;
             }
@@ -2168,7 +2396,8 @@ public sealed class MainViewModel : BaseViewModel
             var outbound = BuildOutboundHermesPrompt(payload, brainBlock, tutorHints, tradingHints, skillHints);
             var timeout = ClampChatTimeout(Settings.ChatTimeoutSeconds);
             // HermesService uses ConfigureAwait(false) internally — force UI context before touching chat / Supabase.
-            var result = await _hermesService.SendMessageAsync(outbound, wslPath, Settings, timeout).ConfigureAwait(true);
+            var result = await SendHermesChatWithSessionAsync(project.Name, outbound, wslPath, timeout)
+                .ConfigureAwait(true);
             if (!result.Success)
             {
                 var hint = PickUserFacingHermesSummary(result);
@@ -2181,9 +2410,13 @@ public sealed class MainViewModel : BaseViewModel
                 return;
             }
 
-            var response = string.IsNullOrWhiteSpace(result.CombinedText) ? "(пустой ответ)" : result.CombinedText;
+            var response = string.IsNullOrWhiteSpace(result.EffectiveDisplayText)
+                ? "(пустой ответ)"
+                : result.EffectiveDisplayText;
             await _englishTutorVocabulary.TryMergeAssistantTailAsync(response).ConfigureAwait(true);
             var displayResponse = response;
+            string? assistantImagePath = null;
+            MemoryDraft? turnExperienceDraft = null;
 
             if (Settings.SkillGenerationEnabled
                 && SkillCrystallizeIntentParser.TryConsumeSaveIntent(response, out var skillSave)
@@ -2199,18 +2432,43 @@ public sealed class MainViewModel : BaseViewModel
                      && SkillCrystallizeIntentParser.TryConsumeRunIntent(response, out var runSkillId)
                      && runSkillId is not null)
             {
-                var skill = _generatedSkillCatalog.FindById(runSkillId);
-                if (skill is not null)
+                if (string.Equals(runSkillId, "builtin_reni_water", StringComparison.OrdinalIgnoreCase))
                 {
-                    var run = await _generatedSkillRunner.RunAsync(skill).ConfigureAwait(true);
-                    _roleSkillIndex.RecordUsage(runSkillId, _roleManager.CurrentRole);
+                    (displayResponse, assistantImagePath, turnExperienceDraft) = await ProcessWpfLocalTurnAsync(
+                        response,
+                        new WpfLocalIntent { Action = "reni_water_submit" },
+                        project.Name,
+                        payload,
+                        wslPath,
+                        "cli-run_generated").ConfigureAwait(true);
                     _roleManager.RecordTurn(payload, runSkillId);
-                    displayResponse = SkillCrystallizeIntentParser.UserFacingRunLine(runSkillId, run.Ok, run.Detail);
                 }
                 else
                 {
-                    displayResponse = $"[skill] Навык «{runSkillId}» не найден в каталоге.";
+                    var skill = _generatedSkillCatalog.FindById(runSkillId);
+                    if (skill is not null)
+                    {
+                        var run = await _generatedSkillRunner.RunAsync(skill).ConfigureAwait(true);
+                        _roleSkillIndex.RecordUsage(runSkillId, _roleManager.CurrentRole);
+                        _roleManager.RecordTurn(payload, runSkillId);
+                        displayResponse = SkillCrystallizeIntentParser.UserFacingRunLine(runSkillId, run.Ok, run.Detail);
+                    }
+                    else
+                    {
+                        displayResponse = $"[skill] Навык «{runSkillId}» не найден в каталоге.";
+                    }
                 }
+            }
+            else if (WpfLocalIntentParser.TryConsumeIntent(response, out var wpfIntent) && wpfIntent is not null)
+            {
+                (displayResponse, assistantImagePath, turnExperienceDraft) = await ProcessWpfLocalTurnAsync(
+                    response,
+                    wpfIntent,
+                    project.Name,
+                    payload,
+                    wslPath,
+                    "cli").ConfigureAwait(true);
+                _roleManager.RecordTurn(payload, wpfIntent.Action);
             }
             else if (FlashcardRelayIntentParser.TryConsumeIntent(response, out var fcKind, out var fcStart))
             {
@@ -2289,8 +2547,17 @@ public sealed class MainViewModel : BaseViewModel
                 displayResponse = HermesModeAcknowledgments.TradingModeActivated;
             }
 
-            Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = displayResponse });
-            _lastExperienceDraft = _memoryExtractor.ExtractExperience(payload, displayResponse);
+            if (!string.IsNullOrEmpty(assistantImagePath))
+            {
+                await AppendAssistantChatWithImageAsync(project.Name, displayResponse, assistantImagePath)
+                    .ConfigureAwait(true);
+            }
+            else
+            {
+                Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = displayResponse });
+            }
+
+            _lastExperienceDraft = turnExperienceDraft ?? _memoryExtractor.ExtractExperience(payload, displayResponse);
             _roleManager.RecordTurn(payload);
             var vaultPath = _externalBrain.ResolveEffectiveMemoryPath();
             if (_lastExperienceDraft is not null
@@ -2321,6 +2588,83 @@ public sealed class MainViewModel : BaseViewModel
         }
     }
 
+    private async Task<(string DisplayResponse, string? ImagePath, MemoryDraft? Draft)> ProcessWpfLocalTurnAsync(
+        string cliResponse,
+        WpfLocalIntent intent,
+        string? projectName,
+        string userPayload,
+        string wslPath,
+        string triggerSource)
+    {
+        AppendTerminal($"[wpf-local] action={intent.Action} source={triggerSource}");
+        if (intent.Action.StartsWith("reni_water", StringComparison.Ordinal))
+        {
+            _reniWaterBusy = true;
+            CommandManager.InvalidateRequerySuggested();
+        }
+
+        try
+        {
+            var exec = await _wpfLocalExecutor
+                .ExecuteAsync(intent, projectName, userPayload, triggerSource)
+                .ConfigureAwait(true);
+            var display = WpfLocalIntentParser.FormatDisplayResponse(cliResponse, exec);
+
+            if (!string.IsNullOrEmpty(projectName))
+            {
+                _chatLogService.AppendMessage(
+                    projectName,
+                    "System",
+                    $"[wpf-local] {intent.Action} ok={exec.Ok}");
+            }
+
+            if (exec.Ok
+                && string.Equals(intent.Action, "reni_water_submit", StringComparison.Ordinal)
+                && Settings.ReniWaterLearningSuccessCount >= Settings.ReniWaterAutoCrystallizeAfterSuccesses)
+            {
+                ReloadGeneratedSkillsCatalog();
+            }
+
+            if (!string.IsNullOrEmpty(exec.ScreenshotPath))
+            {
+                OpenImageViewer(exec.ScreenshotPath);
+            }
+
+            RefreshReniWaterPendingUi();
+
+            var followUp = await _cliFollowUp.SendAsync(userPayload, exec, wslPath).ConfigureAwait(true);
+            if (!string.IsNullOrWhiteSpace(followUp))
+            {
+                if (Settings.SkillGenerationEnabled
+                    && SkillCrystallizeIntentParser.TryConsumeSaveIntent(followUp, out var fuSave)
+                    && fuSave is not null)
+                {
+                    var saveResult = await _skillGeneration
+                        .TrySaveAsync(fuSave, followUp, _externalBrain)
+                        .ConfigureAwait(true);
+                    followUp = saveResult.UserMessage;
+                    ReloadGeneratedSkillsCatalog();
+                }
+
+                display = $"{display.Trim()}\n\n{followUp.Trim()}";
+            }
+
+            var draft = exec.LearningRecord is not null
+                ? _memoryExtractor.ExtractFromLocalExecution(exec.LearningRecord)
+                : _memoryExtractor.ExtractExperience(userPayload, display);
+
+            return (display, exec.ScreenshotPath, draft);
+        }
+        finally
+        {
+            if (intent.Action.StartsWith("reni_water", StringComparison.Ordinal))
+            {
+                _reniWaterBusy = false;
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+    }
+
     private bool TryHandleLocalFlashcardsViewMode(string userPayload, string projectName)
     {
         var text = (userPayload ?? string.Empty).Trim();
@@ -2347,48 +2691,6 @@ public sealed class MainViewModel : BaseViewModel
         _chatLogService.AppendMessage(projectName, "Hermes", line);
         _ = PublishAssistantTurnToSupabaseIfPossibleAsync(line);
         _logService.LogInfo("[flashcards] local view-mode start (defaults applied).");
-        return true;
-    }
-
-    private async Task<bool> TryHandleGeneratedSkillLocalAsync(string userPayload, string projectName)
-    {
-        if (!Settings.SkillGenerationEnabled)
-        {
-            return false;
-        }
-
-        if (SkillRunTriggers.TryParseRunRequest(userPayload, out var runId))
-        {
-            var byId = _generatedSkillCatalog.FindById(runId);
-            if (byId is not null)
-            {
-                var runResult = await _generatedSkillRunner.RunAsync(byId).ConfigureAwait(true);
-                var runLine = SkillCrystallizeIntentParser.UserFacingRunLine(runId, runResult.Ok, runResult.Detail);
-                Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = runLine });
-                _chatLogService.AppendMessage(projectName, "Hermes", runLine);
-                await PublishAssistantTurnToSupabaseIfPossibleAsync(runLine).ConfigureAwait(true);
-                _logService.LogInfo($"[skill] explicit run id={runId} ok={runResult.Ok}");
-                return true;
-            }
-        }
-
-        var skill = _generatedSkillCatalog.MatchTrigger(userPayload);
-        if (skill is null)
-        {
-            return false;
-        }
-
-        if (!string.Equals(skill.Kind, "script", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        var run = await _generatedSkillRunner.RunAsync(skill).ConfigureAwait(true);
-        var line = SkillCrystallizeIntentParser.UserFacingRunLine(skill.Id, run.Ok, run.Detail);
-        Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = line });
-        _chatLogService.AppendMessage(projectName, "Hermes", line);
-        await PublishAssistantTurnToSupabaseIfPossibleAsync(line).ConfigureAwait(true);
-        _logService.LogInfo($"[skill] local trigger run id={skill.Id} ok={run.Ok}");
         return true;
     }
 
@@ -2642,228 +2944,6 @@ public sealed class MainViewModel : BaseViewModel
     private Task AppendDesktopCaptureChatAsync(string projectName, string text, string imagePath) =>
         AppendAssistantChatWithImageAsync(projectName, text, imagePath);
 
-    private async Task<bool> TryHandleReniWaterLocalAsync(string userPayload, string projectName)
-    {
-        var text = (userPayload ?? string.Empty).Trim();
-        if (text.Length == 0)
-        {
-            return false;
-        }
-
-        if (TryHandleReniWaterScheduleAsync(text, projectName))
-        {
-            return true;
-        }
-
-        var pending = _reniWater.ReadPendingAck();
-
-        if (ReniWaterSubmitTriggers.MatchesSubmit(text))
-        {
-            await RunReniWaterSubmitUiAsync(projectName).ConfigureAwait(true);
-            return true;
-        }
-
-        if (ReniWaterAckTriggers.MatchesAck(text, pending is not null))
-        {
-            await RunReniWaterAckUiAsync(projectName).ConfigureAwait(true);
-            return true;
-        }
-
-        if (ReniWaterSubmitTriggers.MatchesLogin(text))
-        {
-            RunReniWaterLoginUi(projectName);
-            return true;
-        }
-
-        return false;
-    }
-
-    private bool TryHandleReniWaterScheduleAsync(string text, string projectName)
-    {
-        if (!ReniWaterScheduleParser.TryParse(text, out var request))
-        {
-            return false;
-        }
-
-        _reniWaterSchedule.Apply(request);
-        _ = PersistSettingsQuietAsync();
-
-        var reply = request.Action switch
-        {
-            ReniWaterScheduleAction.Cancel => "Расписание передачи показаний отменено.",
-            ReniWaterScheduleAction.Status => _reniWaterSchedule.DescribeSchedule(),
-            ReniWaterScheduleAction.Once when request.RunAtLocal is { } t =>
-                $"Передача показаний запланирована на {t:dd.MM.yyyy HH:mm} (локальное время, Hermes.Wpf должен быть запущен).",
-            ReniWaterScheduleAction.Monthly =>
-                $"Ежемесячная передача включена: один раз с {request.WindowStartDay}-го по {request.WindowEndDay}-е число "
-                + $"(ориентир {request.Hour:D2}:{request.Minute:D2}; при запуске Hermes.Wpf — догон, если пропустили).",
-            _ => _reniWaterSchedule.DescribeSchedule(),
-        };
-
-        Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = reply });
-        _chatLogService.AppendMessage(projectName, "Hermes", reply);
-        _ = PublishAssistantTurnToSupabaseIfPossibleAsync(reply);
-        AppendTerminal($"[reni-water] {reply}");
-        return true;
-    }
-
-    private async Task RunReniWaterSubmitUiAsync(string? projectName = null)
-    {
-        projectName ??= Projects.SelectedProject?.Name;
-        _reniWaterBusy = true;
-        CommandManager.InvalidateRequerySuggested();
-        AppendTerminal("[reni-water] Запуск передачи показаний…");
-
-        try
-        {
-            var result = await _reniWater.RunSubmitAsync().ConfigureAwait(true);
-            LogReniWaterRunToTerminal(result);
-            var chatLine = UserChatMessageForSubmit(result);
-
-            if (!string.IsNullOrEmpty(projectName))
-            {
-                await AppendReniWaterChatAsync(projectName, chatLine, result.ScreenshotPath).ConfigureAwait(true);
-            }
-
-            if (result.SubmitAccepted)
-            {
-                _reniWaterSchedule.MarkMonthCompleted();
-            }
-
-            if (!string.IsNullOrEmpty(result.ScreenshotPath))
-            {
-                OpenImageViewer(result.ScreenshotPath);
-            }
-        }
-        catch (Exception ex)
-        {
-            var err = $"[reni-water] Ошибка: {ex.Message}";
-            AppendTerminal(err, isError: true);
-            if (!string.IsNullOrEmpty(projectName))
-            {
-                Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = err });
-            }
-        }
-        finally
-        {
-            _reniWaterBusy = false;
-            RefreshReniWaterPendingUi();
-            CommandManager.InvalidateRequerySuggested();
-        }
-    }
-
-    private async Task RunReniWaterStartupCatchUpAsync()
-    {
-        await Task.Delay(800).ConfigureAwait(true);
-        if (_reniWaterBusy)
-        {
-            return;
-        }
-
-        try
-        {
-            await _reniWaterSchedule.RunStartupCatchUpAsync().ConfigureAwait(true);
-        }
-        catch (Exception ex)
-        {
-            _logService.LogError($"[reni-water] startup catch-up: {ex.Message}");
-        }
-    }
-
-    private async Task RunReniWaterAckUiAsync(string? projectName = null)
-    {
-        projectName ??= Projects.SelectedProject?.Name;
-        _reniWaterBusy = true;
-        CommandManager.InvalidateRequerySuggested();
-
-        try
-        {
-            var result = await _reniWater.RunAckAsync().ConfigureAwait(true);
-            LogReniWaterRunToTerminal(result);
-            var chatLine = result.Success || result.CombinedText.Contains("ACK_OK", StringComparison.Ordinal)
-                ? ReniWaterUserMessages.AckSuccess
-                : "Не удалось подтвердить уведомление.";
-
-            if (!string.IsNullOrEmpty(projectName))
-            {
-                Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = chatLine });
-                _chatLogService.AppendMessage(projectName, "Hermes", chatLine);
-                await PublishAssistantTurnToSupabaseIfPossibleAsync(chatLine);
-            }
-        }
-        catch (Exception ex)
-        {
-            AppendTerminal($"[reni-water] ack failed: {ex.Message}", isError: true);
-        }
-        finally
-        {
-            _reniWaterBusy = false;
-            RefreshReniWaterPendingUi();
-            CommandManager.InvalidateRequerySuggested();
-        }
-    }
-
-    private void RunReniWaterLoginUi(string? projectName = null)
-    {
-        projectName ??= Projects.SelectedProject?.Name;
-        try
-        {
-            _reniWater.OpenLoginConsole();
-            const string line =
-                "Открыто окно PowerShell для входа. Войдите в Chromium Playwright (не в Chrome), отметьте «Запам'ятати мене», "
-                + "дойдите до страницы показаний, Enter — в логе должно быть SESSION_OK. "
-                + "Дальше передача без входа каждый месяц. Либо RENI_LOGIN_* в reni_water.env (см. reni_water.env.example).";
-            AppendTerminal("[reni-water] " + line);
-            if (!string.IsNullOrEmpty(projectName))
-            {
-                Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = line });
-                _chatLogService.AppendMessage(projectName, "Hermes", line);
-            }
-        }
-        catch (Exception ex)
-        {
-            AppendTerminal($"[reni-water] login: {ex.Message}", isError: true);
-        }
-    }
-
-    private static string UserChatMessageForSubmit(ReniWaterRunResult result)
-    {
-        if (result.AuthRequired)
-        {
-            return ReniWaterUserMessages.AuthRequired;
-        }
-
-        if (result.SubmitAccepted)
-        {
-            return ReniWaterUserMessages.SubmitSuccess;
-        }
-
-        if (result.CombinedText.Contains("SUBMIT_NOT_ACCEPTED", StringComparison.OrdinalIgnoreCase))
-        {
-            return ReniWaterUserMessages.SubmitNotAccepted;
-        }
-
-        if (result.Success)
-        {
-            return ReniWaterUserMessages.SubmitSuccess;
-        }
-
-        return $"Ошибка передачи показаний (код {result.ExitCode}).";
-    }
-
-    private void LogReniWaterRunToTerminal(ReniWaterRunResult result)
-    {
-        var detail = string.IsNullOrWhiteSpace(result.CombinedText)
-            ? string.Empty
-            : result.CombinedText.ReplaceLineEndings(" ").Trim();
-        var isError = !result.Success && !result.AuthRequired;
-        AppendTerminal(
-            string.IsNullOrEmpty(detail)
-                ? $"[reni-water] exit={result.ExitCode}"
-                : $"[reni-water] exit={result.ExitCode} {detail}",
-            isError: isError);
-    }
-
     private void RefreshReniWaterPendingUi()
     {
         var pending = _reniWater.ReadPendingAck();
@@ -2886,48 +2966,6 @@ public sealed class MainViewModel : BaseViewModel
         _reniWaterPendingScreenshotPath = ResolveExistingScreenshotPath(pending.ScreenshotPath);
         CanViewReniWaterScreenshot = !string.IsNullOrEmpty(_reniWaterPendingScreenshotPath);
         CommandManager.InvalidateRequerySuggested();
-    }
-
-    private async Task RunReniWaterCheckSessionUiAsync(string? projectName = null)
-    {
-        projectName ??= Projects.SelectedProject?.Name;
-        _reniWaterBusy = true;
-        CommandManager.InvalidateRequerySuggested();
-        AppendTerminal("[reni-water] Проверка сохранённой сессии…");
-
-        try
-        {
-            var result = await _reniWater.RunCheckSessionAsync().ConfigureAwait(true);
-            var ok = result.Success && result.CombinedText.Contains("SESSION_OK", StringComparison.Ordinal);
-            var summary = ok
-                ? "Сессия активна — показания можно передавать автоматически (без ручного входа)."
-                : "Сессия не готова. Выполните «Вход на сайт» или добавьте RENI_LOGIN_* в reni_water.env.";
-            if (!string.IsNullOrWhiteSpace(result.CombinedText))
-            {
-                summary += " " + result.CombinedText.ReplaceLineEndings(" ").Trim();
-                if (summary.Length > 500)
-                {
-                    summary = summary[..500] + "…";
-                }
-            }
-
-            AppendTerminal($"[reni-water] {summary}", isError: !ok);
-            if (!string.IsNullOrEmpty(projectName))
-            {
-                Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = summary });
-                _chatLogService.AppendMessage(projectName, "Hermes", summary);
-                await PublishAssistantTurnToSupabaseIfPossibleAsync(summary).ConfigureAwait(true);
-            }
-        }
-        catch (Exception ex)
-        {
-            AppendTerminal($"[reni-water] check-session: {ex.Message}", isError: true);
-        }
-        finally
-        {
-            _reniWaterBusy = false;
-            CommandManager.InvalidateRequerySuggested();
-        }
     }
 
     public void OpenImageViewer(string? imagePath)
@@ -3329,10 +3367,11 @@ public sealed class MainViewModel : BaseViewModel
             var voice = AppLifecycleSupabasePayload.BuildSupabaseContent("Hermes Command Center");
             var label = CanonicalHermesSenderName();
 
-            await _supabaseRelay.InsertAssistantRowAsync(label, json, CancellationToken.None, logPublish: false)
+            var recipient = CanonicalHermesOutboundRecipient();
+            await _supabaseRelay.InsertAssistantRowAsync(label, recipient, json, CancellationToken.None, logPublish: false)
                 .ConfigureAwait(true);
             _supabaseEchoTracker.RegisterAfterSuccessfulPublish(label, json);
-            await _supabaseRelay.InsertAssistantRowAsync(label, voice, CancellationToken.None, logPublish: false)
+            await _supabaseRelay.InsertAssistantRowAsync(label, recipient, voice, CancellationToken.None, logPublish: false)
                 .ConfigureAwait(true);
             _supabaseEchoTracker.RegisterAfterSuccessfulPublish(label, voice);
             _startupSupabaseNotificationSent = true;
@@ -3467,6 +3506,7 @@ public sealed class MainViewModel : BaseViewModel
     {
         DispatchToUi(() => Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = text }));
         _chatLogService.AppendMessage(projectName, "Hermes", text);
+        RequestChatScrollToBottom();
         if (publishToSupabase)
         {
             _ = PublishAssistantTurnToSupabaseIfPossibleAsync(text);
@@ -3520,11 +3560,12 @@ public sealed class MainViewModel : BaseViewModel
 
         try
         {
-            await _supabaseRelay.InsertAssistantRowAsync(label, contentForSupabase);
+            var recipient = CanonicalHermesOutboundRecipient();
+            await _supabaseRelay.InsertAssistantRowAsync(label, recipient, contentForSupabase);
             _supabaseEchoTracker.RegisterAfterSuccessfulPublish(label, contentForSupabase);
             var formatKind = BilingualSegmentFormatter.ShouldPublishAsRawJson(assistantPlainText) ? "raw" : "bilingual";
             _logService.LogInfo(
-                $"[supabase] Ответ агента записан в messages (sender_name={label}, chars={contentForSupabase.Length}, format={formatKind}).");
+                $"[supabase] Ответ агента записан в messages (sender_name={label}, recipient_name={recipient}, chars={contentForSupabase.Length}, format={formatKind}).");
         }
         catch (Exception ex)
         {
@@ -3589,8 +3630,10 @@ public sealed class MainViewModel : BaseViewModel
 
         try
         {
-            await _supabaseRelay.InsertAssistantRowAsync(tag, userBubbleText, CancellationToken.None, logPublish: false);
-            _logService.LogInfo($"[supabase] Опубликовано пользовательское сообщение в таблицу messages (sender_name={tag}).");
+            var recipient = LocalOutboundRecipient();
+            await _supabaseRelay.InsertAssistantRowAsync(tag, recipient, userBubbleText, CancellationToken.None, logPublish: false);
+            _logService.LogInfo(
+                $"[supabase] Опубликовано пользовательское сообщение в таблицу messages (sender_name={tag}, recipient_name={recipient}).");
         }
         catch (Exception ex)
         {
@@ -3627,6 +3670,37 @@ public sealed class MainViewModel : BaseViewModel
     {
         var s = Settings.SupabaseHermesSenderName?.Trim();
         return string.IsNullOrEmpty(s) ? "Hermes" : s;
+    }
+
+    private string CanonicalHermesOutboundRecipient()
+    {
+        var s = Settings.SupabaseHermesOutboundRecipientName?.Trim();
+        return string.IsNullOrEmpty(s) ? "Android" : s;
+    }
+
+    private string LocalOutboundRecipient()
+    {
+        var s = Settings.SupabaseLocalOutboundRecipientName?.Trim();
+        return string.IsNullOrEmpty(s) ? "Hermes" : s;
+    }
+
+    private bool MatchesInboundRecipientFilter(SupabaseMessageRow m)
+    {
+        if (!Settings.SupabaseFilterInboundByRecipient)
+        {
+            return true;
+        }
+
+        var expected = Settings.SupabaseInboundRecipientName?.Trim();
+        if (string.IsNullOrEmpty(expected))
+        {
+            expected = "Hermes";
+        }
+
+        return string.Equals(
+            (m.RecipientName ?? string.Empty).Trim(),
+            expected,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsHermesSenderRow(SupabaseMessageRow m, string canonical) =>
@@ -3747,6 +3821,11 @@ public sealed class MainViewModel : BaseViewModel
             return;
         }
 
+        if (!MatchesInboundRecipientFilter(m))
+        {
+            return;
+        }
+
         var canon = CanonicalHermesSenderName();
         if (IsHermesSenderRow(m, canon))
         {
@@ -3844,6 +3923,11 @@ public sealed class MainViewModel : BaseViewModel
                 return;
             }
 
+            if (!MatchesInboundRecipientFilter(m))
+            {
+                return;
+            }
+
             Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = m.Content ?? string.Empty });
             var projHermes = Projects.SelectedProject;
             if (projHermes is not null)
@@ -3860,26 +3944,196 @@ public sealed class MainViewModel : BaseViewModel
             return;
         }
 
+        if (!MatchesInboundRecipientFilter(m))
+        {
+            return;
+        }
+
         var remoteName = string.IsNullOrWhiteSpace(m.SenderName) ? "Remote" : m.SenderName.Trim();
-        var bubble = $"{remoteName}: {m.Content}";
         var payloadForAgent = string.IsNullOrEmpty((m.Content ?? string.Empty).Trim())
             ? "(пустое сообщение из Supabase)"
             : (m.Content ?? string.Empty).Trim();
 
+        await HandleInboundRemoteUserMessageAsync(remoteName, payloadForAgent, source: "supabase")
+            .ConfigureAwait(true);
+    }
+
+    private void OnWhatsAppMessageReceived(WhatsAppMessage msg)
+    {
+        DispatchToUi(() => _ = HandleInboundWhatsAppMessageAsync(msg));
+    }
+
+    private async Task HandleInboundWhatsAppMessageAsync(WhatsAppMessage msg)
+    {
+        var text = (msg.Text ?? string.Empty).Trim();
+        if (text.Length == 0)
+        {
+            return;
+        }
+
+        await HandleInboundRemoteUserMessageAsync(msg.FromName, text, source: "whatsapp").ConfigureAwait(true);
+    }
+
+    private async Task HandleInboundRemoteUserMessageAsync(string remoteName, string payloadForAgent, string source)
+    {
+        var bubble = $"{remoteName}: {payloadForAgent}";
         Chat.Messages.Add(new ChatMessage { Role = "User", Text = bubble });
+        RequestChatScrollToBottom();
 
         if (Projects.SelectedProject is null)
         {
             _logService.LogWarn(
-                "[supabase] Входящее сообщение из Supabase показано в чате; ответ Hermes не запущен — выберите проект в списке.");
+                $"[{source}] Входящее сообщение показано в чате; ответ Hermes не запущен — выберите проект.");
             return;
         }
 
         _chatLogService.AppendMessage(Projects.SelectedProject.Name, "User", bubble);
+        _ = TrySaveHistoryAfterTurnAsync(Projects.SelectedProject.Name);
+
+        if (string.Equals(source, "whatsapp", StringComparison.OrdinalIgnoreCase)
+            && !Settings.WhatsAppTriggerHermesAgent)
+        {
+            _whatsAppLogService.LogInfo("[whatsapp] Сообщение в чате; вызов Hermes отключён в настройках.");
+            return;
+        }
 
         await ExecuteHermesUserTurnAsync(
             prependUserBubble: false,
-            agentUserPayload: payloadForAgent);
+            agentUserPayload: payloadForAgent).ConfigureAwait(true);
+    }
+
+    private async Task StartWhatsAppWebCoreAsync()
+    {
+        if (!Settings.WhatsAppWebEnabled)
+        {
+            ApplyWhatsAppReadinessUi(WhatsAppMonitorReadiness.Off, string.Empty);
+            return;
+        }
+
+        ApplyWhatsAppReadinessUi(WhatsAppMonitorReadiness.Starting, "Запуск WhatsApp Web…");
+
+        await StopWhatsAppWebCoreAsync().ConfigureAwait(true);
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await dispatcher.InvokeAsync(async () =>
+            {
+                _whatsAppWindow = new WhatsAppWebWindow();
+                _whatsAppWindow.Show();
+                _whatsAppReader = new WhatsAppWebReader(_whatsAppWindow);
+                _whatsAppMonitor = new WhatsAppWebMonitorService(_whatsAppLogService, _whatsAppReader);
+                _whatsAppMonitor.MessageReceived += OnWhatsAppMessageReceived;
+                _whatsAppMonitor.ReadinessChanged += OnWhatsAppReadinessChanged;
+                _whatsAppMonitor.StatusChanged += line => AppendTerminal($"[whatsapp] {line}");
+                await _whatsAppMonitor.InitializeAsync().ConfigureAwait(true);
+                await _whatsAppMonitor.StartMonitoringAsync(
+                    Settings.WhatsAppContactDisplayName,
+                    Settings.WhatsAppPollIntervalMs,
+                    Settings.GetEffectiveWhatsAppTextMarker(),
+                    Settings.WhatsAppParseProbeEnabled,
+                    Settings.GetEffectiveWhatsAppMinTextLength()).ConfigureAwait(true);
+            }).Task.ConfigureAwait(true);
+
+            _whatsAppLogService.LogInfo(
+                $"[whatsapp] Relay active for «{Settings.WhatsAppContactDisplayName}» → Hermes chat (minText={Settings.GetEffectiveWhatsAppMinTextLength()}, allow1char={Settings.WhatsAppAllowSingleCharMessages})");
+        }
+        catch (Exception ex)
+        {
+            _whatsAppLogService.LogError($"[whatsapp] Start failed: {ex.Message}");
+            ApplyWhatsAppReadinessUi(WhatsAppMonitorReadiness.Error, $"WhatsApp Web: {ex.Message}");
+            await StopWhatsAppWebCoreAsync().ConfigureAwait(true);
+        }
+    }
+
+    private void OnWhatsAppReadinessChanged(WhatsAppMonitorReadiness state, string message) =>
+        DispatchToUi(() => ApplyWhatsAppReadinessUi(state, message));
+
+    private void ApplyWhatsAppReadinessUi(WhatsAppMonitorReadiness state, string message)
+    {
+        _whatsAppReadiness = state;
+        WhatsAppStatusText = message;
+        RaisePropertyChanged(nameof(WhatsAppIndicatorState));
+        RaisePropertyChanged(nameof(IsWhatsAppChatStatusVisible));
+    }
+
+    private void ShowWhatsAppWebWindow()
+    {
+        if (_whatsAppMonitor is not null)
+        {
+            _whatsAppMonitor.ShowWhatsAppWindow();
+            return;
+        }
+
+        _whatsAppReader?.ShowWindow();
+    }
+
+    private async Task RunWhatsAppParseProbeManualAsync()
+    {
+        if (_whatsAppMonitor is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var result = await _whatsAppMonitor.RunParseProbeAsync().ConfigureAwait(true);
+            var line = result.Success
+                ? $"Parse probe OK — {result.DetectLatencyMs} ms"
+                : $"Parse probe FAILED — {result.FailureReason}";
+            _whatsAppLogService.LogInfo($"[whatsapp] {line}");
+            AppendTerminal($"[whatsapp] {line}");
+            ApplyWhatsAppReadinessUi(
+                result.Success ? WhatsAppMonitorReadiness.Ready : WhatsAppMonitorReadiness.Stalled,
+                result.Success
+                    ? $"Готов — парсинг проверен ({result.DetectLatencyMs} ms)"
+                    : $"Парсинг не подтверждён: {result.FailureReason}");
+        }
+        catch (Exception ex)
+        {
+            _whatsAppLogService.LogWarn($"[whatsapp] Manual probe: {ex.Message}");
+            ApplyWhatsAppReadinessUi(
+                WhatsAppMonitorReadiness.Stalled,
+                $"Ошибка проверки парсинга: {ex.Message}");
+        }
+    }
+
+    private async Task StopWhatsAppWebCoreAsync()
+    {
+        if (_whatsAppMonitor is not null)
+        {
+            _whatsAppMonitor.MessageReceived -= OnWhatsAppMessageReceived;
+            _whatsAppMonitor.ReadinessChanged -= OnWhatsAppReadinessChanged;
+            _whatsAppMonitor.StopMonitoring();
+            await _whatsAppMonitor.DisposeAsync().ConfigureAwait(true);
+            _whatsAppMonitor = null;
+        }
+
+        _whatsAppReader = null;
+        ApplyWhatsAppReadinessUi(WhatsAppMonitorReadiness.Off, string.Empty);
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is not null && _whatsAppWindow is not null)
+        {
+            await dispatcher.InvokeAsync(() =>
+            {
+                if (_whatsAppWindow is not null)
+                {
+                    _whatsAppWindow.ForceClose();
+                }
+
+                _whatsAppWindow = null;
+            }).Task.ConfigureAwait(true);
+        }
+        else
+        {
+            _whatsAppWindow = null;
+        }
     }
 
     private async Task RunQuickActionAsync(string command)
@@ -3932,6 +4186,8 @@ public sealed class MainViewModel : BaseViewModel
         };
 
         await _historyService.SaveAsync(session);
+        _logService.LogInfo(
+            $"[history] Persisted {session.Messages.Count} message(s) for «{projectName}» → {_historyService.GetHistoryFilePath(projectName)}");
         if (!SessionHistoryTitles.Contains(projectName))
         {
             SessionHistoryTitles.Add(projectName);

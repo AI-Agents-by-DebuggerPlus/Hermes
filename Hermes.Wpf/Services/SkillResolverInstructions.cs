@@ -22,8 +22,9 @@ public static class SkillResolverInstructions
         sb.AppendLine();
         sb.AppendLine("Правила выбора:");
         sb.AppendLine(
-            "1. Если лучший навык с score ≥ 0.5 и kind=script|intent — в начале ответа выведи **только** JSON "
-            + "{\"skill\":\"run_generated\",\"id\":\"<id>\"} (без Markdown), затем краткий комментарий пользователю.");
+            "1. Если лучший навык с score ≥ 0.5: kind=script|intent с id → run_generated; "
+            + "kind=intent с wpf_local tools (например builtin_reni_water) → JSON "
+            + "{\"skill\":\"wpf_local\",\"action\":\"…\"} (без Markdown), затем краткий комментарий.");
         sb.AppendLine(
             "2. Если kind=prompt — следуй outbound_prompt_block навыка, не дублируй инструкции.");
         sb.AppendLine("3. Если ни один навык не подходит — отвечай обычно, без JSON run_generated.");

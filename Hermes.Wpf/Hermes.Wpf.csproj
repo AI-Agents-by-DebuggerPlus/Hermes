@@ -10,6 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
     <PackageReference Include="Supabase" Version="1.1.1" />
   </ItemGroup>
 
@@ -98,6 +99,7 @@
     <Copy SourceFiles="@(_TpCliFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="Exists('$(_TpCliDir)Hermes.TradingPlatform.Cli.dll')" />
     <Copy SourceFiles="@(_TpSharedFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="Exists('$(_TpSharedDir)Hermes.TradingPlatform.Shared.dll')" />
   </Target>
+
 
   <Target Name="CopyMouseBridgeToWpfOut" AfterTargets="Build">
     <PropertyGroup>

@@ -44,7 +44,7 @@ public sealed class GeneratedSkillIndexService
         _log.LogInfo($"[skill-index] wrote {skills.Count} skill(s) → {winIndex}");
 
         var wslRoot = GeneratedSkillPaths.ResolveWslSkillsRoot(settings);
-        if (wslRoot is null)
+        if (wslRoot is null || !settings.SkillMirrorToWslHermes)
         {
             return;
         }

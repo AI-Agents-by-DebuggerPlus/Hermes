@@ -74,6 +74,50 @@ public sealed class HermesSettings
     /// <summary><c>sender_name</c> for rows inserted when the user sends from this desktop (must differ from <see cref="SupabaseHermesSenderName"/> and from mobile clients).</summary>
     public string SupabaseLocalSenderName { get; set; } = "Desktop";
 
+    /// <summary>When true, only rows with <c>recipient_name</c> = <see cref="SupabaseInboundRecipientName"/> are injected into chat / trigger Hermes.</summary>
+    public bool SupabaseFilterInboundByRecipient { get; set; } = true;
+
+    /// <summary>Required <c>recipient_name</c> for inbound Supabase rows (default Hermes).</summary>
+    public string SupabaseInboundRecipientName { get; set; } = "Hermes";
+
+    /// <summary><c>recipient_name</c> for rows published by Hermes agent from this desktop (default Android).</summary>
+    public string SupabaseHermesOutboundRecipientName { get; set; } = "Android";
+
+    /// <summary><c>recipient_name</c> for user messages sent from this desktop into Supabase (default Hermes).</summary>
+    public string SupabaseLocalOutboundRecipientName { get; set; } = "Hermes";
+
+    /// <summary>Monitor WhatsApp Web (WebView2) and inject new messages from <see cref="WhatsAppContactDisplayName"/> into chat.</summary>
+    public bool WhatsAppWebEnabled { get; set; } = true;
+
+    /// <summary>Contact to open in WhatsApp Web (matches «My Fido (You)» when set to My Fido).</summary>
+    public string WhatsAppContactDisplayName { get; set; } = "My Fido";
+
+    /// <summary>DOM poll interval for WhatsApp Web monitor (ms, min 500).</summary>
+    public int WhatsAppPollIntervalMs { get; set; } = 2000;
+
+    /// <summary>When false, all new messages after chat open are forwarded (no prefix filter).</summary>
+    public bool WhatsAppTextMarkerEnabled { get; set; } = true;
+
+    /// <summary>Prefix filter when <see cref="WhatsAppTextMarkerEnabled"/> is true (default [gemini]).</summary>
+    public string WhatsAppTextMarker { get; set; } = "[gemini]";
+
+    /// <summary>Effective prefix passed to the WhatsApp monitor (empty = disabled).</summary>
+    public string GetEffectiveWhatsAppTextMarker() =>
+        !WhatsAppTextMarkerEnabled
+            ? string.Empty
+            : string.IsNullOrWhiteSpace(WhatsAppTextMarker) ? "[gemini]" : WhatsAppTextMarker.Trim();
+
+    /// <summary>When true, new WhatsApp messages invoke Hermes agent (like Supabase inbound).</summary>
+    public bool WhatsAppTriggerHermesAgent { get; set; } = true;
+
+    /// <summary>After baseline, send a probe message in WhatsApp Web and wait until DOM poll detects it.</summary>
+    public bool WhatsAppParseProbeEnabled { get; set; } = true;
+
+    /// <summary>When true, forward WhatsApp messages of 1 character (default minimum is 2).</summary>
+    public bool WhatsAppAllowSingleCharMessages { get; set; }
+
+    public int GetEffectiveWhatsAppMinTextLength() => WhatsAppAllowSingleCharMessages ? 1 : 2;
+
     /// <summary>Windows path to Obsidian vault / Markdown memory root (recursive <c>*.md</c>).</summary>
     public string ExternalBrainMemoryPath { get; set; } = string.Empty;
 
@@ -102,7 +146,7 @@ public sealed class HermesSettings
     public bool SkillGenerationEnabled { get; set; } = true;
 
     /// <summary>Mirror saved skills to WSL <c>~/.hermes/skills/</c>.</summary>
-    public bool SkillMirrorToWslHermes { get; set; } = true;
+    public bool SkillMirrorToWslHermes { get; set; }
 
     /// <summary>Windows root for generated skills; empty = %AppData%\\HermesWpf\\skills.</summary>
     public string GeneratedSkillsDirectory { get; set; } = string.Empty;
@@ -217,6 +261,21 @@ public sealed class HermesSettings
 
     /// <summary><c>yyyy-MM</c> — last month when monthly job ran.</summary>
     public string? ReniWaterLastMonthlyRunKey { get; set; }
+
+    /// <summary>Run memory extraction + vault write after successful built-in local handlers.</summary>
+    public bool LocalLearningLoopEnabled { get; set; } = true;
+
+    /// <summary>After wpf_local execution, send structured result back to Hermes CLI for memory/reflection.</summary>
+    public bool CliPostLocalFollowUpEnabled { get; set; } = true;
+
+    /// <summary>Auto-create/update generated skill mirror for Reni Water after N successful submits.</summary>
+    public bool ReniWaterAutoCrystallizeEnabled { get; set; }
+
+    /// <summary>Successful submit count before auto skill crystallization (default 2).</summary>
+    public int ReniWaterAutoCrystallizeAfterSuccesses { get; set; } = 2;
+
+    /// <summary>Persisted successful Reni submit count for auto-crystallize threshold.</summary>
+    public int ReniWaterLearningSuccessCount { get; set; }
 
     /// <summary>Inject Trading Platform bridge instructions and live snapshot into outbound hermes chat.</summary>
     public bool TradingPlatformIntegrationEnabled { get; set; } = false;

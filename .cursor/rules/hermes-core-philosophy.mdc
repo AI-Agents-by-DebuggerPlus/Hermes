@@ -1,0 +1,38 @@
+---
+description: Hermes.Wpf core philosophy — Thin UI + Thick CLI (Nous Hermes CLI owns agent)
+alwaysApply: true
+---
+
+# Hermes.Wpf — Core Philosophy & Development Rules
+**Версия: 1.1** | **Дата: 31 мая 2026**
+
+## Главная цель
+Hermes.Wpf — **только UI** для пользователя: чат, настройки, терминал, мониторинг.  
+**Hermes CLI (Nous Research)** — единственный агент: память, опыт, skills, tools, learning loop.
+
+> **В режиме агента Hermes не должен «видеть» WPF.**  
+> Сообщение пользователя → `hermes chat` as-is → ответ в UI. Без `[System / Hermes WPF]` блоков.
+
+### Режим агента (pure CLI pass-through)
+
+1. **Нет WPF prompt injection** — не добавлять platform knowledge, skill resolver, wpf_local, External Brain vault, role blocks.
+2. **Нет post-parse чата** — WPF не парсит `skill_save`, `run_generated`, `wpf_local`, trading JSON, flashcard intents.
+3. **Нет WPF-side memory** — не вызывать `MemoryExtractorService`, `RoleExperienceCapture`, sync vault после turn.
+4. **Память и skills** — только Hermes CLI: `~/.hermes/memories/`, `~/.hermes/skills/`. **Файлы проекта на диске:** `AGENTS.md`, `hermes/project.md`, `hermes/screenshots/` (WPF создаёт скелет, не дублирует память агента).
+5. **Реализация:** `IsPureHermesAgentChatTurn()` → `ExecutePureCliAgentTurnAsync()`.
+
+### Специальные режимы (не pure agent)
+
+Трейдинг, репетитор EN, карточки, Assistant (OpenRouter) — могут иметь legacy WPF-логику до полного выноса в CLI.  
+**Новые фичи** — сначала в Hermes CLI, не в WPF handlers.
+
+### Запрещено в режиме агента
+
+- Парсить ответ CLI и выполнять действия на уровне WPF.
+- Подмешивать в промпт описание возможностей WPF.
+- Дублировать память/skills во vault WPF вместо `~/.hermes/`.
+- Автономные таймеры и Task Scheduler в обход CLI.
+
+### При рефакторинге
+
+Спроси: **«Может ли это сделать только Hermes CLI?»** — если да, WPF только отображает результат.
