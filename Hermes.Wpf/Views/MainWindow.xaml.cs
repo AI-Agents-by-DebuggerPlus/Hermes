@@ -63,6 +63,7 @@ public partial class MainWindow : Window
         vm.AttachSaveExperienceOpener(OpenSaveExperienceUi);
         vm.SyncWslAgentMemoryToVault("startup");
         vm.SyncPlatformKnowledgeToVault("startup");
+        await vm.EnsureSelectedProjectHistoryLoadedAsync();
         OpenChatWindow();
         await vm.RefreshConnectionAsync();
 

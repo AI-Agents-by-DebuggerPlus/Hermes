@@ -59,4 +59,17 @@ public static class HermesChatModeResolver
         var mode = ResolveModeDisplayRu(modeId);
         return $"Проект: {project} · Режим: {mode}";
     }
+
+    public static bool IsChatModeStatusLine(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var trimmed = text.Trim();
+        return trimmed.StartsWith("Проект:", StringComparison.Ordinal)
+               && trimmed.Contains('·', StringComparison.Ordinal)
+               && trimmed.Contains("Режим:", StringComparison.Ordinal);
+    }
 }

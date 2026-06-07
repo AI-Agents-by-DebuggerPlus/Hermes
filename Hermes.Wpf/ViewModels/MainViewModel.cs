@@ -116,6 +116,7 @@ public sealed class MainViewModel : BaseViewModel
     private string? _lastLoggedConnectionFingerprint;
 
     private CancellationTokenSource? _historyLoadCts;
+    private Task? _pendingHistoryLoad;
 
     private double _chatFontSize;
 
@@ -319,13 +320,23 @@ public sealed class MainViewModel : BaseViewModel
             RefreshChatModeStatusUi();
             _ = PublishSessionContextToSupabaseIfChangedAsync("project-selected");
 
+            Task? loadTask = null;
             try
             {
-                await LoadProjectHistoryAsync(Projects.SelectedProject, historyToken);
+                loadTask = LoadProjectHistoryAsync(Projects.SelectedProject, historyToken);
+                _pendingHistoryLoad = loadTask;
+                await loadTask;
             }
             catch (OperationCanceledException)
             {
                 // Switched project before load finished.
+            }
+            finally
+            {
+                if (loadTask is not null && ReferenceEquals(_pendingHistoryLoad, loadTask))
+                {
+                    _pendingHistoryLoad = null;
+                }
             }
         };
 
@@ -1518,7 +1529,8 @@ public sealed class MainViewModel : BaseViewModel
         if (_startupModeNoticePending && Projects.SelectedProject is { Name: var projectName })
         {
             _startupModeNoticePending = false;
-            PostModeStatusNotice(projectName);
+            SyncChatModeStatusBubble(persistHistory: false);
+            _ = PublishSessionContextToSupabaseIfChangedAsync("chat-opened");
         }
     }
 
@@ -1947,7 +1959,32 @@ public sealed class MainViewModel : BaseViewModel
             $"[history] Loaded {history.Messages.Count} message(s) for «{project.Name}» from {historyPath}" +
             (history.Messages.Count == 0 ? " (empty or new session)" : string.Empty));
 
+        SyncChatModeStatusBubble(persistHistory: false);
         RequestChatScrollToBottom();
+    }
+
+    public async Task EnsureSelectedProjectHistoryLoadedAsync()
+    {
+        if (Projects.SelectedProject is null)
+        {
+            return;
+        }
+
+        if (_pendingHistoryLoad is not null)
+        {
+            try
+            {
+                await _pendingHistoryLoad.ConfigureAwait(true);
+            }
+            catch (OperationCanceledException)
+            {
+                // Project switched while load was in flight.
+            }
+
+            return;
+        }
+
+        await LoadProjectHistoryAsync(Projects.SelectedProject).ConfigureAwait(true);
     }
 
     public async Task SaveCurrentProjectHistoryAsync()
@@ -3331,11 +3368,38 @@ public sealed class MainViewModel : BaseViewModel
         return false;
     }
 
-    private void PostModeStatusNotice(string projectName)
+    private void PostModeStatusNotice(string projectName, bool persistHistory = true)
     {
         RefreshChatModeStatusUi();
-        PostLocalHermesReply(projectName, ChatModeStatusText, publishToSupabase: false);
+        SyncChatModeStatusBubble(persistHistory);
         _ = PublishSessionContextToSupabaseIfChangedAsync("mode-notice");
+    }
+
+    private void SyncChatModeStatusBubble(bool persistHistory)
+    {
+        RefreshChatModeStatusUi();
+        var line = ChatModeStatusText;
+        for (var i = Chat.Messages.Count - 1; i >= 0; i--)
+        {
+            if (Chat.Messages[i].Role == "Hermes"
+                && HermesChatModeResolver.IsChatModeStatusLine(Chat.Messages[i].Text))
+            {
+                if (string.Equals(Chat.Messages[i].Text, line, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                Chat.Messages.RemoveAt(i);
+            }
+        }
+
+        Chat.Messages.Insert(0, new ChatMessage { Role = "Hermes", Text = line });
+        RequestChatScrollToBottom();
+
+        if (persistHistory && Projects.SelectedProject is { Name: var projectName })
+        {
+            _ = TrySaveHistoryAfterTurnAsync(projectName);
+        }
     }
 
     private async Task PublishAppStartupNotificationAsync(string reason)
@@ -3988,7 +4052,7 @@ public sealed class MainViewModel : BaseViewModel
         }
 
         _chatLogService.AppendMessage(Projects.SelectedProject.Name, "User", bubble);
-        _ = TrySaveHistoryAfterTurnAsync(Projects.SelectedProject.Name);
+        await TrySaveHistoryAfterTurnAsync(Projects.SelectedProject.Name).ConfigureAwait(true);
 
         if (string.Equals(source, "whatsapp", StringComparison.OrdinalIgnoreCase)
             && !Settings.WhatsAppTriggerHermesAgent)
