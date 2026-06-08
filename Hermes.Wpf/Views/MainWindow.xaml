@@ -90,6 +90,11 @@
                             Content="📤 Export English progress"
                             ToolTip="Экспорт прогресса репетитора английского в Obsidian (Memory/Knowledge/EnglishTutor и Sessions)"
                             Command="{Binding ExportEnglishTutorProgressCommand}" />
+                    <Button Width="100"
+                            Margin="0,0,8,8"
+                            Content="Таблица"
+                            ToolTip="Просмотр Excel (.xlsx): рабочие часы, фильтр по датам"
+                            Click="OpenSpreadsheetViewer_OnClick" />
                     <Button Width="90"
                             Margin="0,0,8,8"
                             Content="Logs"

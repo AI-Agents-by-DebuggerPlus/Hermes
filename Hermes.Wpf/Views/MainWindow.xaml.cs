@@ -24,6 +24,7 @@ public partial class MainWindow : Window
     private WordPressGalleryWindow? _wordPressGalleryWindow;
     private ExternalBrainService? _externalBrainService;
     private ExternalBrainWindow? _externalBrainWindow;
+    private SpreadsheetViewerWindow? _spreadsheetViewerWindow;
 
     public MainWindow()
     {
@@ -266,6 +267,24 @@ public partial class MainWindow : Window
         }
 
         _logsWindow.Activate();
+    }
+
+    private void OpenSpreadsheetViewer_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (_spreadsheetViewerWindow is null || !_spreadsheetViewerWindow.IsLoaded)
+        {
+            _spreadsheetViewerWindow = new SpreadsheetViewerWindow();
+            _spreadsheetViewerWindow.Owner = this;
+            _spreadsheetViewerWindow.Show();
+            return;
+        }
+
+        if (_spreadsheetViewerWindow.WindowState == WindowState.Minimized)
+        {
+            _spreadsheetViewerWindow.WindowState = WindowState.Normal;
+        }
+
+        _spreadsheetViewerWindow.Activate();
     }
 
     private void OpenHelpButton_OnClick(object sender, RoutedEventArgs e)

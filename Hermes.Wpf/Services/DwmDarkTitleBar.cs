@@ -46,9 +46,12 @@ public static class DwmDarkTitleBar
 
     private static void OnWindowLoaded(object sender, RoutedEventArgs e)
     {
-        if (sender is Window window)
+        if (sender is not Window window)
         {
-            Apply(window);
+            return;
         }
+
+        window.SourceInitialized += (_, _) => Apply(window);
+        Apply(window);
     }
 }

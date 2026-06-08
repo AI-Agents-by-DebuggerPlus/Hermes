@@ -441,9 +441,393 @@
         </Setter>
     </Style>
 
+    <Style x:Key="HermesDataGridColumnHeaderStyle" TargetType="DataGridColumnHeader">
+        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+        <Setter Property="Background" Value="#2B3139" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrushDark}" />
+        <Setter Property="BorderThickness" Value="0,0,1,1" />
+        <Setter Property="Padding" Value="8,6" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="DataGridColumnHeader">
+                    <Border x:Name="HeaderRoot"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter VerticalAlignment="Center"
+                                          RecognizesAccessKey="True"
+                                          TextElement.Foreground="{TemplateBinding Foreground}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="HeaderRoot" Property="Background" Value="#383f49" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="HeaderRoot" Property="Background" Value="#252D38" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="DataGridCell">
+        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrushDark}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="Padding" Value="8,4" />
+        <Style.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="#203250" />
+                <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style TargetType="DataGridRow">
+        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+        <Setter Property="Background" Value="{StaticResource InputBackgroundBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="#252D38" />
+            </Trigger>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="#203250" />
+            </Trigger>
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsSelected" Value="True" />
+                    <Condition Property="IsMouseOver" Value="True" />
+                </MultiTrigger.Conditions>
+                <Setter Property="Background" Value="#2A3A52" />
+            </MultiTrigger>
+        </Style.Triggers>
+    </Style>
+
     <Style TargetType="DataGrid">
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
         <Setter Property="Background" Value="{StaticResource InputBackgroundBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrushDark}" />
+        <Setter Property="RowBackground" Value="{StaticResource InputBackgroundBrush}" />
+        <Setter Property="AlternatingRowBackground" Value="#151922" />
+        <Setter Property="GridLinesVisibility" Value="Horizontal" />
+        <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource BorderBrushDark}" />
+        <Setter Property="VerticalGridLinesBrush" Value="{StaticResource BorderBrushDark}" />
+        <Setter Property="ColumnHeaderStyle" Value="{StaticResource HermesDataGridColumnHeaderStyle}" />
+    </Style>
+
+    <Style x:Key="HermesDatePickerGlyphButtonStyle" TargetType="Button">
+        <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root" Background="{TemplateBinding Background}">
+                        <Path Width="10"
+                              Height="10"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              Data="M0,0 L8,0 L8,8 Z"
+                              Fill="{TemplateBinding Foreground}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#383f49" />
+                            <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="HermesCalendarNavButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="6,2" />
+        <Setter Property="MinWidth" Value="32" />
+        <Setter Property="MinHeight" Value="24" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          TextElement.Foreground="{TemplateBinding Foreground}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#383f49" />
+                            <Setter Property="Foreground" Value="#F8D12F" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="HermesCalendarArrowButtonStyle" TargetType="CalendarButton">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="MinWidth" Value="28" />
+        <Setter Property="MinHeight" Value="24" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CalendarButton">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            Padding="4">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#383f49" />
+                            <Setter Property="Foreground" Value="#F8D12F" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="HermesCalendarDayButtonStyle" TargetType="CalendarDayButton">
+        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Width" Value="32" />
+        <Setter Property="Height" Value="32" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CalendarDayButton">
+                    <Border x:Name="DayRoot"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="4">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          TextElement.Foreground="{TemplateBinding Foreground}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsInactive" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="DayRoot" Property="Background" Value="#383f49" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="DayRoot" Property="Background" Value="#203250" />
+                        </Trigger>
+                        <Trigger Property="IsToday" Value="True">
+                            <Setter TargetName="DayRoot" Property="BorderBrush" Value="#F0B90B" />
+                            <Setter TargetName="DayRoot" Property="BorderThickness" Value="1" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="HermesDarkCalendarItemStyle" TargetType="CalendarItem">
+        <Setter Property="Background" Value="{StaticResource InputBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrushDark}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CalendarItem">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}">
+                        <Grid x:Name="PART_Root">
+                            <Grid.Resources>
+                                <DataTemplate x:Key="{ComponentResourceKey TypeInTargetAssembly={x:Type CalendarDayButton}, ResourceId=DayTitleTemplate}">
+                                    <TextBlock Text="{Binding}"
+                                               Foreground="{StaticResource PrimaryTextBrush}"
+                                               FontWeight="SemiBold"
+                                               HorizontalAlignment="Center"
+                                               Margin="0,6,0,6" />
+                                </DataTemplate>
+                            </Grid.Resources>
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid Grid.Row="0" Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <CalendarButton x:Name="PART_PreviousButton"
+                                                    Grid.Column="0"
+                                                    HorizontalAlignment="Left">
+                                        <Viewbox Width="8" Height="8">
+                                            <Path Data="M 5,0 L 0,4 L 5,8 Z"
+                                                  Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=CalendarButton}}" />
+                                        </Viewbox>
+                                    </CalendarButton>
+                                    <Button x:Name="PART_HeaderButton"
+                                            Grid.Column="1"
+                                            Style="{StaticResource HermesCalendarNavButtonStyle}"
+                                            HorizontalAlignment="Center" />
+                                    <CalendarButton x:Name="PART_NextButton"
+                                                    Grid.Column="2"
+                                                    HorizontalAlignment="Right">
+                                        <Viewbox Width="8" Height="8">
+                                            <Path Data="M 0,0 L 5,4 L 0,8 Z"
+                                                  Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=CalendarButton}}" />
+                                        </Viewbox>
+                                    </CalendarButton>
+                                </Grid>
+                                <Grid Grid.Row="1">
+                                    <Grid x:Name="PART_MonthView" Visibility="Visible">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                    </Grid>
+                                    <Grid x:Name="PART_YearView" Visibility="Hidden">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                    </Grid>
+                                </Grid>
+                            </Grid>
+                            <Rectangle x:Name="PART_DisabledVisual"
+                                       Fill="#A0000000"
+                                       RadiusX="4"
+                                       RadiusY="4"
+                                       IsHitTestVisible="False"
+                                       Visibility="Collapsed" />
+                        </Grid>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="HermesDarkCalendarStyle" TargetType="Calendar">
+        <Setter Property="Background" Value="{StaticResource InputBackgroundBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrushDark}" />
+        <Setter Property="CalendarItemStyle" Value="{StaticResource HermesDarkCalendarItemStyle}" />
+        <Setter Property="CalendarDayButtonStyle" Value="{StaticResource HermesCalendarDayButtonStyle}" />
+        <Setter Property="CalendarButtonStyle" Value="{StaticResource HermesCalendarArrowButtonStyle}" />
+    </Style>
+
+    <Style TargetType="DatePicker">
+        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+        <Setter Property="Background" Value="{StaticResource InputBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrushDark}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="2" />
+        <Setter Property="CalendarStyle" Value="{StaticResource HermesDarkCalendarStyle}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="DatePicker">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <DatePickerTextBox x:Name="PART_TextBox"
+                                               Grid.Column="0"
+                                               Foreground="{TemplateBinding Foreground}"
+                                               Background="{TemplateBinding Background}"
+                                               BorderThickness="0"
+                                               Focusable="{TemplateBinding Focusable}" />
+                            <Button x:Name="PART_Button"
+                                    Grid.Column="1"
+                                    Width="20"
+                                    Margin="0"
+                                    Style="{StaticResource HermesDatePickerGlyphButtonStyle}"
+                                    Focusable="False" />
+                            <Popup x:Name="PART_Popup"
+                                   AllowsTransparency="True"
+                                   Placement="Bottom"
+                                   PlacementTarget="{Binding ElementName=PART_TextBox}"
+                                   StaysOpen="False">
+                                <Border Background="{StaticResource InputBackgroundBrush}"
+                                        BorderBrush="{StaticResource BorderBrushDark}"
+                                        BorderThickness="1"
+                                        Padding="4">
+                                    <Calendar x:Name="PART_Calendar"
+                                              Style="{TemplateBinding CalendarStyle}"
+                                              Background="{StaticResource InputBackgroundBrush}"
+                                              Foreground="{StaticResource PrimaryTextBrush}"
+                                              BorderThickness="0" />
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="{x:Type DatePickerTextBox}">
+        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+        <Setter Property="Background" Value="{StaticResource InputBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrushDark}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="4,2" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type DatePickerTextBox}">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Margin="{TemplateBinding Padding}"
+                                      Focusable="False"
+                                      HorizontalScrollBarVisibility="Hidden"
+                                      VerticalScrollBarVisibility="Hidden" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 </ResourceDictionary>
