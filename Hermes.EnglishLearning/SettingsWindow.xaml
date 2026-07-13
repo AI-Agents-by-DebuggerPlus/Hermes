@@ -1,57 +1,400 @@
 <Window x:Class="Hermes.EnglishLearning.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Supabase / настройки"
-        Width="520"
-        Height="360"
+        Title="Настройки"
+        Width="680"
+        Height="620"
+        MinWidth="560"
+        MinHeight="500"
         WindowStartupLocation="CenterOwner"
-        Background="#121A28"
-        Foreground="#D0D4DC"
-        ResizeMode="NoResize">
-    <Grid Margin="16">
+        Background="#0B0E11"
+        Foreground="#EAECEF">
+    <Window.Resources>
+        <SolidColorBrush x:Key="DlgBg" Color="#0B0E11" />
+        <SolidColorBrush x:Key="DlgPanel" Color="#121A28" />
+        <SolidColorBrush x:Key="DlgText" Color="#EAECEF" />
+        <SolidColorBrush x:Key="DlgMuted" Color="#AAB2C0" />
+        <SolidColorBrush x:Key="DlgBorder" Color="#30343D" />
+        <SolidColorBrush x:Key="DlgInput" Color="#161B22" />
+        <SolidColorBrush x:Key="DlgHover" Color="#30343D" />
+        <SolidColorBrush x:Key="DlgAccent" Color="#F8D12F" />
+
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource DlgText}" />
+        </Style>
+        <Style TargetType="Label">
+            <Setter Property="Foreground" Value="{StaticResource DlgText}" />
+        </Style>
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{StaticResource DlgText}" />
+        </Style>
+        <Style TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource DlgText}" />
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="{StaticResource DlgInput}" />
+            <Setter Property="Foreground" Value="{StaticResource DlgText}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DlgBorder}" />
+            <Setter Property="CaretBrush" Value="{StaticResource DlgText}" />
+        </Style>
+
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Background" Value="{StaticResource DlgInput}" />
+            <Setter Property="Foreground" Value="{StaticResource DlgText}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DlgHover}" />
+                                <Setter Property="Foreground" Value="{StaticResource DlgAccent}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#252D38" />
+                                <Setter Property="Foreground" Value="{StaticResource DlgText}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="{StaticResource DlgInput}" />
+            <Setter Property="Foreground" Value="{StaticResource DlgText}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DlgBorder}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="6,4" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto" />
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="ToggleButton"
+                                          Focusable="False"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                          ClickMode="Press">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border Background="#161B22"
+                                                BorderBrush="#30343D"
+                                                BorderThickness="1"
+                                                Padding="0">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="22" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Grid.Column="0" Background="Transparent" />
+                                                <Path Grid.Column="1"
+                                                      HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"
+                                                      Data="M 0 0 L 4 4 L 8 0"
+                                                      Stroke="#EAECEF"
+                                                      StrokeThickness="1.5" />
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Opacity" Value="0.95" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter x:Name="ContentSite"
+                                              IsHitTestVisible="False"
+                                              Margin="8,4,28,4"
+                                              VerticalAlignment="Center"
+                                              HorizontalAlignment="Left"
+                                              Content="{TemplateBinding SelectionBoxItem}"
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                              ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                              TextElement.Foreground="#EAECEF" />
+                            <Popup x:Name="Popup"
+                                   Placement="Bottom"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   PopupAnimation="Slide">
+                                <Border x:Name="DropDownBorder"
+                                        Background="#161B22"
+                                        BorderBrush="#30343D"
+                                        BorderThickness="1"
+                                        MinWidth="{TemplateBinding ActualWidth}"
+                                        MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                    <ScrollViewer Margin="0" SnapsToDevicePixels="True">
+                                        <StackPanel IsItemsHost="True"
+                                                    KeyboardNavigation.DirectionalNavigation="Contained" />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="{StaticResource DlgPanel}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DlgBorder}" />
+        </Style>
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="{StaticResource DlgText}" />
+            <Setter Property="Background" Value="#1A2230" />
+            <Setter Property="Padding" Value="10,4" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="TabBd"
+                                Background="#1A2230"
+                                BorderBrush="{StaticResource DlgBorder}"
+                                BorderThickness="1,1,1,0"
+                                Margin="0,0,2,0"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter ContentSource="Header"
+                                              RecognizesAccessKey="True"
+                                              TextElement.Foreground="{StaticResource DlgText}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="TabBd" Property="Background" Value="#252D38" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="TabBd" Property="Background" Value="#30343D" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="#1F6FEB" />
+            <Setter Property="Foreground" Value="#EAECEF" />
+            <Setter Property="BorderBrush" Value="#2A4D8F" />
+            <Setter Property="Padding" Value="10,4" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1"
+                                Padding="{TemplateBinding Padding}"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#2B79EF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="12">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="140" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
 
-        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,0,8" Text="Supabase URL" VerticalAlignment="Center" />
-        <TextBox x:Name="UrlBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" Padding="4" />
+        <TabControl Grid.Row="0">
+            <TabItem Header="Supabase">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12" Background="{StaticResource DlgPanel}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="150" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,0,8" Text="Anon key" VerticalAlignment="Center" />
-        <TextBox x:Name="KeyBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8" Padding="4" />
+                        <TextBlock Grid.Row="0" Text="URL" VerticalAlignment="Center" Margin="0,0,0,8" Foreground="{StaticResource DlgText}" />
+                        <TextBox x:Name="UrlBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" Padding="4" />
 
-        <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,0,8" Text="recipient_name" VerticalAlignment="Center" />
-        <TextBox x:Name="RecipientBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,8" Padding="4" />
+                        <TextBlock Grid.Row="1" Text="Anon / publishable" VerticalAlignment="Center" Margin="0,0,0,8" Foreground="{StaticResource DlgText}" />
+                        <TextBox x:Name="KeyBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8" Padding="4" TextWrapping="Wrap" />
 
-        <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,0,0,8" Text="Poll (сек)" VerticalAlignment="Center" />
-        <TextBox x:Name="PollBox" Grid.Row="3" Grid.Column="1" Margin="0,0,0,8" Padding="4" Width="80" HorizontalAlignment="Left" />
+                        <TextBlock Grid.Row="2" Text="recipient_name" VerticalAlignment="Center" Margin="0,0,0,8" Foreground="{StaticResource DlgText}" />
+                        <TextBox x:Name="RecipientBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,8" Padding="4" />
 
-        <CheckBox x:Name="AutoSpeakBox"
-                  Grid.Row="4"
-                  Grid.Column="0"
-                  Grid.ColumnSpan="2"
-                  Margin="0,8,0,8"
-                  Content="Автоозвучка при смене экрана"
-                  Foreground="#D0D4DC" />
+                        <TextBlock Grid.Row="3" Text="Poll fallback (сек)" VerticalAlignment="Center" Margin="0,0,0,8" Foreground="{StaticResource DlgText}" />
+                        <TextBox x:Name="PollBox" Grid.Row="3" Grid.Column="1" Margin="0,0,0,8" Padding="4" Width="80" HorizontalAlignment="Left" />
 
-        <TextBlock Grid.Row="5"
-                   Grid.Column="0"
-                   Grid.ColumnSpan="2"
-                   TextWrapping="Wrap"
-                   Foreground="#8490A0"
-                   Text="Hermes шлёт content с type=english_lesson на recipient_name=EnglishLearning. Аудио через Supabase не передаём — TTS локально (SAPI)." />
+                        <CheckBox x:Name="AutoSpeakBox"
+                                  Grid.Row="4"
+                                  Grid.Column="0"
+                                  Grid.ColumnSpan="2"
+                                  Margin="0,8,0,8"
+                                  Content="Автоозвучка при смене экрана"
+                                  Foreground="{StaticResource DlgText}" />
 
-        <StackPanel Grid.Row="7" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <TextBlock Grid.Row="5"
+                                   Grid.Column="0"
+                                   Grid.ColumnSpan="2"
+                                   TextWrapping="Wrap"
+                                   Foreground="{StaticResource DlgMuted}"
+                                   Text="Ключи в settings.json рядом с EXE. Уроки приходят по Realtime WebSocket (INSERT messages)." />
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Шрифт">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12" Background="{StaticResource DlgPanel}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="160" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Text="EN размер" VerticalAlignment="Center" Margin="0,0,0,8" Foreground="{StaticResource DlgText}" />
+                        <TextBox x:Name="EnSizeBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" Padding="4" Width="80" HorizontalAlignment="Left" />
+
+                        <TextBlock Grid.Row="1" Text="EN цвет (#RRGGBB)" VerticalAlignment="Center" Margin="0,0,0,8" Foreground="{StaticResource DlgText}" />
+                        <TextBox x:Name="EnColorBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8" Padding="4" Width="120" HorizontalAlignment="Left" />
+
+                        <TextBlock Grid.Row="2" Text="RU размер" VerticalAlignment="Center" Margin="0,0,0,8" Foreground="{StaticResource DlgText}" />
+                        <TextBox x:Name="RuSizeBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,8" Padding="4" Width="80" HorizontalAlignment="Left" />
+
+                        <TextBlock Grid.Row="3" Text="RU цвет (#RRGGBB)" VerticalAlignment="Center" Margin="0,0,0,8" Foreground="{StaticResource DlgText}" />
+                        <TextBox x:Name="RuColorBox" Grid.Row="3" Grid.Column="1" Margin="0,0,0,8" Padding="4" Width="120" HorizontalAlignment="Left" />
+
+                        <TextBlock Grid.Row="4" Text="Столбцы слов" VerticalAlignment="Center" Margin="0,0,0,8" Foreground="{StaticResource DlgText}" />
+                        <ComboBox x:Name="WordColumnsBox" Grid.Row="4" Grid.Column="1" Margin="0,0,0,8" Width="80" HorizontalAlignment="Left">
+                            <ComboBoxItem Content="1" Tag="1" />
+                            <ComboBoxItem Content="2" Tag="2" />
+                            <ComboBoxItem Content="3" Tag="3" />
+                        </ComboBox>
+
+                        <TextBlock Grid.Row="5" Grid.ColumnSpan="2" TextWrapping="Wrap" Foreground="{StaticResource DlgMuted}"
+                                   Text="Текст карточек центрируется. Пагинация зависит от размера шрифта." />
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Голоса">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12" Background="{StaticResource DlgPanel}">
+                    <StackPanel>
+                        <TextBlock Text="Источник озвучки" FontWeight="SemiBold" Margin="0,0,0,6" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                            <RadioButton x:Name="ProviderAzureRadio"
+                                         Content="Azure Neural + кэш"
+                                         Margin="0,0,16,0"
+                                         GroupName="TtsProvider"
+                                         Checked="Provider_OnChecked" />
+                            <RadioButton x:Name="ProviderSapiRadio"
+                                         Content="Windows SAPI"
+                                         GroupName="TtsProvider"
+                                         Checked="Provider_OnChecked" />
+                        </StackPanel>
+
+                        <Border Background="#0E1420" BorderBrush="#30343D" BorderThickness="1" Padding="10" Margin="0,0,0,14">
+                            <StackPanel>
+                                <TextBlock Text="Azure Speech" FontWeight="SemiBold" Margin="0,0,0,8" Foreground="#F8D12F" />
+                                <TextBlock Text="Английский голос (Azure)" Margin="0,0,0,4" />
+                                <ComboBox x:Name="AzureEnVoiceBox" Margin="0,0,0,10" DisplayMemberPath="Name" />
+                                <TextBlock Text="Русский голос (Azure)" Margin="0,0,0,4" />
+                                <ComboBox x:Name="AzureRuVoiceBox" Margin="0,0,0,10" DisplayMemberPath="Name" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <Button x:Name="RefreshAzureVoicesButton"
+                                            Content="Обновить список с Azure"
+                                            Padding="10,4"
+                                            Click="RefreshAzureVoices_OnClick" />
+                                    <TextBlock x:Name="AzureStatusText"
+                                               Margin="12,0,0,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{StaticResource DlgMuted}"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource DlgMuted}"
+                                           Text="Ключ и endpoint берутся из settings.json. Озвучка пишется в папку tts-cache; повтор — только локальный файл." />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#0E1420" BorderBrush="#30343D" BorderThickness="1" Padding="10" Margin="0,0,0,8">
+                            <StackPanel>
+                                <TextBlock Text="Windows SAPI" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                <TextBlock Text="Английский голос (SAPI)" Margin="0,0,0,4" />
+                                <ComboBox x:Name="EnVoiceBox" Margin="0,0,0,10" DisplayMemberPath="Name" />
+                                <TextBlock Text="Русский голос (SAPI)" Margin="0,0,0,4" />
+                                <ComboBox x:Name="RuVoiceBox" Margin="0,0,0,8" DisplayMemberPath="Name" />
+                                <TextBlock x:Name="VoiceHintText" TextWrapping="Wrap" Foreground="{StaticResource DlgMuted}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Горячие клавиши">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12" Background="{StaticResource DlgPanel}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180" />
+                            <ColumnDefinition Width="120" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Text="Следующий экран" VerticalAlignment="Center" Margin="0,0,0,8" Foreground="{StaticResource DlgText}" />
+                        <TextBox x:Name="HotNextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" Padding="4" />
+
+                        <TextBlock Grid.Row="1" Text="Предыдущий" VerticalAlignment="Center" Margin="0,0,0,8" Foreground="{StaticResource DlgText}" />
+                        <TextBox x:Name="HotPrevBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8" Padding="4" />
+
+                        <TextBlock Grid.Row="2" Text="Озвучить" VerticalAlignment="Center" Margin="0,0,0,8" Foreground="{StaticResource DlgText}" />
+                        <TextBox x:Name="HotSpeakBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,8" Padding="4" />
+
+                        <TextBlock Grid.Row="3" Text="Полный экран" VerticalAlignment="Center" Margin="0,0,0,8" Foreground="{StaticResource DlgText}" />
+                        <TextBox x:Name="HotFullBox" Grid.Row="3" Grid.Column="1" Margin="0,0,0,8" Padding="4" />
+
+                        <TextBlock Grid.Row="4" Text="Стоп TTS" VerticalAlignment="Center" Margin="0,0,0,8" Foreground="{StaticResource DlgText}" />
+                        <TextBox x:Name="HotStopBox" Grid.Row="4" Grid.Column="1" Margin="0,0,0,8" Padding="4" />
+
+                        <TextBlock Grid.Row="5" Grid.ColumnSpan="2" Margin="0,12,0,0" TextWrapping="Wrap" Foreground="{StaticResource DlgMuted}"
+                                   Text="Play/Pause гарнитуры: пауза TTS, либо следующий экран если озвучка уже закончилась." />
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button Content="Отмена" Width="90" Margin="0,0,8,0" IsCancel="True" Click="Cancel_OnClick" />
             <Button Content="Сохранить" Width="100" IsDefault="True" Click="Save_OnClick" />
         </StackPanel>

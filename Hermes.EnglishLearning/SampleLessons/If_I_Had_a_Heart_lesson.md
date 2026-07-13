@@ -40,6 +40,37 @@ never | никогда
 could | мог бы
 would | бы (условное)
 
+## phrases
+have a heart | иметь сердце
+---
+had a heart | имел(а) бы сердце
+---
+have a voice | иметь голос
+---
+had a voice | имел(а) бы голос
+---
+love you | любить тебя
+---
+I could love you | я мог бы любить тебя
+---
+I would sing | я бы пел
+---
+wake up | просыпаться
+---
+after the night | после ночи
+---
+tomorrow brings | завтра принесёт
+---
+want more | хотеть большего
+---
+give me more | дай мне больше
+---
+window frame | оконная рама
+---
+reach the floor | достать до пола
+---
+come around | прийти в себя
+
 ## lyrics
 This will never end 'cause I want more
 Это никогда не закончится, потому что я хочу больше

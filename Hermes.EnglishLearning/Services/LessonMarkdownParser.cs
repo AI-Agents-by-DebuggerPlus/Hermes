@@ -80,6 +80,9 @@ public static class LessonMarkdownParser
                 case "words":
                     doc.Words.AddRange(cards);
                     break;
+                case "phrases":
+                    doc.Phrases.AddRange(cards);
+                    break;
                 case "lyrics":
                     doc.Lyrics.AddRange(cards);
                     break;
@@ -170,7 +173,13 @@ public static class LessonMarkdownParser
             return "words";
         }
 
-        if (n.StartsWith("lyric", StringComparison.Ordinal) || n.StartsWith("phrase", StringComparison.Ordinal)
+        if (n.StartsWith("phrase", StringComparison.Ordinal) || n.StartsWith("collocat", StringComparison.Ordinal)
+            || n.StartsWith("example", StringComparison.Ordinal))
+        {
+            return "phrases";
+        }
+
+        if (n.StartsWith("lyric", StringComparison.Ordinal) || n.StartsWith("sentence", StringComparison.Ordinal)
             || n.StartsWith("line", StringComparison.Ordinal))
         {
             return "lyrics";
@@ -181,7 +190,7 @@ public static class LessonMarkdownParser
 
     private static List<CardPair> ParseSectionCards(string section, List<string> lines)
     {
-        if (section == "lyrics")
+        if (section == "lyrics" || section == "phrases")
         {
             return ParseLyricsBlocks(lines);
         }

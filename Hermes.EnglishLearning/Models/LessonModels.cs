@@ -9,6 +9,7 @@ public sealed class LessonDocument
     public string Artist { get; set; } = string.Empty;
     public List<CardPair> TitleCards { get; } = new();
     public List<CardPair> Words { get; } = new();
+    public List<CardPair> Phrases { get; } = new();
     public List<CardPair> Lyrics { get; } = new();
 }
 
@@ -32,6 +33,7 @@ public enum LessonSection
 {
     Title,
     Words,
+    Phrases,
     Lyrics,
 }
 
@@ -42,4 +44,5 @@ public sealed class LessonScreen
     public IReadOnlyList<CardPair> Cards { get; set; } = new List<CardPair>();
     public int ScreenIndex { get; set; }
     public int ScreenCountInSection { get; set; }
+    public int ColumnCount { get; set; } = 1;
 }
