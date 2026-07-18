@@ -1,23 +1,75 @@
 <Window x:Class="WpfTestApp.SessionsCalendarWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Trading Sessions (Pacific Time, UTC−8)"
-        Height="420" Width="520"
+        Title="Trading Sessions"
+        Height="520" Width="760"
+        MinWidth="640" MinHeight="420"
         WindowStartupLocation="CenterScreen" Topmost="True"
         Background="#0B0E11">
-    <Grid Margin="12">
+    <Grid Margin="14">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <TextBlock Grid.Row="0" Text="FX sessions · British Columbia (UTC−8)"
-                   FontSize="14" FontWeight="SemiBold" Foreground="#F0B90B" Margin="0,0,0,10"/>
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <TextBlock x:Name="txtCalendar" FontFamily="Consolas" FontSize="12"
-                       Foreground="#EAECEF" TextWrapping="Wrap"/>
+
+        <DockPanel Grid.Row="0" Margin="0,0,0,10">
+            <TextBlock x:Name="txtHeader" DockPanel.Dock="Left"
+                       Text="FX sessions · local time"
+                       FontSize="14" FontWeight="SemiBold" Foreground="#F0B90B"
+                       VerticalAlignment="Center"/>
+            <TextBlock x:Name="txtNow" DockPanel.Dock="Right"
+                       FontSize="12" Foreground="#EAECEF"
+                       VerticalAlignment="Center" HorizontalAlignment="Right"/>
+        </DockPanel>
+
+        <Border Grid.Row="1" Background="#181A20" BorderBrush="#2B3139" BorderThickness="1"
+                Padding="10,12" Margin="0,0,0,10" CornerRadius="2">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Canvas x:Name="timelineCanvas" Grid.Row="0" Height="150"
+                        SizeChanged="TimelineCanvas_SizeChanged"
+                        ClipToBounds="True"/>
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,0"
+                            HorizontalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                        <Border Width="14" Height="10" Background="#2E7D32" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="Sydney" Foreground="#EAECEF" FontSize="11" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                        <Border Width="14" Height="10" Background="#C62828" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="Tokyo" Foreground="#EAECEF" FontSize="11" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                        <Border Width="14" Height="10" Background="#F0B90B" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="London" Foreground="#EAECEF" FontSize="11" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                        <Border Width="14" Height="10" Background="#1565C0" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="New York" Foreground="#EAECEF" FontSize="11" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Border Width="14" Height="10" Background="#45484E" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="выходные (тусклые)" Foreground="#848E9C" FontSize="11" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <TextBlock x:Name="txtActive" Grid.Row="2" FontSize="12" Foreground="#F8D12F"
+                   Margin="0,0,0,8"/>
+
+        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+            <TextBlock x:Name="txtDetails" FontFamily="Consolas" FontSize="12"
+                       Foreground="#848E9C" TextWrapping="Wrap"/>
         </ScrollViewer>
-        <TextBlock Grid.Row="2" Margin="0,10,0,0" FontSize="11" Foreground="#848E9C"
-                   Text="Times are approximate major-session hours. Broker quote sessions may differ."/>
+
+        <TextBlock Grid.Row="4" Margin="0,8,0,0" FontSize="11" Foreground="#848E9C"
+                   Text="Шкала центрирована на текущем времени (±12 ч, местное). Сессии приблизительные; у брокера могут отличаться."/>
     </Grid>
 </Window>

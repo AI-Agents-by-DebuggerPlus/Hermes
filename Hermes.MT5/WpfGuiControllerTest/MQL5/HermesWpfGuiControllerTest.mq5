@@ -18,7 +18,7 @@ enum ENUM_GUI_EVENT
   };
 
 // Новое имя input + новая DLL (HermesWpfTerminalUi) — обход кэша Assembly.LoadFrom в MT5.
-input string InpWpfUi3       = "D:/Programming/AI_Agents/Hermes/Hermes.MT5/WpfGuiControllerTest/WpfTestApp/bin/Release/ui_v3/HermesWpfTerminalUi3.dll";
+input string InpWpfUi19       = "D:/Programming/AI_Agents/Hermes/Hermes.MT5/WpfGuiControllerTest/WpfTestApp/bin/Release/ui_v19/HermesWpfTerminalUi19.dll";
 input string InpWpfWindow    = "HermesWpfTerminal";
 input int    InpTimerMs      = 200;
 input double InpDefaultLot   = 0.10;
@@ -44,8 +44,10 @@ int OnInit()
    g_lot = InpDefaultLot;
    g_volume = InpDefaultLot;
 
+   SymbolSelect(_Symbol, true);
+
    ResetLastError();
-   bool ok = GuiController::ShowWindow(InpWpfUi3, InpWpfWindow);
+   bool ok = GuiController::ShowWindow(InpWpfUi19, InpWpfWindow);
    if(!ok || GetLastError() != 0)
      {
       Print("ShowWindow failed, error=", GetLastError());
@@ -56,7 +58,7 @@ int OnInit()
    EventSetMillisecondTimer(InpTimerMs);
    PushGuiState();
    EchoToGui("panel started / " + InpWpfWindow);
-   Print("WPF panel started: ", InpWpfUi3, " / ", InpWpfWindow);
+   Print("WPF panel started: ", InpWpfUi19, " / ", InpWpfWindow);
    return(INIT_SUCCEEDED);
   }
 
@@ -65,7 +67,7 @@ void OnDeinit(const int reason)
   {
    EventKillTimer();
    if(g_window_ready)
-      GuiController::HideWindow(InpWpfUi3, InpWpfWindow);
+      GuiController::HideWindow(InpWpfUi19, InpWpfWindow);
   }
 
 //+------------------------------------------------------------------+
@@ -87,7 +89,7 @@ void OnTick()
 //+------------------------------------------------------------------+
 void DrainGuiEvents()
   {
-   int total = GuiController::EventsTotal(InpWpfUi3, InpWpfWindow);
+   int total = GuiController::EventsTotal(InpWpfUi19, InpWpfWindow);
    if(total <= 0)
       return;
 
@@ -98,10 +100,10 @@ void DrainGuiEvents()
       long   lparam  = 0;
       double dparam  = 0.0;
       string sparam  = "";
-      GuiController::GetEvent(InpWpfUi3, InpWpfWindow, i, el_name, id, lparam, dparam, sparam);
+      GuiController::GetEvent(InpWpfUi19, InpWpfWindow, i, el_name, id, lparam, dparam, sparam);
       HandleEvent(el_name, (ENUM_GUI_EVENT)id, lparam, dparam, sparam);
      }
-   GuiController::ClearEvents(InpWpfUi3, InpWpfWindow);
+   GuiController::ClearEvents(InpWpfUi19, InpWpfWindow);
   }
 
 //+------------------------------------------------------------------+
@@ -110,7 +112,7 @@ void EchoToGui(const string msg)
    if(!g_window_ready)
       return;
    string line = TimeToString(TimeLocal(), TIME_MINUTES) + "  [MQL5]  " + msg;
-   GuiController::SendEvent(InpWpfUi3, InpWpfWindow, "txtMqlLog",
+   GuiController::SendEvent(InpWpfUi19, InpWpfWindow, "txtMqlLog",
                             (int)GUI_TEXT_CHANGE, 0, 0, line);
    Print(line);
   }
@@ -196,9 +198,9 @@ void HandleClick(const string el_name)
       DoPendingStub();
       return;
      }
-   if(StringFind(el_name, "btnMode") == 0)
+   if(el_name == "tabMarket" || el_name == "tabLimit" || el_name == "tabStop" || el_name == "tabStopLimit")
      {
-      EchoToGui("mode button " + el_name + " (UI only ack)");
+      EchoToGui("mode tab " + el_name + " (UI only ack)");
       return;
      }
    if(el_name == "btnSessionsCalendar")
@@ -250,24 +252,26 @@ void PushGuiState()
    double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
    double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
    int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+   datetime tickTime = (datetime)SymbolInfoInteger(_Symbol, SYMBOL_TIME);
+   int tickAge = (tickTime > 0) ? (int)(TimeCurrent() - tickTime) : -1;
 
-   GuiController::SendEvent(InpWpfUi3, InpWpfWindow, "txtSymbol",
+   GuiController::SendEvent(InpWpfUi19, InpWpfWindow, "txtSymbol",
                             (int)GUI_TEXT_CHANGE, 0, 0, _Symbol);
-   GuiController::SendEvent(InpWpfUi3, InpWpfWindow, "txtBid",
+   GuiController::SendEvent(InpWpfUi19, InpWpfWindow, "txtBid",
                             (int)GUI_TEXT_CHANGE, 0, 0, DoubleToString(bid, digits));
-   GuiController::SendEvent(InpWpfUi3, InpWpfWindow, "txtAsk",
+   GuiController::SendEvent(InpWpfUi19, InpWpfWindow, "txtAsk",
                             (int)GUI_TEXT_CHANGE, 0, 0, DoubleToString(ask, digits));
 
    // Mini-panel button captions with live prices
-   GuiController::SendEvent(InpWpfUi3, InpWpfWindow, "btnQuickSell",
+   GuiController::SendEvent(InpWpfUi19, InpWpfWindow, "btnQuickSell",
                             (int)GUI_TEXT_CHANGE, 0, 0, "SELL  " + DoubleToString(bid, digits));
-   GuiController::SendEvent(InpWpfUi3, InpWpfWindow, "btnQuickBuy",
+   GuiController::SendEvent(InpWpfUi19, InpWpfWindow, "btnQuickBuy",
                             (int)GUI_TEXT_CHANGE, 0, 0, "BUY  " + DoubleToString(ask, digits));
 
-   GuiController::SendEvent(InpWpfUi3, InpWpfWindow, "txtAccount",
+   GuiController::SendEvent(InpWpfUi19, InpWpfWindow, "txtAccount",
                             (int)GUI_TEXT_CHANGE, 0, 0, BuildAccountLine());
-   GuiController::SendEvent(InpWpfUi3, InpWpfWindow, "txtMarketStatus",
-                            (int)GUI_TEXT_CHANGE, 0, 0, BuildMarketStatusLine());
+   GuiController::SendEvent(InpWpfUi19, InpWpfWindow, "txtMarketStatus",
+                            (int)GUI_TEXT_CHANGE, 0, 0, BuildMarketStatusLine(tickAge, tickTime));
   }
 
 //+------------------------------------------------------------------+
@@ -302,27 +306,59 @@ datetime ServerToUtc(const datetime serverDt)
   }
 
 //+------------------------------------------------------------------+
+// US Pacific DST: 2nd Sunday March 02:00 PST → UTC-7; 1st Sunday Nov 02:00 PDT → UTC-8.
+datetime NthWeekdayOfMonth(const int year, const int month, const int weekday, const int nth)
+  {
+   MqlDateTime dt;
+   ZeroMemory(dt);
+   dt.year = year;
+   dt.mon  = month;
+   dt.day  = 1;
+   datetime first = StructToTime(dt);
+   TimeToStruct(first, dt);
+   int add = (weekday - dt.day_of_week + 7) % 7;
+   dt.day = 1 + add + (nth - 1) * 7;
+   return StructToTime(dt);
+  }
+
+//+------------------------------------------------------------------+
+int PacificUtcOffsetSec(const datetime utcDt)
+  {
+   MqlDateTime dt;
+   TimeToStruct(utcDt, dt);
+   datetime dstStart = NthWeekdayOfMonth(dt.year, 3, 0, 2) + 10 * 3600; // 02:00 PST = 10:00 UTC
+   datetime dstEnd   = NthWeekdayOfMonth(dt.year, 11, 0, 1) + 9 * 3600;  // 02:00 PDT = 09:00 UTC
+   if(utcDt >= dstStart && utcDt < dstEnd)
+      return -7 * 3600;
+   return -8 * 3600;
+  }
+
+//+------------------------------------------------------------------+
 datetime ServerToPacific(const datetime serverDt)
   {
-   return ServerToUtc(serverDt) - 8 * 3600;
+   datetime utc = ServerToUtc(serverDt);
+   return utc + PacificUtcOffsetSec(utc);
   }
 
 //+------------------------------------------------------------------+
 datetime UtcToPacific(const datetime utcDt)
   {
-   return utcDt - 8 * 3600;
+   return utcDt + PacificUtcOffsetSec(utcDt);
   }
 
 //+------------------------------------------------------------------+
 string FormatPacific(const datetime serverDt)
   {
-   return TimeToString(ServerToPacific(serverDt), TIME_DATE|TIME_MINUTES) + " PT";
+   datetime utc = ServerToUtc(serverDt);
+   string abbr = (PacificUtcOffsetSec(utc) == -7 * 3600) ? " PDT" : " PST";
+   return TimeToString(ServerToPacific(serverDt), TIME_DATE|TIME_MINUTES) + abbr;
   }
 
 //+------------------------------------------------------------------+
 string FormatPacificUtc(const datetime utcDt)
   {
-   return TimeToString(UtcToPacific(utcDt), TIME_DATE|TIME_MINUTES) + " PT";
+   string abbr = (PacificUtcOffsetSec(utcDt) == -7 * 3600) ? " PDT" : " PST";
+   return TimeToString(UtcToPacific(utcDt), TIME_DATE|TIME_MINUTES) + abbr;
   }
 
 //+------------------------------------------------------------------+
@@ -345,6 +381,38 @@ string DetectMarketSessionUtc(const datetime utcNow)
    if(StringLen(parts) == 0)
       return "Off-hours";
    return parts;
+  }
+
+//+------------------------------------------------------------------+
+bool IsFxWeekendUtc(const datetime utcNow)
+  {
+   MqlDateTime utc;
+   TimeToStruct(utcNow, utc);
+   int mins = utc.hour * 60 + utc.min;
+   // Типичное FX-окно: вс 22:00 UTC → пт 22:00 UTC
+   if(utc.day_of_week == 6) // Saturday
+      return true;
+   if(utc.day_of_week == 0 && mins < 22 * 60) // Sunday before open
+      return true;
+   if(utc.day_of_week == 5 && mins >= 22 * 60) // Friday after close
+      return true;
+   return false;
+  }
+
+//+------------------------------------------------------------------+
+string FormatTickAge(const int tickAge, const datetime tickTime)
+  {
+   if(tickTime <= 0)
+      return "котировка: нет данных";
+   if(tickAge < 0)
+      return "котировка: " + TimeToString(tickTime, TIME_DATE|TIME_SECONDS);
+   if(tickAge < 5)
+      return "котировка: live (" + IntegerToString(tickAge) + "с)";
+   if(tickAge < 3600)
+      return StringFormat("котировка: %s (%s назад)",
+                          TimeToString(tickTime, TIME_SECONDS), FormatDuration(tickAge));
+   return StringFormat("котировка: %s (%s назад)",
+                       TimeToString(tickTime, TIME_DATE|TIME_MINUTES), FormatDuration(tickAge));
   }
 
 //+------------------------------------------------------------------+
@@ -443,24 +511,25 @@ bool FindNextQuoteSessionStart(const datetime now, datetime &nextFrom, datetime 
   }
 
 //+------------------------------------------------------------------+
-string BuildMarketStatusLine()
+string BuildMarketStatusLine(const int tickAge, const datetime tickTime)
   {
    datetime nowServer = TimeTradeServer();
    datetime nowUtc    = TimeGMT();
-   string session     = DetectMarketSessionUtc(nowUtc);
+   string clockSession = DetectMarketSessionUtc(nowUtc);
+   string tickInfo     = FormatTickAge(tickAge, tickTime);
 
    datetime sessFrom, sessTo;
    if(FindCurrentQuoteSession(nowServer, sessFrom, sessTo))
      {
       int left = (int)(sessTo - nowServer);
       string line = StringFormat(
-         "Рынок: ОТКРЫТ | Сессия: %s | До закрытия: %s (до %s)",
-         session, FormatDuration(left), FormatPacific(sessTo));
+         "Рынок: ОТКРЫТ | Сессия: %s | До закрытия: %s (до %s) | %s",
+         clockSession, FormatDuration(left), FormatPacific(sessTo), tickInfo);
       datetime nextFrom, nextTo;
       if(FindNextQuoteSessionStart(sessTo, nextFrom, nextTo))
         {
          string openSess = OpeningSessionNameUtc(ServerToUtc(nextFrom));
-         line += StringFormat(" | След. сессия: %s (с %s)", FormatPacific(nextFrom), openSess);
+         line += StringFormat(" | След.: %s (с %s)", FormatPacific(nextFrom), openSess);
         }
       return line;
      }
@@ -470,19 +539,18 @@ string BuildMarketStatusLine()
      {
       int wait = (int)(nextFrom - nowServer);
       string openSess = OpeningSessionNameUtc(ServerToUtc(nextFrom));
+      string why = IsFxWeekendUtc(nowUtc)
+                   ? "выходные (гео-сессия по часам: " + clockSession + ")"
+                   : "вне сессии котировок (по часам: " + clockSession + ")";
       return StringFormat(
-         "Рынок: ЗАКРЫТ | Сейчас: %s | Откроется: %s (через %s) | Открытие с сессии: %s",
-         session, FormatPacific(nextFrom), FormatDuration(wait), openSess);
+         "Рынок: ЗАКРЫТ | %s | Откроется: %s (через %s) | с сессии: %s | %s",
+         why, FormatPacific(nextFrom), FormatDuration(wait), openSess, tickInfo);
      }
 
-   MqlDateTime utc;
-   TimeToStruct(nowUtc, utc);
-   bool weekend = (utc.day_of_week == 6) ||
-                  (utc.day_of_week == 0 && (utc.hour * 60 + utc.min) < 22 * 60) ||
-                  (utc.day_of_week == 5 && (utc.hour * 60 + utc.min) >= 22 * 60);
-
-   if(!weekend)
+   if(!IsFxWeekendUtc(nowUtc))
      {
+      MqlDateTime utc;
+      TimeToStruct(nowUtc, utc);
       datetime friClose = nowUtc;
       MqlDateTime c = utc;
       int addDays = (5 - utc.day_of_week + 7) % 7;
@@ -493,10 +561,12 @@ string BuildMarketStatusLine()
       if(friClose <= nowUtc)
          friClose += 7 * 86400;
       return StringFormat(
-         "Рынок: ОТКРЫТ | Сессия: %s | До закрытия: %s (до %s)",
-         session, FormatDuration((int)(friClose - nowUtc)), FormatPacificUtc(friClose));
+         "Рынок: ОТКРЫТ | Сессия: %s | До закрытия: %s (до %s) | %s",
+         clockSession, FormatDuration((int)(friClose - nowUtc)), FormatPacificUtc(friClose), tickInfo);
      }
 
+   MqlDateTime utc;
+   TimeToStruct(nowUtc, utc);
    int daysToSun = (7 - utc.day_of_week) % 7;
    if(utc.day_of_week == 0 && (utc.hour * 60 + utc.min) < 22 * 60)
       daysToSun = 0;
@@ -508,7 +578,7 @@ string BuildMarketStatusLine()
       sunOpen += 7 * 86400;
 
    return StringFormat(
-      "Рынок: ЗАКРЫТ | Сейчас: %s | Откроется: %s (через %s) | Открытие с сессии: Sydney",
-      session, FormatPacificUtc(sunOpen), FormatDuration((int)(sunOpen - nowUtc)));
+      "Рынок: ЗАКРЫТ | выходные (гео-сессия по часам: %s) | Откроется: %s (через %s) | с сессии: Sydney | %s",
+      clockSession, FormatPacificUtc(sunOpen), FormatDuration((int)(sunOpen - nowUtc)), tickInfo);
   }
 //+------------------------------------------------------------------+
