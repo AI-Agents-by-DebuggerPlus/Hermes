@@ -8,7 +8,7 @@
     <OutputType>Library</OutputType>
     <RootNamespace>WpfTestApp</RootNamespace>
     <!-- Уникальное имя сборки: иначе MT5 LoadFrom возвращает уже загруженную старую WpfTestApp.dll -->
-    <AssemblyName>HermesWpfTerminalUi19</AssemblyName>
+    <AssemblyName>HermesWpfTerminalUi27</AssemblyName>
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
   </PropertyGroup>

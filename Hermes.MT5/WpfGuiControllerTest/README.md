@@ -26,6 +26,19 @@ dotnet build -c Release
 
 ## MT5
 
+MetaEditor компилирует отсюда (не из AppData):
+
+`C:\Program Files\MetaTrader 5\MQL5\Experts\MyExperts\Hermes\`
+
+После правок в репо:
+
+```powershell
+cd Hermes.MT5\WpfGuiControllerTest
+.\Deploy-To-MT5.ps1
+```
+
+Затем в MetaEditor: открыть mq5 → F7 → снять EA → накинуть → Reset inputs.
+
 ```mql5
 #import "HermesWpfGuiController.dll"
 #import

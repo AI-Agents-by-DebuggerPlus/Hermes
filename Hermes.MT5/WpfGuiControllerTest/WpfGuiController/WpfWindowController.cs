@@ -62,6 +62,10 @@ namespace HermesWpfGuiController
                     new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
                 }
 
+                if (!System.IO.File.Exists(assemblyPath))
+                    throw new System.IO.FileNotFoundException(
+                        "WPF UI DLL not found. Fix EA input path.", assemblyPath);
+
                 Assembly assembly = Assembly.LoadFrom(assemblyPath);
                 Type windowType = FindWindowType(assembly, windowTypeName);
 
@@ -88,6 +92,15 @@ namespace HermesWpfGuiController
             {
                 _startupException = ex;
                 _disposed = true;
+                try
+                {
+                    MessageBox.Show(
+                        ex.ToString(),
+                        "HermesWpfGuiController — failed to load UI",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                }
+                catch { /* no UI thread yet */ }
                 _ready.Set();
             }
         }

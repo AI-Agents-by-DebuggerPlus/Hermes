@@ -17,8 +17,8 @@ enum ENUM_GUI_EVENT
    GUI_SELECTION_CHANGE= 8
   };
 
-// Новое имя input + новая DLL (HermesWpfTerminalUi) — обход кэша Assembly.LoadFrom в MT5.
-input string InpWpfUi19       = "D:/Programming/AI_Agents/Hermes/Hermes.MT5/WpfGuiControllerTest/WpfTestApp/bin/Release/ui_v19/HermesWpfTerminalUi19.dll";
+// Путь: папка ui_vN и имя DLL должны совпадать (ui_v27 + HermesWpfTerminalUi27.dll).
+input string InpWpfUi27       = "D:/Programming/AI_Agents/Hermes/Hermes.MT5/WpfGuiControllerTest/WpfTestApp/bin/Release/ui_v27/HermesWpfTerminalUi27.dll";
 input string InpWpfWindow    = "HermesWpfTerminal";
 input int    InpTimerMs      = 200;
 input double InpDefaultLot   = 0.10;
@@ -46,11 +46,21 @@ int OnInit()
 
    SymbolSelect(_Symbol, true);
 
+   if(!FileIsExist(InpWpfUi27, 0) && !FileIsExist(InpWpfUi27, FILE_COMMON))
+     {
+      // FileIsExist для абсолютных путей вне MQL5 sandbox часто false —
+      // проверяем через WinAPI-стиль: просто печатаем путь и пробуем LoadFrom.
+      Print("WPF DLL path (must exist on disk): ", InpWpfUi27);
+     }
+   else
+      Print("WPF DLL path OK: ", InpWpfUi27);
+
    ResetLastError();
-   bool ok = GuiController::ShowWindow(InpWpfUi19, InpWpfWindow);
+   bool ok = GuiController::ShowWindow(InpWpfUi27, InpWpfWindow);
    if(!ok || GetLastError() != 0)
      {
-      Print("ShowWindow failed, error=", GetLastError());
+      Print("ShowWindow FAILED path=", InpWpfUi27, " error=", GetLastError());
+      Alert("WPF ShowWindow failed. Check DLL path in EA inputs:\n", InpWpfUi27);
       return(INIT_FAILED);
      }
 
@@ -58,7 +68,7 @@ int OnInit()
    EventSetMillisecondTimer(InpTimerMs);
    PushGuiState();
    EchoToGui("panel started / " + InpWpfWindow);
-   Print("WPF panel started: ", InpWpfUi19, " / ", InpWpfWindow);
+   Print("WPF panel started: ", InpWpfUi27, " / ", InpWpfWindow);
    return(INIT_SUCCEEDED);
   }
 
@@ -67,7 +77,7 @@ void OnDeinit(const int reason)
   {
    EventKillTimer();
    if(g_window_ready)
-      GuiController::HideWindow(InpWpfUi19, InpWpfWindow);
+      GuiController::HideWindow(InpWpfUi27, InpWpfWindow);
   }
 
 //+------------------------------------------------------------------+
@@ -89,7 +99,7 @@ void OnTick()
 //+------------------------------------------------------------------+
 void DrainGuiEvents()
   {
-   int total = GuiController::EventsTotal(InpWpfUi19, InpWpfWindow);
+   int total = GuiController::EventsTotal(InpWpfUi27, InpWpfWindow);
    if(total <= 0)
       return;
 
@@ -100,10 +110,10 @@ void DrainGuiEvents()
       long   lparam  = 0;
       double dparam  = 0.0;
       string sparam  = "";
-      GuiController::GetEvent(InpWpfUi19, InpWpfWindow, i, el_name, id, lparam, dparam, sparam);
+      GuiController::GetEvent(InpWpfUi27, InpWpfWindow, i, el_name, id, lparam, dparam, sparam);
       HandleEvent(el_name, (ENUM_GUI_EVENT)id, lparam, dparam, sparam);
      }
-   GuiController::ClearEvents(InpWpfUi19, InpWpfWindow);
+   GuiController::ClearEvents(InpWpfUi27, InpWpfWindow);
   }
 
 //+------------------------------------------------------------------+
@@ -112,7 +122,7 @@ void EchoToGui(const string msg)
    if(!g_window_ready)
       return;
    string line = TimeToString(TimeLocal(), TIME_MINUTES) + "  [MQL5]  " + msg;
-   GuiController::SendEvent(InpWpfUi19, InpWpfWindow, "txtMqlLog",
+   GuiController::SendEvent(InpWpfUi27, InpWpfWindow, "txtMqlLog",
                             (int)GUI_TEXT_CHANGE, 0, 0, line);
    Print(line);
   }
@@ -208,6 +218,16 @@ void HandleClick(const string el_name)
       EchoToGui("Sessions calendar opened on WPF side");
       return;
      }
+   if(el_name == "btnSettings")
+     {
+      EchoToGui("Settings opened on WPF side");
+      return;
+     }
+   if(el_name == "btnSettingsClosed")
+     {
+      EchoToGui("Settings closed on WPF side");
+      return;
+     }
   }
 
 //+------------------------------------------------------------------+
@@ -255,22 +275,22 @@ void PushGuiState()
    datetime tickTime = (datetime)SymbolInfoInteger(_Symbol, SYMBOL_TIME);
    int tickAge = (tickTime > 0) ? (int)(TimeCurrent() - tickTime) : -1;
 
-   GuiController::SendEvent(InpWpfUi19, InpWpfWindow, "txtSymbol",
+   GuiController::SendEvent(InpWpfUi27, InpWpfWindow, "txtSymbol",
                             (int)GUI_TEXT_CHANGE, 0, 0, _Symbol);
-   GuiController::SendEvent(InpWpfUi19, InpWpfWindow, "txtBid",
+   GuiController::SendEvent(InpWpfUi27, InpWpfWindow, "txtBid",
                             (int)GUI_TEXT_CHANGE, 0, 0, DoubleToString(bid, digits));
-   GuiController::SendEvent(InpWpfUi19, InpWpfWindow, "txtAsk",
+   GuiController::SendEvent(InpWpfUi27, InpWpfWindow, "txtAsk",
                             (int)GUI_TEXT_CHANGE, 0, 0, DoubleToString(ask, digits));
 
    // Mini-panel button captions with live prices
-   GuiController::SendEvent(InpWpfUi19, InpWpfWindow, "btnQuickSell",
+   GuiController::SendEvent(InpWpfUi27, InpWpfWindow, "btnQuickSell",
                             (int)GUI_TEXT_CHANGE, 0, 0, "SELL  " + DoubleToString(bid, digits));
-   GuiController::SendEvent(InpWpfUi19, InpWpfWindow, "btnQuickBuy",
+   GuiController::SendEvent(InpWpfUi27, InpWpfWindow, "btnQuickBuy",
                             (int)GUI_TEXT_CHANGE, 0, 0, "BUY  " + DoubleToString(ask, digits));
 
-   GuiController::SendEvent(InpWpfUi19, InpWpfWindow, "txtAccount",
+   GuiController::SendEvent(InpWpfUi27, InpWpfWindow, "txtAccount",
                             (int)GUI_TEXT_CHANGE, 0, 0, BuildAccountLine());
-   GuiController::SendEvent(InpWpfUi19, InpWpfWindow, "txtMarketStatus",
+   GuiController::SendEvent(InpWpfUi27, InpWpfWindow, "txtMarketStatus",
                             (int)GUI_TEXT_CHANGE, 0, 0, BuildMarketStatusLine(tickAge, tickTime));
   }
 

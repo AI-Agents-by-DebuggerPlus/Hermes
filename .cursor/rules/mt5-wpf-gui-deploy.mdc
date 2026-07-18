@@ -1,0 +1,47 @@
+---
+description: MT5 WpfGuiController deploy paths and LoadFrom cache
+globs: Hermes.MT5/WpfGuiControllerTest/**
+alwaysApply: false
+---
+
+# Hermes MT5 WpfGuiController — deploy & paths
+
+## Cause of “changes not visible”
+
+1. **MetaEditor compiles from Program Files**, not from the git repo and not from AppData Terminal.
+2. **`Assembly.LoadFrom` in MT5 caches assemblies** by identity — after UI changes bump `AssemblyName` + `ui_vN` folder + EA input path together (see `BuildInfo.Version`).
+3. Chart **EA inputs stick** — after path/input rename, reattach EA and click **Reset** on inputs.
+4. Repo `MQL5\*.mq5` edits do nothing until copied into the MetaEditor Experts folder and **F7**.
+
+## Correct paths (portable MT5)
+
+| What | Path |
+|------|------|
+| EA `.mq5` / `.ex5` | `C:\Program Files\MetaTrader 5\MQL5\Experts\MyExperts\Hermes\` |
+| Controller DLL | `C:\Program Files\MetaTrader 5\MQL5\Libraries\HermesWpfGuiController.dll` |
+| WPF UI DLL (versioned) | `D:\Programming\AI_Agents\Hermes\Hermes.MT5\WpfGuiControllerTest\WpfTestApp\bin\Release\ui_vN\HermesWpfTerminalUiN.dll` |
+| Repo EA source | `Hermes.MT5\WpfGuiControllerTest\MQL5\HermesWpfGuiControllerTest.mq5` |
+
+**Do not** deploy only to `%AppData%\MetaQuotes\Terminal\...\MQL5\Experts\` — this install does not use that tree for the Hermes EA.
+
+## Deploy checklist
+
+```powershell
+cd Hermes.MT5\WpfGuiControllerTest\WpfTestApp
+dotnet build -c Release
+# copy net48\HermesWpfTerminalUiN.dll → bin\Release\ui_vN\
+
+cd ..\WpfGuiController
+dotnet build -c Release
+
+cd ..
+.\Deploy-To-MT5.ps1
+```
+
+Then MetaEditor: reopen mq5 → **F7** → remove EA from chart → attach → **Reset** inputs.
+
+Window titles and `txtBuildVersion` must show `BuildInfo.Version` (e.g. `v26`) to confirm the new UI DLL loaded.
+
+## Resize grips
+
+Main terminal and Settings use `ResizeMode="CanResizeWithGrip"` (dots in bottom-right corner).

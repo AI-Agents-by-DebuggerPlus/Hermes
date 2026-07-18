@@ -28,12 +28,16 @@ namespace WpfTestApp
         private bool _sizeReady;
         private readonly StringBuilder _log = new StringBuilder();
         private SessionsCalendarWindow _calendar;
+        private SettingsWindow _settings;
         private OrderMode _mode = OrderMode.Market;
 
         public HermesWpfTerminal()
         {
             InitializeComponent();
+            ApplyBuildStamp();
+            Loaded += (_, __) => ApplyBuildStamp();
             TryRestoreSize();
+            LogWpf("Build " + BuildInfo.Version + " / " + BuildInfo.AssemblyFile);
 
             btnQuickBuy.Click += (s, e) => LogWpf("Quick BUY clicked, lot=" + txtLot.Text);
             btnQuickSell.Click += (s, e) => LogWpf("Quick SELL clicked, lot=" + txtLot.Text);
@@ -73,6 +77,7 @@ namespace WpfTestApp
             };
 
             btnSessionsCalendar.Click += (s, e) => OpenSessionsCalendar();
+            btnSettings.Click += (s, e) => OpenSettings();
 
             SizeChanged += (_, __) =>
             {
@@ -83,6 +88,7 @@ namespace WpfTestApp
             {
                 TrySaveSize();
                 try { _calendar?.Close(); } catch { /* ignore */ }
+                try { _settings?.Close(); } catch { /* ignore */ }
             };
             Loaded += (_, __) =>
             {
@@ -505,6 +511,52 @@ namespace WpfTestApp
             LogWpf("Opened sessions calendar");
         }
 
+        private void OpenSettings()
+        {
+            if (_settings != null)
+            {
+                try
+                {
+                    if (_settings.IsLoaded)
+                    {
+                        _settings.Activate();
+                        return;
+                    }
+                }
+                catch { _settings = null; }
+            }
+
+            _settings = new SettingsWindow
+            {
+                Owner = this,
+                AutoTrade = chkAutoTrade.IsChecked == true,
+                RealTrade = chkRealTrade.IsChecked == true
+            };
+            _settings.WireEvents();
+            _settings.AutoTradeChanged += () => chkAutoTrade.IsChecked = _settings.AutoTrade;
+            _settings.RealTradeChanged += () => chkRealTrade.IsChecked = _settings.RealTrade;
+            _settings.Closed += (_, __) =>
+            {
+                _settings = null;
+                NotifySettingsClosed();
+            };
+            _settings.Show();
+            LogWpf("Opened settings");
+        }
+
+        /// <summary>
+        /// Сигнал в очередь GuiController → MQL5 Experts (скрытая кнопка).
+        /// </summary>
+        private void NotifySettingsClosed()
+        {
+            try
+            {
+                btnSettingsClosed.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            }
+            catch { /* ignore */ }
+            LogWpf("Settings closed");
+        }
+
         private static string SettingsFilePath()
         {
             var dir = System.IO.Path.Combine(
@@ -513,6 +565,13 @@ namespace WpfTestApp
                 "HermesWpfTerminal");
             Directory.CreateDirectory(dir);
             return System.IO.Path.Combine(dir, "window-size.txt");
+        }
+
+        private void ApplyBuildStamp()
+        {
+            Title = BuildInfo.MainWindowTitle;
+            if (txtBuildVersion != null)
+                txtBuildVersion.Text = BuildInfo.Version;
         }
 
         private void TryRestoreSize()
