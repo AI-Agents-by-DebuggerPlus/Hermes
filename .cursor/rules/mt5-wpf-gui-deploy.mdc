@@ -44,4 +44,4 @@ Window titles and `txtBuildVersion` must show `BuildInfo.Version` (e.g. `v26`) t
 
 ## Resize grips
 
-Main terminal and Settings use `ResizeMode="CanResizeWithGrip"` (dots in bottom-right corner).
+Main terminal, Settings, and Trading Sessions use `ResizeMode="CanResizeWithGrip"` (dots in bottom-right corner).

@@ -96,12 +96,14 @@ namespace WpfTestApp
             var viewEnd = nowLocal.AddHours(ViewHours / 2.0);
             double viewSpanMin = ViewHours * 60.0;
 
-            const double padL = 8, padR = 8, padTop = 22;
+            const double padL = 8, padR = 8, padTop = 28;
             double plotW = w - padL - padR;
             double laneH = 28;
             double topLaneY = padTop + 8;
             double botLaneY = topLaneY + laneH + 10;
-            double axisY = botLaneY + laneH + 6;
+            // Leave room under bars for marker time + session name, then hour ticks.
+            const double markerLabelBlock = 30;
+            double axisY = botLaneY + laneH + markerLabelBlock;
 
             Func<DateTime, double> toX = t =>
             {
@@ -183,7 +185,10 @@ namespace WpfTestApp
                 };
                 canvas.Children.Add(timeLbl);
                 Canvas.SetLeft(timeLbl, Math.Max(0, Math.Min(w - 40, x - 16)));
-                Canvas.SetTop(timeLbl, m.LabelAbove ? 2 : botLaneY + laneH + 2);
+
+                // Time on top of the pair; session name always below the time (no overlap).
+                double timeY = m.LabelAbove ? 2 : botLaneY + laneH + 2;
+                Canvas.SetTop(timeLbl, timeY);
 
                 if (!string.IsNullOrEmpty(m.Name))
                 {
@@ -195,8 +200,8 @@ namespace WpfTestApp
                         Foreground = Brushes.White
                     };
                     canvas.Children.Add(nameLbl);
-                    Canvas.SetLeft(nameLbl, Math.Max(0, Math.Min(w - 70, x + 4)));
-                    Canvas.SetTop(nameLbl, m.LabelAbove ? botLaneY + laneH + 2 : 2);
+                    Canvas.SetLeft(nameLbl, Math.Max(0, Math.Min(w - 70, x - 16)));
+                    Canvas.SetTop(nameLbl, timeY + 14);
                 }
             }
 

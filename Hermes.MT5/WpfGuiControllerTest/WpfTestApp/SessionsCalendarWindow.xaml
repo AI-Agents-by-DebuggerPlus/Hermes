@@ -5,7 +5,8 @@
         Height="520" Width="760"
         MinWidth="640" MinHeight="420"
         WindowStartupLocation="CenterScreen" Topmost="True"
-        Background="#0B0E11">
+        Background="#0B0E11"
+        ResizeMode="CanResizeWithGrip">
     <Grid Margin="14">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -32,7 +33,7 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <Canvas x:Name="timelineCanvas" Grid.Row="0" Height="150"
+                <Canvas x:Name="timelineCanvas" Grid.Row="0" Height="175"
                         SizeChanged="TimelineCanvas_SizeChanged"
                         ClipToBounds="True"/>
                 <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,0"
