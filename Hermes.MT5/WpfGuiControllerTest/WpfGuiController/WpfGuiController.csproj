@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- net48 обязателен: MQL5 нативно хостит только .NET Framework CLR,
+         .NET 5/6/8 сборки #import не подключит. -->
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <!-- MT5: AssemblyName, RootNamespace и C# namespace должны совпадать. -->
+    <RootNamespace>HermesWpfGuiController</RootNamespace>
+    <!-- Класс фасада GuiController ≠ имени DLL/namespace. -->
+    <AssemblyName>HermesWpfGuiController</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <Platforms>x64</Platforms>
+    <!-- MetaTrader 5 — 64-битный процесс, сборка тоже должна быть x64. -->
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+
+</Project>

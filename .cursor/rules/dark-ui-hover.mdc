@@ -1,43 +1,43 @@
 ---
-description: Dark UI theme — light text on dark backgrounds, including hover states
+description: Dark UI — light text on dark backgrounds including hover and ComboBox (Hermes)
 alwaysApply: true
 ---
 
-# Dark UI: Text and Hover
+# Dark UI: Text and Hover (Hermes)
 
-Hermes terminals use a dark theme. Follow this for all UI work (WPF, web, dialogs):
+Hermes terminals and WPF panels use a dark theme.
 
-## Rule
+## Hard rule
 
-**Light text → dark background.** The same pairing applies to **hover, focus, pressed, and selected** states.
+**Light text → dark background** for default, hover, focus, pressed, selected, and **dropdown popups**.
 
-Never use light/white backgrounds on hover for dark-themed controls.
+Never light/white backgrounds under light text (including stock WPF Button/ComboBox chrome).
 
-## WPF
+## WPF specifics
 
-- Override the default `Button` template — the stock template adds a light hover background.
-- Hover: keep background dark/transparent; change text color, border, or a slightly lighter **dark** shade (e.g. `#2B3139` → `#383f49`).
-- Use shared styles such as `DarkLinkBtnStyle`, `SecondaryBtnStyle`, `LeverageChipBtnStyle`.
+- Custom `Button` templates for trade buttons (Sell/Buy): hover = **darker** red/green, text stays white.
+- Custom `ComboBox` + `ComboBoxItem` templates: popup `#2B3139`, text `#EAECEF`, highlight `#383f49` + `#F8D12F`.
+- Shared styles: `DarkBtn`, `SellBtn`, `BuyBtn`, dark ComboBox in `HermesWpfTerminal`.
 
 ```xml
-<!-- ✅ GOOD: hover only brightens text, background stays transparent/dark -->
+<!-- ✅ GOOD: dark hover, light text -->
 <Trigger Property="IsMouseOver" Value="True">
-    <Setter TargetName="Label" Property="TextElement.Foreground" Value="#F8D12F"/>
-    <Setter TargetName="Root" Property="Background" Value="Transparent"/>
+  <Setter TargetName="Bd" Property="Background" Value="#8E0000"/>
+  <Setter TargetName="Cp" Property="TextElement.Foreground" Value="#FFFFFF"/>
 </Trigger>
 
-<!-- ❌ BAD: default Button hover or explicit light background -->
+<!-- ❌ BAD: default light hover -->
 <Trigger Property="IsMouseOver" Value="True">
-    <Setter Property="Background" Value="#F0F0F0"/>
+  <Setter Property="Background" Value="#F0F0F0"/>
 </Trigger>
 ```
 
-## Palette reference
+## Palette
 
 | Role | Color |
 |------|-------|
 | Background | `#0B0E11`, `#181A20`, `#2B3139` |
-| Hover (dark controls) | `#383f49`, `#252C3B` |
-| Text | `#EAECEF` |
-| Muted text | `#848E9C` |
-| Accent / links | `#F0B90B` → `#F8D12F` on hover |
+| Hover | `#383f49`, `#252C3B` (or darker brand red/green) |
+| Text | `#EAECEF`, `#FFFFFF` |
+| Muted | `#848E9C` |
+| Accent | `#F0B90B` → `#F8D12F` |

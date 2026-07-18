@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <!-- Library, не WinExe: никакого App.xaml/Main() — иначе будет конфликт
+         точек входа с тем, как WpfGuiController грузит сборку через Assembly.LoadFrom. -->
+    <OutputType>Library</OutputType>
+    <RootNamespace>WpfTestApp</RootNamespace>
+    <!-- Уникальное имя сборки: иначе MT5 LoadFrom возвращает уже загруженную старую WpfTestApp.dll -->
+    <AssemblyName>HermesWpfTerminalUi3</AssemblyName>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+
+</Project>
