@@ -6,16 +6,22 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>Hermes.EnglishLearning</RootNamespace>
     <AssemblyName>Hermes.EnglishLearning</AssemblyName>
     <ApplicationIcon />
     <StartupObject>Hermes.EnglishLearning.App</StartupObject>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <Version>1.1.4</Version>
+    <AssemblyVersion>1.1.4.0</AssemblyVersion>
+    <FileVersion>1.1.4.0</FileVersion>
+    <Product>Hermes English Learning</Product>
+    <Company>DebuggerPlus</Company>
+    <DefaultItemExcludes>$(DefaultItemExcludes);Installer/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="Microsoft.Windows.SDK.Contracts" Version="10.0.19041.1" />
   </ItemGroup>
 
   <ItemGroup>

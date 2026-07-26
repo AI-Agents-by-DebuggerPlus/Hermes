@@ -14,10 +14,12 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0"
+        <TextBlock x:Name="HintText"
+                   Grid.Row="0"
                    Margin="0,0,0,8"
+                   TextWrapping="Wrap"
                    Foreground="#AAB2C0"
-                   Text="Файлы из папок SampleLessons и lessons рядом с EXE." />
+                   Text="Файлы из папки уроков и SampleLessons." />
 
         <ListBox x:Name="FilesList"
                  Grid.Row="1"

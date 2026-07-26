@@ -32,6 +32,7 @@ public partial class SettingsWindow : Window
         InitializeComponent();
         Closed += (_, __) => CleanupPreview();
         LoadUi();
+        RefreshAutostartUi();
         _ = LoadAzureVoicesAsync(forceRefresh: false);
     }
 
@@ -55,6 +56,10 @@ public partial class SettingsWindow : Window
         HotSpeakBox.Text = _settings.HotkeySpeak;
         HotFullBox.Text = _settings.HotkeyFullscreen;
         HotStopBox.Text = _settings.HotkeyStop;
+
+        LessonsFolderBox.Text = string.IsNullOrWhiteSpace(_settings.LessonsFolder)
+            ? SettingsStore.ResolveLessonsFolder(_settings)
+            : _settings.LessonsFolder;
 
         var useAzure = string.Equals(_settings.TtsProvider, "Azure", StringComparison.OrdinalIgnoreCase);
         ProviderAzureRadio.IsChecked = useAzure;
@@ -159,10 +164,18 @@ public partial class SettingsWindow : Window
 
             var dir = Path.Combine(Path.GetTempPath(), "HermesEnglishLearning");
             Directory.CreateDirectory(dir);
-            var path = Path.Combine(dir, "voice_preview.mp3");
+            var path = Path.Combine(dir, "voice_preview.wav");
             File.WriteAllBytes(path, bytes);
-            _previewPlayer.Open(new Uri(path, UriKind.Absolute));
-            _previewPlayer.Play();
+            if (OsInfo.IsWindows7OrOlder)
+            {
+                using var sp = new System.Media.SoundPlayer(path);
+                sp.Play();
+            }
+            else
+            {
+                _previewPlayer.Open(new Uri(path, UriKind.Absolute));
+                _previewPlayer.Play();
+            }
             AzureStatusText.Text = "Превью: " + voice.ShortName;
             AppLog.Info("Voice preview Azure: " + voice.ShortName);
         }
@@ -339,6 +352,103 @@ public partial class SettingsWindow : Window
         return sb.ToString().TrimEnd();
     }
 
+    private void RefreshAutostartUi()
+    {
+        try
+        {
+            AutostartPathText.Text = "Текущий EXE:\n" + AutostartService.CurrentExePath;
+            if (!AutostartService.IsEnabled())
+            {
+                AutostartStatusText.Text = "Статус: выключено";
+                return;
+            }
+
+            var registered = AutostartService.GetRegisteredPath() ?? "?";
+            var same = string.Equals(
+                Path.GetFullPath(registered),
+                Path.GetFullPath(AutostartService.CurrentExePath),
+                StringComparison.OrdinalIgnoreCase);
+            AutostartStatusText.Text = same
+                ? "Статус: включено (путь совпадает с текущим)"
+                : "Статус: включено, но путь другой:\n" + registered;
+        }
+        catch (Exception ex)
+        {
+            AutostartStatusText.Text = "Статус: ошибка — " + ex.Message;
+        }
+    }
+
+    private void LessonsFolderBrowse_OnClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            using var dlg = new System.Windows.Forms.FolderBrowserDialog
+            {
+                Description = "Папка уроков по умолчанию",
+                ShowNewFolderButton = true,
+            };
+            var current = (LessonsFolderBox.Text ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(current))
+            {
+                current = SettingsStore.ResolveLessonsFolder(_settings);
+            }
+
+            if (Directory.Exists(current))
+            {
+                dlg.SelectedPath = current;
+            }
+
+            if (dlg.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+            {
+                return;
+            }
+
+            LessonsFolderBox.Text = dlg.SelectedPath;
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn("Lessons folder browse: " + ex.Message);
+            MessageBox.Show(this, ex.Message, "Папка уроков", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private void AutostartEnable_OnClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            AutostartService.Enable();
+            RefreshAutostartUi();
+            MessageBox.Show(this,
+                "Автозагрузка включена.\n\n" + AutostartService.CurrentExePath,
+                "Автозагрузка",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Autostart enable failed", ex);
+            MessageBox.Show(this, ex.Message, "Автозагрузка", MessageBoxButton.OK, MessageBoxImage.Warning);
+            RefreshAutostartUi();
+        }
+    }
+
+    private void AutostartDisable_OnClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            AutostartService.Disable();
+            RefreshAutostartUi();
+            MessageBox.Show(this, "Автозагрузка выключена.", "Автозагрузка",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Autostart disable failed", ex);
+            MessageBox.Show(this, ex.Message, "Автозагрузка", MessageBoxButton.OK, MessageBoxImage.Warning);
+            RefreshAutostartUi();
+        }
+    }
+
     private void Save_OnClick(object sender, RoutedEventArgs e)
     {
         _settings.SupabaseUrl = (UrlBox.Text ?? string.Empty).Trim();
@@ -398,6 +508,37 @@ public partial class SettingsWindow : Window
         _settings.HotkeySpeak = NormalizeKey(HotSpeakBox.Text, "S");
         _settings.HotkeyFullscreen = NormalizeKey(HotFullBox.Text, "F");
         _settings.HotkeyStop = NormalizeKey(HotStopBox.Text, "Escape");
+
+        var lessonsFolder = (LessonsFolderBox.Text ?? string.Empty).Trim();
+        var defaultLessons = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "lessons");
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(lessonsFolder)
+                && string.Equals(
+                    Path.GetFullPath(lessonsFolder).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                    Path.GetFullPath(defaultLessons).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                // Keep empty = portable default next to EXE.
+                lessonsFolder = string.Empty;
+            }
+        }
+        catch
+        {
+            // keep typed path
+        }
+
+        _settings.LessonsFolder = lessonsFolder;
+        if (!string.IsNullOrWhiteSpace(lessonsFolder))
+        {
+            try { Directory.CreateDirectory(lessonsFolder); }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Не удалось создать папку уроков:\n" + ex.Message,
+                    "Папка уроков", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+        }
 
         DialogResult = true;
         Close();

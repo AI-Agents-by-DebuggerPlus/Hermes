@@ -371,5 +371,12 @@ scripts/reni_water/reni_water.env
 Hermes.EnglishLearning/settings.json
 Hermes.EnglishLearning/**/settings.json
 Hermes.EnglishLearning/**/tts-cache/
+Hermes.EnglishLearning/Installer/output/
+Hermes.EnglishLearning/Installer/tools/
+# English Learning XP (WinXP client)
+Hermes.EnglishLearning.Xp/**/settings.json
+Hermes.EnglishLearning.Xp/**/logs/
+Hermes.EnglishLearning.Xp/**/lessons/
+Hermes.EnglishLearning.Xp/**/tts-cache/
 # Local water utility state (outside repo is fine too)
 d:/Documents/Utilities/water/pending_ack.json

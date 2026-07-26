@@ -3,27 +3,26 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Windows;
+using Hermes.EnglishLearning.Services;
 
 namespace Hermes.EnglishLearning;
 
 public partial class LessonLibraryWindow : Window
 {
+    private readonly AppSettings _settings;
+
     public string? SelectedPath { get; private set; }
 
-    public LessonLibraryWindow()
+    public LessonLibraryWindow(AppSettings settings)
     {
+        _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         InitializeComponent();
         RefreshList();
     }
 
-    public static IEnumerable<string> EnumerateLessonPaths()
+    public static IEnumerable<string> EnumerateLessonPaths(AppSettings settings)
     {
-        var root = AppDomain.CurrentDomain.BaseDirectory;
-        foreach (var dir in new[]
-                 {
-                     Path.Combine(root, "SampleLessons"),
-                     Path.Combine(root, "lessons"),
-                 })
+        foreach (var dir in SettingsStore.EnumerateLessonSearchDirs(settings))
         {
             if (!Directory.Exists(dir))
             {
@@ -39,7 +38,14 @@ public partial class LessonLibraryWindow : Window
 
     private void RefreshList()
     {
-        var items = EnumerateLessonPaths()
+        var dirs = SettingsStore.EnumerateLessonSearchDirs(_settings).ToList();
+        HintText.Text = "Папки: " + string.Join(" · ", dirs.Select(d =>
+        {
+            try { return Path.GetFileName(d.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)) + " (" + d + ")"; }
+            catch { return d; }
+        }));
+
+        var items = EnumerateLessonPaths(_settings)
             .OrderByDescending(File.GetLastWriteTimeUtc)
             .Select(p => new LessonFileItem(p))
             .ToList();
@@ -78,10 +84,8 @@ public partial class LessonLibraryWindow : Window
         {
             try
             {
-                // Do not delete sample lessons in SampleLessons without confirm already done —
-                // allow delete from both folders as user requested.
                 File.Delete(item.FullPath);
-                Services.AppLog.Info("Deleted lesson: " + item.FullPath);
+                AppLog.Info("Deleted lesson: " + item.FullPath);
             }
             catch (Exception ex)
             {

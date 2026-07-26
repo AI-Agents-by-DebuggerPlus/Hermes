@@ -91,6 +91,8 @@ public partial class MainWindow : Window
         StatusText.Text = "settings: " + SettingsStore.SettingsPath + " · log: " + AppLog.CurrentLogPath;
         AppLog.Info("UI loaded. Settings=" + SettingsStore.SettingsPath);
         StartBatteryMonitor();
+        StartupGreeting.SpeakAsync(_settings);
+        StatusText.Text = "EnglishLearning is ready to work.";
     }
 
     private void StartBatteryMonitor()
@@ -407,7 +409,7 @@ public partial class MainWindow : Window
 
     private void LibraryButton_OnClick(object sender, RoutedEventArgs e)
     {
-        var win = new LessonLibraryWindow { Owner = this };
+        var win = new LessonLibraryWindow(_settings) { Owner = this };
         if (win.ShowDialog() == true && !string.IsNullOrWhiteSpace(win.SelectedPath) && File.Exists(win.SelectedPath))
         {
             RememberLessonPath(win.SelectedPath!);
@@ -434,9 +436,19 @@ public partial class MainWindow : Window
             Filter = "Markdown (*.md)|*.md|All files (*.*)|*.*",
             Title = "Открыть урок (MD)",
         };
+        var initialDir = SettingsStore.ResolveLessonsFolder(_settings);
         if (!string.IsNullOrWhiteSpace(_settings.LastLocalLessonPath))
         {
-            dlg.InitialDirectory = Path.GetDirectoryName(_settings.LastLocalLessonPath);
+            var lastDir = Path.GetDirectoryName(_settings.LastLocalLessonPath);
+            if (!string.IsNullOrWhiteSpace(lastDir) && Directory.Exists(lastDir))
+            {
+                initialDir = lastDir;
+            }
+        }
+
+        if (Directory.Exists(initialDir))
+        {
+            dlg.InitialDirectory = initialDir;
         }
 
         if (dlg.ShowDialog(this) != true)
@@ -745,13 +757,23 @@ public partial class MainWindow : Window
             return;
         }
 
-        _tts.ApplySettings(_settings);
-        _screenSpeakFinished = false;
-        _tts.SpeakScreen(_screens[_index]);
-        _mediaFocus?.SetTransportStatus(MediaFocusClaimer.TransportStatus.Playing);
-        StatusText.Text = _tts.UsesAzure
-            ? "TTS Azure: EN → RU → EN → EN (кэш при наличии)"
-            : "TTS SAPI: EN → RU → EN → EN";
+        try
+        {
+            _tts.ApplySettings(_settings);
+            _screenSpeakFinished = false;
+            _tts.SpeakScreen(_screens[_index]);
+            _mediaFocus?.SetTransportStatus(MediaFocusClaimer.TransportStatus.Playing);
+            StatusText.Text = _tts.UsesAzure
+                ? "TTS Azure: EN → RU → EN → EN (кэш при наличии)"
+                : "TTS SAPI: EN → RU → EN → EN";
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("SpeakCurrent crashed", ex);
+            StatusText.Text = "TTS ошибка: " + ex.Message;
+            MessageBox.Show(this, "Ошибка озвучки:\n" + ex.Message + "\n\nСм. logs\\", "Hermes.EnglishLearning",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private void ToggleFullscreen()
@@ -785,8 +807,7 @@ public partial class MainWindow : Window
     {
         Dispatcher.BeginInvoke(new Action(() =>
         {
-            var dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "lessons");
-            Directory.CreateDirectory(dir);
+            var dir = SettingsStore.ResolveLessonsFolder(_settings);
             var path = Path.Combine(dir, SanitizeFileName(title) + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".md");
             File.WriteAllText(path, markdown);
             RememberLessonPath(path);

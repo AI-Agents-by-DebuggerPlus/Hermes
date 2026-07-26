@@ -392,6 +392,50 @@
                     </Grid>
                 </ScrollViewer>
             </TabItem>
+            <TabItem Header="Система">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12" Background="{StaticResource DlgPanel}">
+                    <StackPanel>
+                        <TextBlock Text="Папка уроков" FontWeight="SemiBold" Margin="0,0,0,8" Foreground="#F8D12F" />
+                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,8" Foreground="{StaticResource DlgMuted}"
+                                   Text="Библиотека, «Открыть» и автосохранение уроков из Hermes. Пусто = папка lessons рядом с EXE. SampleLessons всегда тоже показывается." />
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="LessonsFolderBox"
+                                     Grid.Column="0"
+                                     Margin="0,0,8,0"
+                                     Padding="4"
+                                     VerticalContentAlignment="Center" />
+                            <Button Grid.Column="1"
+                                    Content="Обзор…"
+                                    Padding="12,6"
+                                    MinWidth="88"
+                                    Click="LessonsFolderBrowse_OnClick" />
+                        </Grid>
+
+                        <TextBlock Text="Автозагрузка (portable)" FontWeight="SemiBold" Margin="0,0,0,8" Foreground="#F8D12F" />
+                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,10" Foreground="{StaticResource DlgMuted}"
+                                   Text="Добавляет текущий EXE в автозагрузку Windows (HKCU Run). Путь = папка, из которой запущено приложение (флешка / net48)." />
+                        <TextBlock x:Name="AutostartPathText" TextWrapping="Wrap" Margin="0,0,0,8" />
+                        <TextBlock x:Name="AutostartStatusText" TextWrapping="Wrap" Margin="0,0,0,12" Foreground="{StaticResource DlgMuted}" />
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Включить автозагрузку"
+                                    Padding="12,6"
+                                    Margin="0,0,8,0"
+                                    Click="AutostartEnable_OnClick" />
+                            <Button Content="Выключить"
+                                    Padding="12,6"
+                                    Background="#2B3139"
+                                    BorderBrush="#383f49"
+                                    Click="AutostartDisable_OnClick" />
+                        </StackPanel>
+                        <TextBlock TextWrapping="Wrap" Margin="0,14,0,0" Foreground="{StaticResource DlgMuted}"
+                                   Text="Если запускаете с флешки: буква диска не должна меняться. После переноса папки нажмите «Включить» снова." />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
         </TabControl>
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">

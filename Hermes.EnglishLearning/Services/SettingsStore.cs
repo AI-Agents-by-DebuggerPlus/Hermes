@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Speech.Synthesis;
 using Newtonsoft.Json;
@@ -39,6 +40,12 @@ public sealed class AppSettings
     public int VolumePercent { get; set; } = 80;
 
     public string LastLocalLessonPath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Default folder for user lessons (library, Open dialog, auto-save from Hermes).
+    /// Empty = {app}/lessons next to the EXE.
+    /// </summary>
+    public string LessonsFolder { get; set; } = string.Empty;
 
     /// <summary>0-based screen index within LastLocalLessonPath (restored on restart).</summary>
     public int LastScreenIndex { get; set; }
@@ -187,6 +194,65 @@ public static class SettingsStore
         if (s.VolumePercent > 100)
         {
             s.VolumePercent = 100;
+        }
+
+        if (s.LessonsFolder != null)
+        {
+            s.LessonsFolder = s.LessonsFolder.Trim();
+        }
+        else
+        {
+            s.LessonsFolder = string.Empty;
+        }
+    }
+
+    /// <summary>Configured lessons folder, or {EXE}/lessons. Creates the directory if missing.</summary>
+    public static string ResolveLessonsFolder(AppSettings settings)
+    {
+        var configured = settings?.LessonsFolder?.Trim() ?? string.Empty;
+        string dir;
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            try
+            {
+                dir = Path.GetFullPath(configured);
+            }
+            catch
+            {
+                dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "lessons");
+            }
+        }
+        else
+        {
+            dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "lessons");
+        }
+
+        try
+        {
+            Directory.CreateDirectory(dir);
+        }
+        catch
+        {
+            // ignore — caller may still list other folders
+        }
+
+        return dir;
+    }
+
+    /// <summary>Folders scanned by the lesson library (user folder + SampleLessons).</summary>
+    public static IEnumerable<string> EnumerateLessonSearchDirs(AppSettings settings)
+    {
+        var seen = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var user = ResolveLessonsFolder(settings);
+        if (seen.Add(user))
+        {
+            yield return user;
+        }
+
+        var samples = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SampleLessons");
+        if (Directory.Exists(samples) && seen.Add(Path.GetFullPath(samples)))
+        {
+            yield return Path.GetFullPath(samples);
         }
     }
 

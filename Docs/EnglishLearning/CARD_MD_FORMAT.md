@@ -97,7 +97,13 @@ If I had a heart, I could love you
 
 ---
 
-## 4. Пример файла
+## 5. Удалённая навигация (AndroidChat)
+
+См. [`ENGLISH_NAV_ANDROIDCHAT.md`](ENGLISH_NAV_ANDROIDCHAT.md) — команды `fullscreen` / `next` / `previous` / `exit` для XP-клиента и (опционально) основного приложения.
+
+---
+
+## 6. Пример файла
 
 См. `Hermes.EnglishLearning/SampleLessons/If_I_Had_a_Heart_lesson.md`  
 и исходный текст: `Docs/EnglishLearning/If_I_Had_a_Heart_lyrics.md`.
