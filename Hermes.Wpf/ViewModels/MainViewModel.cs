@@ -84,6 +84,8 @@ public sealed class MainViewModel : BaseViewModel
     private readonly LocalExecutionLearningService _localLearning;
     private readonly ReniWaterExecutionCoordinator _reniWaterCoordinator;
     private readonly WpfLocalActionExecutor _wpfLocalExecutor;
+    private readonly ReniWaterLocalChatHandler _reniWaterLocalChat;
+    private readonly Mt5TerminalIpcClient _mt5TerminalIpc;
     private readonly CliLearningFollowUpService _cliFollowUp;
     private readonly HermesCliSessionStore _cliSessionStore = new();
     private readonly ProjectAgentsBootstrapService _projectAgentsBootstrap;
@@ -117,6 +119,8 @@ public sealed class MainViewModel : BaseViewModel
 
     private CancellationTokenSource? _historyLoadCts;
     private Task? _pendingHistoryLoad;
+    /// <summary>Skip SelectedProject side-effects (save/load) while renaming to avoid re-entrancy crash.</summary>
+    private bool _suppressProjectSelectionHandler;
 
     private double _chatFontSize;
 
@@ -125,11 +129,17 @@ public sealed class MainViewModel : BaseViewModel
 
     private readonly SemaphoreSlim _supabasePollGate = new(1, 1);
     private SupabaseChatRelayService? _supabaseRelay;
+    private SupabaseRealtimeWebSocket? _supabaseRealtime;
     private readonly SupabaseHermesEchoTracker _supabaseEchoTracker = new();
     private readonly HashSet<Guid> _supabaseSeenMessageIds = [];
     private DispatcherTimer? _supabaseRelayTimer;
-    /// <summary>False until first successful relay fetch completes (polling stays idle before that).</summary>
+    /// <summary>False until first successful relay connect; gates optional poll ticks.</summary>
     private bool _supabasePollingEnabled;
+    /// <summary>
+    /// When set (e.g. inbound from EnglishTutorClient), Hermes replies go to this recipient
+    /// instead of the default Android outbound. Not injected into agent prompts.
+    /// </summary>
+    private string? _supabaseDynamicOutboundRecipient;
 
     private bool _supabaseRelayToggleBusy;
 
@@ -246,6 +256,8 @@ public sealed class MainViewModel : BaseViewModel
             _reniWater,
             _reniSchTasks,
             _localLearning);
+        _reniWaterLocalChat = new ReniWaterLocalChatHandler(_reniWater, _wpfLocalExecutor, logService);
+        _mt5TerminalIpc = new Mt5TerminalIpcClient(logService);
         _cliFollowUp = new CliLearningFollowUpService(_hermesService, logService, () => Settings);
         _chatFontSize = ClampChatFontForUi(Settings.ChatFontSize);
         Settings.ChatFontSize = _chatFontSize;
@@ -287,6 +299,11 @@ public sealed class MainViewModel : BaseViewModel
         Projects.PropertyChanged += async (_, args) =>
         {
             if (args.PropertyName != nameof(ProjectViewModel.SelectedProject))
+            {
+                return;
+            }
+
+            if (_suppressProjectSelectionHandler)
             {
                 return;
             }
@@ -344,7 +361,11 @@ public sealed class MainViewModel : BaseViewModel
 
         AddProjectCommand = new RelayCommand(_ => AddProject());
         BrowseProjectFolderCommand = new RelayCommand(_ => BrowseProjectFolder());
+        RenameProjectCommand = new RelayCommand(async _ => await RenameSelectedProjectAsync(), _ => CanExecuteProjectCommand());
         SendMessageCommand = new RelayCommand(async _ => await SendMessageAsync(), _ => CanExecuteProjectCommand() && !string.IsNullOrWhiteSpace(Chat.UserInput));
+        RetryLastMessageCommand = new RelayCommand(
+            async _ => await RetryLastUserMessageAsync(),
+            _ => CanExecuteProjectCommand() && FindLastUserMessageText() is not null);
         GatewayRunCommand = new RelayCommand(async _ => await RunQuickActionAsync("gateway run"), _ => CanExecuteProjectCommand());
         StatusCommand = new RelayCommand(async _ => await RunQuickActionAsync("status"), _ => CanExecuteProjectCommand());
         ResetWebhookCommand = new RelayCommand(async _ => await RunQuickActionAsync("gateway reset-webhook"), _ => CanExecuteProjectCommand());
@@ -787,6 +808,7 @@ public sealed class MainViewModel : BaseViewModel
         var blocks = new List<string>();
         blocks.Add(ChatBehaviorDefaults.InstructionPriorityRu);
         blocks.Add(ChatBehaviorDefaults.TaskPrecisionRu);
+        blocks.Add(ChatBehaviorDefaults.ConciseReplyRu);
         blocks.Add(HermesPlatformKnowledgeInstructions.OutboundBlockRu);
         if (!Settings.EnglishTutorModeEnabled)
         {
@@ -1220,19 +1242,73 @@ public sealed class MainViewModel : BaseViewModel
             var errBubble = $"Ошибка CLI (exit {result.ExitCode}): {hint}";
             Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = errBubble });
             _chatLogService.AppendMessage(projectName, "Hermes", errBubble);
+            NotifyHermesCliFailure(projectName, result, hint);
             await PublishAssistantTurnToSupabaseIfPossibleAsync(errBubble);
             await TrySaveHistoryAfterTurnAsync(projectName);
             return;
         }
 
-        var displayResponse = string.IsNullOrWhiteSpace(result.EffectiveDisplayText)
-            ? "(пустой ответ)"
-            : result.EffectiveDisplayText;
+        var displayResponse = await ResolveMt5TerminalRouterChatAsync(projectName, result).ConfigureAwait(true);
+        if (string.IsNullOrWhiteSpace(displayResponse))
+        {
+            displayResponse = string.IsNullOrWhiteSpace(result.EffectiveDisplayText)
+                ? "(пустой ответ)"
+                : result.EffectiveDisplayText;
+        }
+
         Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = displayResponse });
         _chatLogService.AppendMessage(projectName, "Hermes", displayResponse);
+        NotifyHermesReplyArrived(projectName, displayResponse);
         await PublishAssistantTurnToSupabaseIfPossibleAsync(displayResponse);
         await TrySaveHistoryAfterTurnAsync(projectName);
         RequestChatScrollToBottom();
+    }
+
+    /// <summary>
+    /// Mt5Terminal: agent is a whitelist router (JSON in stdout). WPF executes via HermesWpfTerminal IPC.
+    /// </summary>
+    private async Task<string> ResolveMt5TerminalRouterChatAsync(string projectName, HermesExecutionResult result)
+    {
+        if (!Mt5TerminalTradeRouter.IsMt5TerminalProject(projectName))
+        {
+            return string.IsNullOrWhiteSpace(result.EffectiveDisplayText)
+                ? "(пустой ответ)"
+                : result.EffectiveDisplayText;
+        }
+
+        var parseSource = string.IsNullOrWhiteSpace(result.DisplayText)
+            ? result.CombinedText
+            : result.DisplayText;
+        var route = Mt5TerminalTradeRouter.TryParseFromAgentOutput(parseSource);
+        if (route is null)
+        {
+            _logService.LogWarn("[mt5-router] no whitelist JSON in agent stdout — execution skipped");
+            return Mt5TerminalTradeRouter.FormatMissingJsonChat();
+        }
+
+        if (route.IsUnsupported)
+        {
+            _logService.LogInfo($"[mt5-router] unsupported: {route.Reason}");
+            return Mt5TerminalTradeRouter.FormatUnsupportedChat(route);
+        }
+
+        var projectPath = Projects.SelectedProject?.WindowsPath;
+        _logService.LogInfo($"[mt5-router] execute action={route.Action} id={route.Id}");
+        try
+        {
+            var exec = await _mt5TerminalIpc
+                .ExecuteAsync(route, projectPath, TimeSpan.FromSeconds(45))
+                .ConfigureAwait(true);
+            AppendTerminal(
+                $"[mt5-ipc] {route.Action} ok={exec.Ok}" + (string.IsNullOrWhiteSpace(exec.Error) ? string.Empty : " " + exec.Error),
+                isError: !exec.Ok);
+            return Mt5TerminalIpcClient.FormatChatMessage(route, exec);
+        }
+        catch (Exception ex)
+        {
+            _logService.LogWarn($"[mt5-ipc] {ex.Message}");
+            return $"Задача: {route.Action}\nИсполнение: FAIL\n{ex.Message}";
+        }
     }
 
     private static bool ShouldInjectDesktopContext(string text)
@@ -1328,6 +1404,49 @@ public sealed class MainViewModel : BaseViewModel
     public event Action? ChatScrollToBottomRequested;
 
     public void RequestChatScrollToBottom() => ChatScrollToBottomRequested?.Invoke();
+
+    private void NotifyHermesReplyArrived(string projectName, string replyText, bool isError = false)
+    {
+        try
+        {
+            if (isError)
+            {
+                // Detailed popup: raw error + explanation + fix steps (OpenRouter limit, WSL, …).
+                HermesErrorHelpWindow.ShowForError(
+                    Application.Current?.MainWindow,
+                    replyText);
+                return;
+            }
+
+            HermesReplyNotifyService.Notify(
+                Application.Current?.MainWindow,
+                projectName,
+                replyText,
+                Settings.NotifyOnHermesReply,
+                isError: false);
+        }
+        catch (Exception ex)
+        {
+            _logService.LogWarn("[notify] " + ex.Message);
+        }
+    }
+
+    private void NotifyHermesCliFailure(string projectName, HermesExecutionResult result, string hint)
+    {
+        var errBubble = $"Ошибка CLI (exit {result.ExitCode}): {hint}";
+        try
+        {
+            HermesErrorHelpWindow.ShowForError(
+                Application.Current?.MainWindow,
+                hint,
+                result.ExitCode);
+        }
+        catch (Exception ex)
+        {
+            _logService.LogWarn("[notify] error-help: " + ex.Message);
+            NotifyHermesReplyArrived(projectName, errBubble, isError: true);
+        }
+    }
     public ProjectViewModel Projects { get; }
     public WslMemoryViewModel WslMemory { get; }
     public HermesSettings Settings { get; }
@@ -1335,7 +1454,9 @@ public sealed class MainViewModel : BaseViewModel
 
     public ICommand AddProjectCommand { get; }
     public ICommand BrowseProjectFolderCommand { get; }
+    public ICommand RenameProjectCommand { get; }
     public ICommand SendMessageCommand { get; }
+    public ICommand RetryLastMessageCommand { get; }
     public ICommand GatewayRunCommand { get; }
     public ICommand StatusCommand { get; }
     public ICommand ResetWebhookCommand { get; }
@@ -1906,6 +2027,8 @@ public sealed class MainViewModel : BaseViewModel
             var trimmed = raw?.Trim();
             if (string.IsNullOrEmpty(trimmed) || !Directory.Exists(trimmed))
             {
+                if (!string.IsNullOrEmpty(trimmed))
+                    _logService.LogWarn($"[project] Skip restore (folder missing): {trimmed}");
                 continue;
             }
 
@@ -2088,6 +2211,136 @@ public sealed class MainViewModel : BaseViewModel
         CommandManager.InvalidateRequerySuggested();
     }
 
+    private async Task RenameSelectedProjectAsync()
+    {
+        if (Projects.SelectedProject is null)
+        {
+            AppendTerminal("[project] Сначала выберите проект.", isError: true);
+            return;
+        }
+
+        var selected = Projects.SelectedProject;
+        var dlg = new RenameProjectWindow(selected.Name)
+        {
+            Owner = Application.Current?.MainWindow,
+        };
+        if (dlg.ShowDialog() != true)
+            return;
+
+        var desired = dlg.NewName;
+        var sanitized = ProjectRenameService.SanitizeFolderName(desired);
+        if (string.IsNullOrWhiteSpace(sanitized))
+        {
+            AppendTerminal("[project] Недопустимое имя.", isError: true);
+            return;
+        }
+
+        if (!string.Equals(desired.Trim(), sanitized, StringComparison.Ordinal))
+        {
+            var confirm = MessageBox.Show(
+                Application.Current?.MainWindow,
+                $"Имя будет сохранено как папка:\n{sanitized}\n\nПродолжить?",
+                "Rename project",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes)
+                return;
+        }
+
+        _suppressProjectSelectionHandler = true;
+        try
+        {
+            _isBusy = true;
+            CommandManager.InvalidateRequerySuggested();
+
+            // Persist chat under old name before moving history file.
+            await TrySaveHistoryAfterTurnAsync(selected.Name).ConfigureAwait(true);
+
+            var renamer = new ProjectRenameService(_projectService, _historyService, _cliSessionStore, _logService);
+            var result = await Task.Run(() => renamer.Rename(selected, sanitized)).ConfigureAwait(true);
+
+            // Persist paths BEFORE UI mutations — if WPF crashes mid-update, project still restores.
+            for (var i = 0; i < Settings.SavedProjectPaths.Count; i++)
+            {
+                if (string.Equals(Settings.SavedProjectPaths[i], result.OldPath, StringComparison.OrdinalIgnoreCase))
+                    Settings.SavedProjectPaths[i] = result.NewPath;
+            }
+
+            if (!Settings.SavedProjectPaths.Any(p =>
+                    string.Equals(p, result.NewPath, StringComparison.OrdinalIgnoreCase)))
+                Settings.SavedProjectPaths.Add(result.NewPath);
+
+            Settings.LastSelectedProjectPath = result.NewPath;
+            if (string.Equals(Settings.LastProjectBrowsePath, result.OldPath, StringComparison.OrdinalIgnoreCase))
+                Settings.LastProjectBrowsePath = result.NewPath;
+
+            try
+            {
+                await _settingsService.SaveAsync(Settings).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                _logService.LogWarn("[settings] save after rename (pre-UI): " + ex.Message);
+            }
+
+            _chatLogService.ClearProjectCache(result.OldName);
+            _chatLogService.ClearProjectCache(result.NewName);
+
+            // Avoid ObservableCollection indexer replace while SelectedItem is bound (WPF re-entrancy).
+            Projects.SelectedProject = null;
+            Projects.Projects.Remove(selected);
+            if (!Projects.Projects.Any(p =>
+                    string.Equals(p.WindowsPath, result.NewPath, StringComparison.OrdinalIgnoreCase)))
+                Projects.Projects.Add(result.Project);
+            Projects.SelectedProject = result.Project;
+
+            SnapshotProjectsIntoSettings();
+            try
+            {
+                await _settingsService.SaveAsync(Settings).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                _logService.LogWarn("[settings] save after rename: " + ex.Message);
+            }
+
+            _logService.SetActiveProject(result.NewName);
+            _projectAgentsBootstrap.EnsureProjectHermesArtifacts(result.NewPath);
+            RefreshChatModeStatusUi();
+
+            try
+            {
+                await LoadProjectHistoryAsync(result.Project).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                _logService.LogWarn("[project] history after rename: " + ex.Message);
+            }
+
+            for (var i = 0; i < SessionHistoryTitles.Count; i++)
+            {
+                if (SessionHistoryTitles[i].IndexOf(result.OldName, StringComparison.OrdinalIgnoreCase) >= 0)
+                    SessionHistoryTitles[i] = SessionHistoryTitles[i].Replace(result.OldName, result.NewName, StringComparison.OrdinalIgnoreCase);
+            }
+
+            AppendTerminal($"[project] Renamed: {result.OldName} → {result.NewName}");
+            if (!string.IsNullOrWhiteSpace(result.Summary))
+                AppendTerminal(result.Summary);
+            AppendTerminal("[project] ~/.hermes memories/skills не трогались — контекст сохранён через папку проекта.");
+        }
+        catch (Exception ex)
+        {
+            AppendTerminal("[project] Rename failed: " + ex.Message, isError: true);
+            _logService.LogError("[project] rename: " + ex.Message);
+        }
+        finally
+        {
+            _suppressProjectSelectionHandler = false;
+            _isBusy = false;
+            CommandManager.InvalidateRequerySuggested();
+        }
+    }
+
     private async void BrowseProjectFolder()
     {
         var dlg = new OpenFolderDialog
@@ -2155,6 +2408,80 @@ public sealed class MainViewModel : BaseViewModel
     private Task SendMessageTextAsync(string text) =>
         ExecuteHermesUserTurnAsync(prependUserBubble: true, agentUserPayload: text, uiUserBubbleLine: null);
 
+    private int FindLastUserMessageIndex()
+    {
+        for (var i = Chat.Messages.Count - 1; i >= 0; i--)
+        {
+            var m = Chat.Messages[i];
+            if (string.Equals(m.Role, "User", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(m.Text))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private string? FindLastUserMessageText()
+    {
+        var i = FindLastUserMessageIndex();
+        return i >= 0 ? Chat.Messages[i].Text?.Trim() : null;
+    }
+
+    /// <summary>
+    /// Edit the last user turn (dialog) and re-send to Hermes without adding another User bubble.
+    /// Trailing Hermes replies after that user message are removed first.
+    /// </summary>
+    private async Task RetryLastUserMessageAsync()
+    {
+        var userIndex = FindLastUserMessageIndex();
+        if (userIndex < 0)
+        {
+            AppendTerminal("[chat] Нет предыдущего запроса пользователя для повтора.", isError: true);
+            return;
+        }
+
+        var original = Chat.Messages[userIndex].Text?.Trim() ?? string.Empty;
+        var dlg = new EditRetryMessageWindow(original)
+        {
+            Owner = Application.Current?.MainWindow,
+        };
+        if (dlg.ShowDialog() != true)
+            return;
+
+        var text = dlg.EditedText;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            AppendTerminal("[chat] Пустое сообщение — отмена.", isError: true);
+            return;
+        }
+
+        // Remove everything after the last user bubble (error or previous Hermes answer).
+        while (Chat.Messages.Count > userIndex + 1)
+            Chat.Messages.RemoveAt(Chat.Messages.Count - 1);
+
+        // Update the user bubble in place when edited.
+        if (!string.Equals(Chat.Messages[userIndex].Text, text, StringComparison.Ordinal))
+        {
+            Chat.Messages[userIndex] = new ChatMessage
+            {
+                Role = "User",
+                Text = text,
+                ImagePath = Chat.Messages[userIndex].ImagePath,
+                Timestamp = Chat.Messages[userIndex].Timestamp,
+            };
+        }
+
+        AppendTerminal(string.Equals(original, text, StringComparison.Ordinal)
+            ? "[chat] Retry last user message…"
+            : "[chat] Retry edited user message…");
+        await ExecuteHermesUserTurnAsync(
+            prependUserBubble: false,
+            agentUserPayload: text,
+            uiUserBubbleLine: null).ConfigureAwait(true);
+    }
+
     /// <param name="prependUserBubble">Local chat sends <c>true</c>; inbound Supabase already pushed the bubble → <c>false</c>.</param>
     /// <param name="agentUserPayload">Plain user text forwarded to Hermes outbound prompt builder.</param>
     /// <param name="uiUserBubbleLine">When prepending user bubble and null, defaults to payload.</param>
@@ -2215,6 +2542,11 @@ public sealed class MainViewModel : BaseViewModel
 
         try
         {
+            if (await TryHandleReniWaterLocalAsync(agentUserPayload, project.Name).ConfigureAwait(true))
+            {
+                return;
+            }
+
             if (IsPureHermesAgentChatTurn())
             {
                 if (CliSessionResetTriggers.Matches(agentUserPayload))
@@ -2442,6 +2774,7 @@ public sealed class MainViewModel : BaseViewModel
                 var errBubble = $"Ошибка CLI (exit {result.ExitCode}): {hint}";
                 Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = errBubble });
                 _chatLogService.AppendMessage(project.Name, "Hermes", errBubble);
+                NotifyHermesCliFailure(project.Name, result, hint);
                 await PublishAssistantTurnToSupabaseIfPossibleAsync(errBubble);
                 await TrySaveHistoryAfterTurnAsync(project.Name);
                 return;
@@ -2606,6 +2939,7 @@ public sealed class MainViewModel : BaseViewModel
             }
 
             _chatLogService.AppendMessage(project.Name, "Hermes", displayResponse);
+            NotifyHermesReplyArrived(project.Name, displayResponse);
             SyncWslAgentMemoryToVault("after-chat");
             SyncPlatformKnowledgeToVault("after-chat");
             _ = WslMemory.RefreshAsync();
@@ -2622,6 +2956,67 @@ public sealed class MainViewModel : BaseViewModel
             ClearHermesUiActivityTrackers();
             _isBusy = false;
             CommandManager.InvalidateRequerySuggested();
+        }
+    }
+
+    private async Task<bool> TryHandleReniWaterLocalAsync(string userPayload, string projectName)
+    {
+        // CLI-first (Nous Research design): let Hermes CLI drive Reni Water via its skill + browser tool + project data.
+        // The WPF Playwright/Task Scheduler path stays as fallback (toggle ReniWaterUseCliAgent = false).
+        if (Settings.ReniWaterUseCliAgent)
+        {
+            return false;
+        }
+
+        ReniWaterLocalHandleResult? result;
+        try
+        {
+            result = await _reniWaterLocalChat.TryHandleAsync(userPayload, projectName).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            var err = $"[reni-water] Ошибка: {ex.Message}";
+            _logService.LogError(err);
+            AppendTerminal(err, isError: true);
+            PostLocalHermesReply(projectName, err);
+            return true;
+        }
+
+        if (result is null)
+        {
+            return false;
+        }
+
+        if (result.ReniBusy)
+        {
+            _reniWaterBusy = true;
+            CommandManager.InvalidateRequerySuggested();
+        }
+
+        try
+        {
+            AppendTerminal($"[reni-water] local handler ok={result.Ok}");
+            await AppendReniWaterChatAsync(projectName, result.DisplayText, result.ScreenshotPath)
+                .ConfigureAwait(true);
+
+            if (!string.IsNullOrEmpty(result.ScreenshotPath))
+            {
+                OpenImageViewer(result.ScreenshotPath);
+            }
+
+            RefreshReniWaterPendingUi();
+            await TrySaveHistoryAfterTurnAsync(projectName).ConfigureAwait(true);
+            RequestChatScrollToBottom();
+            return true;
+        }
+        finally
+        {
+            if (result.ReniBusy)
+            {
+                _reniWaterBusy = false;
+                RefreshReniWaterPendingUi();
+                CommandManager.InvalidateRequerySuggested();
+            }
         }
     }
 
@@ -3650,6 +4045,18 @@ public sealed class MainViewModel : BaseViewModel
 
         if (_supabaseRelay is { IsConnected: true })
         {
+            if (Settings.SupabaseUseAnonymousAuth)
+            {
+                try
+                {
+                    await _supabaseRelay.EnsureFreshSessionAsync().ConfigureAwait(true);
+                }
+                catch (Exception ex)
+                {
+                    _logService.LogWarn($"[supabase] Не удалось обновить JWT перед публикацией: {ex.Message}");
+                }
+            }
+
             return;
         }
 
@@ -3738,6 +4145,11 @@ public sealed class MainViewModel : BaseViewModel
 
     private string CanonicalHermesOutboundRecipient()
     {
+        if (!string.IsNullOrWhiteSpace(_supabaseDynamicOutboundRecipient))
+        {
+            return _supabaseDynamicOutboundRecipient!.Trim();
+        }
+
         var s = Settings.SupabaseHermesOutboundRecipientName?.Trim();
         return string.IsNullOrEmpty(s) ? "Android" : s;
     }
@@ -3761,10 +4173,139 @@ public sealed class MainViewModel : BaseViewModel
             expected = "Hermes";
         }
 
-        return string.Equals(
-            (m.RecipientName ?? string.Empty).Trim(),
-            expected,
-            StringComparison.OrdinalIgnoreCase);
+        return HermesProjectRecipientRouter.IsHermesBoundRecipient(m.RecipientName, expected);
+    }
+
+    /// <summary>
+    /// If <c>recipient_name</c> is <c>Hermes.&lt;Project&gt;</c>, select that Project Manager project
+    /// (add from disk if needed) and load its chat history before handling the message.
+    /// </summary>
+    private async Task<bool> EnsureProjectContextForInboundRecipientAsync(string? recipientName)
+    {
+        if (!HermesProjectRecipientRouter.TryParseProjectSuffix(recipientName, out var projectName))
+        {
+            // Plain "Hermes" — keep current selection.
+            return Projects.SelectedProject is not null;
+        }
+
+        var project = HermesProjectRecipientRouter.FindInList(Projects.Projects, projectName);
+        if (project is null)
+        {
+            var discovered = HermesProjectRecipientRouter.DiscoverProjectDirectory(
+                Projects.Projects,
+                projectName,
+                Settings.LastProjectBrowsePath ?? Settings.LastSelectedProjectPath);
+            if (discovered is null)
+            {
+                _logService.LogWarn(
+                    $"[supabase] Нет проекта «{projectName}» для recipient_name={recipientName}. "
+                    + "Добавьте папку в Project Manager.");
+                AppendTerminal(
+                    $"[supabase] Проект «{projectName}» не найден (recipient={recipientName}).",
+                    isError: true);
+                return false;
+            }
+
+            try
+            {
+                project = _projectService.BuildProject(discovered);
+                if (!Projects.Projects.Any(p =>
+                        string.Equals(p.WindowsPath, project.WindowsPath, StringComparison.OrdinalIgnoreCase)))
+                {
+                    Projects.Projects.Add(project);
+                    SnapshotProjectsIntoSettings();
+                    try { await _settingsService.SaveAsync(Settings).ConfigureAwait(true); }
+                    catch (Exception ex) { _logService.LogWarn("[settings] save after project discover: " + ex.Message); }
+                }
+
+                _logService.LogInfo($"[supabase] Проект «{project.Name}» добавлен из {discovered}");
+            }
+            catch (Exception ex)
+            {
+                _logService.LogError($"[supabase] Не удалось открыть «{discovered}»: {ex.Message}");
+                return false;
+            }
+        }
+
+        if (Projects.SelectedProject is not null
+            && string.Equals(
+                Projects.SelectedProject.WindowsPath,
+                project.WindowsPath,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        _logService.LogInfo(
+            $"[supabase] Переключение чата → «{project.Name}» (recipient_name={recipientName})");
+        AppendTerminal($"[supabase] Открыт чат проекта «{project.Name}».");
+
+        // Load history ourselves — avoid racing the async PropertyChanged handler.
+        _suppressProjectSelectionHandler = true;
+        try
+        {
+            Projects.SelectedProject = project;
+            SnapshotProjectsIntoSettings();
+            try { await _settingsService.SaveAsync(Settings).ConfigureAwait(true); }
+            catch (Exception ex) { _logService.LogWarn("[settings] save after inbound project switch: " + ex.Message); }
+
+            _logService.SetActiveProject(project.Name);
+            _projectAgentsBootstrap.EnsureProjectHermesArtifacts(project.WindowsPath);
+            RefreshChatModeStatusUi();
+            await LoadProjectHistoryAsync(project).ConfigureAwait(true);
+            _ = PublishSessionContextToSupabaseIfChangedAsync("inbound-project-route");
+        }
+        finally
+        {
+            _suppressProjectSelectionHandler = false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Recent remote chat rows for Hermes that were already in <c>messages</c> at Connect time.
+    /// </summary>
+    private bool ShouldCatchUpSupabaseInbound(SupabaseMessageRow m, DateTime floorInclusive)
+    {
+        if (m.CreatedAt < floorInclusive)
+        {
+            return false;
+        }
+
+        if (!MatchesInboundRecipientFilter(m))
+        {
+            return false;
+        }
+
+        if (IsHermesSenderRow(m, CanonicalHermesSenderName()))
+        {
+            return false;
+        }
+
+        if (IsOwnMirroredUserRow(m))
+        {
+            return false;
+        }
+
+        if (HermesWpfSessionContextPayload.IsSessionPayload(m.Content))
+        {
+            return false;
+        }
+
+        if (IsSupabaseServiceLogContent(m.Content))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>TaskerToWpf contract: <c>[LOG:…]</c> is not a user chat bubble.</summary>
+    private static bool IsSupabaseServiceLogContent(string? content)
+    {
+        var t = (content ?? string.Empty).TrimStart();
+        return t.StartsWith("[LOG:", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsHermesSenderRow(SupabaseMessageRow m, string canonical) =>
@@ -3806,15 +4347,12 @@ public sealed class MainViewModel : BaseViewModel
 
             var rows = await _supabaseRelay.FetchAllSortedAsync();
             _supabaseSeenMessageIds.Clear();
-            foreach (var m in rows)
-            {
-                _supabaseSeenMessageIds.Add(m.Id);
-            }
 
             if (Settings.SupabaseImportFullHistoryOnConnect)
             {
                 foreach (var m in rows)
                 {
+                    _supabaseSeenMessageIds.Add(m.Id);
                     HydrateSupabaseSnapshotRowIntoChat(m);
                 }
 
@@ -3824,9 +4362,46 @@ public sealed class MainViewModel : BaseViewModel
                     await SaveHistoryAsync(proj.Name);
                 }
             }
+            else
+            {
+                // Do not dump full history, but catch up recent inbound for Hermes
+                // (messages already in the table when Connect runs — previously marked seen and dropped).
+                var catchUpFloor = Settings.SupabaseUseLocalCreatedAt
+                    ? DateTime.Now.AddMinutes(-5)
+                    : DateTime.UtcNow.AddMinutes(-5);
+                var catchUpCount = 0;
+                foreach (var m in rows.OrderBy(x => x.CreatedAt))
+                {
+                    if (ShouldCatchUpSupabaseInbound(m, catchUpFloor))
+                    {
+                        await HandleInboundSupabaseRowAsync(m).ConfigureAwait(true);
+                        catchUpCount++;
+                    }
 
-            _supabasePollingEnabled = true;
-            StartSupabasePollTimer();
+                    _supabaseSeenMessageIds.Add(m.Id);
+                }
+
+                if (catchUpCount > 0)
+                {
+                    _logService.LogInfo(
+                        $"[supabase] Catch-up inbound after connect: processed={catchUpCount} (floor={catchUpFloor:O}).");
+                }
+            }
+
+            StartSupabaseRealtime();
+
+            if (Settings.EnableSupabasePoll)
+            {
+                _supabasePollingEnabled = true;
+                StartSupabasePollTimer();
+                _logService.LogInfo(
+                    $"[supabase] Poll enabled (interval={ClampSupabasePollSeconds(Settings.SupabasePollIntervalSeconds)}s).");
+            }
+            else
+            {
+                _supabasePollingEnabled = false;
+                _logService.LogInfo("[supabase] Poll disabled — inbound via WebSocket Realtime only.");
+            }
 
             if (string.Equals(
                     LocalSenderDisplayName(),
@@ -3834,18 +4409,13 @@ public sealed class MainViewModel : BaseViewModel
                     StringComparison.OrdinalIgnoreCase))
             {
                 _logService.LogWarn(
-                    "[supabase] Desktop sender_name и Assistant sender_name совпадают — polling может зациклить агента. Задайте разные имена.");
+                    "[supabase] Desktop sender_name и Assistant sender_name совпадают — inbound может зациклить агента. Задайте разные имена.");
             }
 
-            var importMode = Settings.SupabaseImportFullHistoryOnConnect ? "full" : "none";
+            var importMode = Settings.SupabaseImportFullHistoryOnConnect ? "full" : "catch-up-5m";
+            var inbound = Settings.EnableSupabasePoll ? "realtime+poll" : "realtime";
             _logService.LogInfo(
-                $"[supabase] Hermes relay: polling on, snapshot rows={rows.Count}, import={importMode}.");
-            if (!Settings.SupabaseImportFullHistoryOnConnect && rows.Count > 0)
-            {
-                _logService.LogInfo(
-                    "[supabase] Строки, уже в таблице на момент подключения, помечены как просмотренные и в основной чат не подставляются; " +
-                    "появятся только новые сообщения после этого. Чтобы увидеть текущую таблицу в чате, включите «Импорт полной истории при подключении» в настройках Supabase.");
-            }
+                $"[supabase] Hermes relay: inbound={inbound}, snapshot rows={rows.Count}, import={importMode}.");
 
             RaiseSupabaseConnectionUi();
             await PublishAppStartupNotificationAsync("relay-connected").ConfigureAwait(true);
@@ -3854,7 +4424,8 @@ public sealed class MainViewModel : BaseViewModel
         catch (Exception ex)
         {
             _logService.LogError($"[supabase] Connect failed: {ex.Message}");
-            _supabaseRelay.Disconnect();
+            StopSupabaseRealtimeOnly();
+            _supabaseRelay?.Disconnect();
             _supabaseRelay = null;
             _supabasePollingEnabled = false;
             RaiseSupabaseConnectionUi();
@@ -3864,6 +4435,7 @@ public sealed class MainViewModel : BaseViewModel
     private Task StopSupabaseRelayCoreAsync()
     {
         StopSupabasePollTimerOnly();
+        StopSupabaseRealtimeOnly();
         _supabaseRelay?.Disconnect();
         _supabaseRelay = null;
         _supabasePollingEnabled = false;
@@ -3871,6 +4443,68 @@ public sealed class MainViewModel : BaseViewModel
         _lastPublishedSessionFingerprint = null;
         RaiseSupabaseConnectionUi();
         return Task.CompletedTask;
+    }
+
+    private void StartSupabaseRealtime()
+    {
+        StopSupabaseRealtimeOnly();
+        _supabaseRealtime = new SupabaseRealtimeWebSocket(_logService);
+        _supabaseRealtime.MessageInserted += OnSupabaseRealtimeMessageInserted;
+        _supabaseRealtime.StatusChanged += status =>
+            _logService.LogInfo($"[supabase] {status}");
+        _supabaseRealtime.Start(Settings.SupabaseUrl.Trim(), Settings.SupabaseAnonKey.Trim());
+    }
+
+    private void StopSupabaseRealtimeOnly()
+    {
+        if (_supabaseRealtime is null)
+        {
+            return;
+        }
+
+        _supabaseRealtime.MessageInserted -= OnSupabaseRealtimeMessageInserted;
+        _supabaseRealtime.Stop();
+        _supabaseRealtime = null;
+    }
+
+    private void OnSupabaseRealtimeMessageInserted(SupabaseMessageRow row)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null)
+        {
+            return;
+        }
+
+        _ = dispatcher.InvokeAsync(async () => await HandleSupabaseRealtimeInboundAsync(row));
+    }
+
+    private async Task HandleSupabaseRealtimeInboundAsync(SupabaseMessageRow m)
+    {
+        if (!Settings.SupabaseRelayEnabled || _supabaseRelay is not { IsConnected: true })
+        {
+            return;
+        }
+
+        await _supabasePollGate.WaitAsync().ConfigureAwait(true);
+        try
+        {
+            if (!_supabaseSeenMessageIds.Add(m.Id))
+            {
+                return;
+            }
+
+            _logService.LogInfo(
+                $"[supabase] Realtime received: {m.SenderName} → {m.RecipientName}, {(m.Content ?? string.Empty).Length} chars.");
+            await HandleInboundSupabaseRowAsync(m).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _logService.LogError($"[supabase] Realtime inbound failed: {ex.Message}");
+        }
+        finally
+        {
+            _supabasePollGate.Release();
+        }
     }
 
     private void HydrateSupabaseSnapshotRowIntoChat(SupabaseMessageRow m)
@@ -3881,6 +4515,11 @@ public sealed class MainViewModel : BaseViewModel
         }
 
         if (HermesWpfSessionContextPayload.IsSessionPayload(m.Content))
+        {
+            return;
+        }
+
+        if (IsSupabaseServiceLogContent(m.Content))
         {
             return;
         }
@@ -3904,6 +4543,11 @@ public sealed class MainViewModel : BaseViewModel
     private void StartSupabasePollTimer()
     {
         StopSupabasePollTimerOnly();
+        if (!Settings.EnableSupabasePoll)
+        {
+            return;
+        }
+
         var interval = ClampSupabasePollSeconds(Settings.SupabasePollIntervalSeconds);
         _supabaseRelayTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(interval) };
         _supabaseRelayTimer.Tick += SupabaseRelayTimer_OnTick;
@@ -3938,6 +4582,7 @@ public sealed class MainViewModel : BaseViewModel
     private async Task PollSupabaseInboxIncrementalOnceAsync()
     {
         if (!Settings.SupabaseRelayEnabled ||
+            !Settings.EnableSupabasePoll ||
             !_supabasePollingEnabled ||
             _supabaseRelay is not { IsConnected: true })
         {
@@ -3992,6 +4637,11 @@ public sealed class MainViewModel : BaseViewModel
                 return;
             }
 
+            if (!await EnsureProjectContextForInboundRecipientAsync(m.RecipientName).ConfigureAwait(true))
+            {
+                return;
+            }
+
             Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = m.Content ?? string.Empty });
             var projHermes = Projects.SelectedProject;
             if (projHermes is not null)
@@ -4009,6 +4659,18 @@ public sealed class MainViewModel : BaseViewModel
         }
 
         if (!MatchesInboundRecipientFilter(m))
+        {
+            return;
+        }
+
+        if (IsSupabaseServiceLogContent(m.Content))
+        {
+            _logService.LogInfo(
+                $"[supabase] Skip service log from {(m.SenderName ?? "?").Trim()} (not shown as chat).");
+            return;
+        }
+
+        if (!await EnsureProjectContextForInboundRecipientAsync(m.RecipientName).ConfigureAwait(true))
         {
             return;
         }
@@ -4040,6 +4702,13 @@ public sealed class MainViewModel : BaseViewModel
 
     private async Task HandleInboundRemoteUserMessageAsync(string remoteName, string payloadForAgent, string source)
     {
+        // Route replies back to remote tutor client without mentioning it in agent system prompts.
+        if (string.Equals(remoteName, "EnglishTutorClient", StringComparison.OrdinalIgnoreCase))
+        {
+            _supabaseDynamicOutboundRecipient = "EnglishTutorClient";
+            _logService.LogInfo("[supabase] Dynamic outbound recipient → EnglishTutorClient");
+        }
+
         var bubble = $"{remoteName}: {payloadForAgent}";
         Chat.Messages.Add(new ChatMessage { Role = "User", Text = bubble });
         RequestChatScrollToBottom();
@@ -4222,6 +4891,10 @@ public sealed class MainViewModel : BaseViewModel
             {
                 var hint = PickUserFacingHermesSummary(result);
                 AppendTerminal($"[hermes] exit {result.ExitCode}: {hint}", isError: true);
+                NotifyHermesCliFailure(
+                    Projects.SelectedProject?.Name ?? "Hermes",
+                    result,
+                    hint);
                 return;
             }
 
@@ -4413,15 +5086,54 @@ public sealed class MainViewModel : BaseViewModel
             return timeoutish ? text + timeoutSettingsHint : text;
         }
 
+        static string? PreferMeaningful(string? blob)
+        {
+            if (string.IsNullOrWhiteSpace(blob))
+                return null;
+
+            var lines = blob.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (var cue in new[]
+                     {
+                         "Key limit exceeded",
+                         "API call failed",
+                         "HTTP 403",
+                         "HTTP 401",
+                         "HTTP 429",
+                         "rate limit",
+                         "Failed to start the systemd",
+                     })
+            {
+                var hit = lines.LastOrDefault(l => l.Contains(cue, StringComparison.OrdinalIgnoreCase));
+                if (!string.IsNullOrWhiteSpace(hit))
+                    return hit;
+            }
+
+            return null;
+        }
+
+        var preferred = PreferMeaningful(result.CombinedText) ?? PreferMeaningful(result.LastStderrLine);
+        if (!string.IsNullOrWhiteSpace(preferred))
+        {
+            var line = preferred.Trim();
+            if (line.Length > 400)
+                line = line[..400] + "…";
+            return AppendTimeoutHint(line);
+        }
+
         if (!string.IsNullOrWhiteSpace(result.LastStderrLine))
         {
             var line = result.LastStderrLine.Trim();
-            if (line.Length > 400)
+            if (line.StartsWith("session_id:", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(result.CombinedText))
             {
-                line = line[..400] + "…";
+                // Fall through to CombinedText — session_id alone is not useful.
             }
-
-            return AppendTimeoutHint(line);
+            else
+            {
+                if (line.Length > 400)
+                    line = line[..400] + "…";
+                return AppendTimeoutHint(line);
+            }
         }
 
         var combined = result.CombinedText.Trim();
@@ -4430,8 +5142,10 @@ public sealed class MainViewModel : BaseViewModel
             return AppendTimeoutHint(result.ExitCode == -1 ? "Превышено время ожидания Hermes." : "(нет вывода)");
         }
 
-        var lines = combined.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        var last = lines.Length > 0 ? lines[^1] : combined;
+        var all = combined.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var last = all.Length > 0 ? all[^1] : combined;
+        if (last.StartsWith("session_id:", StringComparison.OrdinalIgnoreCase) && all.Length >= 2)
+            last = all[^2];
         return AppendTimeoutHint(last);
     }
 

@@ -1,9 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Shapes;
 
@@ -30,6 +33,11 @@ namespace WpfTestApp
         private SessionsCalendarWindow _calendar;
         private SettingsWindow _settings;
         private OrderMode _mode = OrderMode.Market;
+        private TerminalAgentIpc _agentIpc;
+
+        internal Button BtnQuickBuyPublic => btnQuickBuy;
+        internal Button BtnQuickSellPublic => btnQuickSell;
+        internal Button BtnCloseAllPublic => btnCloseAllPositions;
 
         public HermesWpfTerminal()
         {
@@ -53,8 +61,8 @@ namespace WpfTestApp
 
             chkAutoTrade.Checked += (s, e) => LogWpf("Auto-trade ON");
             chkAutoTrade.Unchecked += (s, e) => LogWpf("Auto-trade OFF");
-            chkRealTrade.Checked += (s, e) => LogWpf("Real trading ON (test only)");
-            chkRealTrade.Unchecked += (s, e) => LogWpf("Real trading OFF (test only)");
+            chkRealTrade.Checked += (s, e) => LogWpf("Real trading ON (OrderSend)");
+            chkRealTrade.Unchecked += (s, e) => LogWpf("Real trading OFF (stub ACK)");
 
             txtMqlLog.TextChanged += OnMqlLogFeed;
 
@@ -87,6 +95,8 @@ namespace WpfTestApp
             Closing += (_, __) =>
             {
                 TrySaveSize();
+                try { _agentIpc?.Dispose(); } catch { /* ignore */ }
+                _agentIpc = null;
                 try { _calendar?.Close(); } catch { /* ignore */ }
                 try { _settings?.Close(); } catch { /* ignore */ }
             };
@@ -94,11 +104,121 @@ namespace WpfTestApp
             {
                 _sizeReady = true;
                 DrawOrderHelpDiagram();
+                try
+                {
+                    _agentIpc?.Dispose();
+                    _agentIpc = new TerminalAgentIpc(this);
+                }
+                catch (Exception ex)
+                {
+                    LogWpf("Agent IPC failed: " + ex.Message);
+                }
             };
 
             ApplyOrderMode(OrderMode.Market);
             RefreshBidAskBig();
             LogWpf("HermesWpfTerminal ready");
+        }
+
+        internal void LogFromIpc(string text) => LogWpf(text);
+
+        internal void ClickAgentButton(Button btn)
+        {
+            if (btn == null)
+                throw new InvalidOperationException("button is null");
+            btn.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        }
+
+        internal Button GetCloseSlotButton(int slot)
+        {
+            switch (slot)
+            {
+                case 0: return btnClosePos0;
+                case 1: return btnClosePos1;
+                case 2: return btnClosePos2;
+                case 3: return btnClosePos3;
+                case 4: return btnClosePos4;
+                case 5: return btnClosePos5;
+                case 6: return btnClosePos6;
+                case 7: return btnClosePos7;
+                default: return null;
+            }
+        }
+
+        internal void ApplyAgentLot(double lot)
+        {
+            var text = lot.ToString("0.##", CultureInfo.InvariantCulture);
+            txtLot.Text = text;
+            txtVolume.Text = text;
+            LogWpf("IPC set lot=" + text);
+        }
+
+        internal void ApplyAgentRealTrading(bool on)
+        {
+            chkRealTrade.IsChecked = on;
+            if (_settings != null)
+            {
+                try { _settings.RealTrade = on; } catch { /* ignore */ }
+            }
+            LogWpf("IPC Real trading=" + on);
+        }
+
+        internal void ApplyAgentAutoTrade(bool on)
+        {
+            chkAutoTrade.IsChecked = on;
+            if (_settings != null)
+            {
+                try { _settings.AutoTrade = on; } catch { /* ignore */ }
+            }
+            LogWpf("IPC Auto-trade=" + on);
+        }
+
+        internal AgentSnapshot BuildAgentSnapshot(string note)
+        {
+            var positions = new List<string>();
+            CollectPosLine(txtPos0, rowPos0, positions);
+            CollectPosLine(txtPos1, rowPos1, positions);
+            CollectPosLine(txtPos2, rowPos2, positions);
+            CollectPosLine(txtPos3, rowPos3, positions);
+            CollectPosLine(txtPos4, rowPos4, positions);
+            CollectPosLine(txtPos5, rowPos5, positions);
+            CollectPosLine(txtPos6, rowPos6, positions);
+            CollectPosLine(txtPos7, rowPos7, positions);
+
+            var logLines = (_log.ToString() ?? "")
+                .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)
+                .Reverse()
+                .Take(25)
+                .Reverse()
+                .ToList();
+
+            return new AgentSnapshot
+            {
+                utc = DateTime.UtcNow.ToString("o"),
+                note = note ?? "",
+                build = BuildInfo.Version + " / " + BuildInfo.AssemblyFile,
+                ipc_dir = TerminalAgentIpc.ResolveIpcDir(),
+                symbol = txtSymbol?.Text ?? "",
+                bid = txtBid?.Text ?? "",
+                ask = txtAsk?.Text ?? "",
+                lot = txtLot?.Text ?? "",
+                account = txtAccount?.Text ?? "",
+                market_status = txtMarketStatus?.Text ?? "",
+                real_trading = chkRealTrade?.IsChecked == true,
+                auto_trade = chkAutoTrade?.IsChecked == true,
+                positions_header = txtPositionsHeader?.Text ?? "",
+                positions = positions,
+                log_tail = logLines
+            };
+        }
+
+        private static void CollectPosLine(TextBlock txt, FrameworkElement row, List<string> sink)
+        {
+            if (row == null || row.Visibility != Visibility.Visible)
+                return;
+            var line = (txt?.Text ?? "").Trim();
+            if (line.Length > 0)
+                sink.Add(line);
         }
 
         private void OrderDiagramCanvas_SizeChanged(object sender, SizeChangedEventArgs e)

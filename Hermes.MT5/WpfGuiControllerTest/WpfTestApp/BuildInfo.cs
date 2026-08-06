@@ -5,9 +5,9 @@
     /// </summary>
     public static class BuildInfo
     {
-        public const string Version = "v29";
-        public const string AssemblyFile = "HermesWpfTerminalUi29.dll";
-        public const string MainWindowTitle = "HermesWpfTerminal v29";
-        public const string SettingsWindowTitle = "Settings v29";
+        public const string Version = "v33";
+        public const string AssemblyFile = "HermesWpfTerminalUi33.dll";
+        public const string MainWindowTitle = "HermesWpfTerminal v33";
+        public const string SettingsWindowTitle = "Settings v33";
     }
 }

@@ -1,7 +1,7 @@
 <Window x:Class="WpfTestApp.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Settings v29"
+        Title="Settings v33"
         Height="320" Width="420"
         MinWidth="360" MinHeight="240"
         WindowStartupLocation="CenterOwner" Topmost="True"
@@ -60,12 +60,31 @@
                     Padding="14" VerticalAlignment="Top">
                 <StackPanel>
                     <TextBlock Text="Trading" FontSize="11" Foreground="#848E9C" Margin="0,0,0,10"/>
-                    <CheckBox x:Name="chkAutoTrade" Content="Auto-trade"/>
-                    <CheckBox x:Name="chkRealTrade" Foreground="#F0B90B">
-                        <TextBlock Text="Real trading (test)" TextWrapping="Wrap" Foreground="#F0B90B"/>
+                    <CheckBox x:Name="chkAutoTrade" Content="Auto-trade"
+                              ToolTipService.ShowOnDisabled="True">
+                        <CheckBox.ToolTip>
+                            <ToolTip MaxWidth="320" Background="#181A20" BorderBrush="#2B3139" Foreground="#EAECEF"
+                                     Padding="10,8">
+                                <TextBlock TextWrapping="Wrap"
+                                           Text="Необязательно. Только метка: сделки помечаются комментарием «Hermes auto» вместо «Hermes UI». На OrderSend не влияет. Для агента удобно включать вместе с Real trading."/>
+                            </ToolTip>
+                        </CheckBox.ToolTip>
                     </CheckBox>
-                    <TextBlock Text="Флаги передаются в MQL5 через события GUI. Реальная торговля пока stub."
-                               FontSize="11" Foreground="#848E9C" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                    <CheckBox x:Name="chkRealTrade" Foreground="#F0B90B"
+                              ToolTipService.ShowOnDisabled="True">
+                        <CheckBox.Content>
+                            <TextBlock Text="Real trading" TextWrapping="Wrap" Foreground="#F0B90B"/>
+                        </CheckBox.Content>
+                        <CheckBox.ToolTip>
+                            <ToolTip MaxWidth="320" Background="#181A20" BorderBrush="#F0B90B" Foreground="#EAECEF"
+                                     Padding="10,8">
+                                <TextBlock TextWrapping="Wrap"
+                                           Text="Главный переключатель. ON — EA шлёт реальный OrderSend (нужен Algo Trading в MT5). OFF — только заглушка ACK stub, ордер на рынок не уходит. Для реальной сделки достаточно включить этот флаг."/>
+                            </ToolTip>
+                        </CheckBox.ToolTip>
+                    </CheckBox>
+                    <TextBlock FontSize="11" Foreground="#848E9C" TextWrapping="Wrap" Margin="0,4,0,0"
+                               Text="Для реальных ордеров нужен Real trading (+ Algo Trading в MT5). Auto-trade — только комментарий к сделке, оба включать не обязательно."/>
                 </StackPanel>
             </Border>
         </ScrollViewer>
