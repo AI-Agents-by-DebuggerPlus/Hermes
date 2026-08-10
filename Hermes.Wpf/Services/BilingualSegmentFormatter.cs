@@ -6,6 +6,7 @@ namespace Hermes.Wpf.Services;
 
 /// <summary>
 /// Formats plain assistant text for Supabase / WordPress / Android TTS: ordered "ru" / "en" fragments without "type".
+/// Preferred shape: one JSON object per sentence, lines joined by LF (see Docs/SupaBase/Формат_TTS_Android_Assistant.md).
 /// </summary>
 public static class BilingualSegmentFormatter
 {
@@ -18,16 +19,25 @@ public static class BilingualSegmentFormatter
         "\"type\"\\s*:\\s*\"flashcard\"",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
+    private static readonly Regex TutorTypeRegex = new(
+        "\"type\"\\s*:\\s*\"tutor_(exercise|feedback|message)\"",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
     private static readonly Regex SkillIntentRegex = new(
         "\"skill\"\\s*:\\s*\"flashcard_(start|stop)\"",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
-    private static readonly Regex CollapseSpaces = new(@"\s+", RegexOptions.Compiled);
-
     /// <summary>Collapses 4+ spaces; preserves intentional TTS pause "   ".</summary>
     private static readonly Regex CollapseLongSpaces = new(@" {4,}", RegexOptions.Compiled);
 
-    /// <summary>True when content must be stored verbatim (flashcards, skill JSON, Android TTS lines).</summary>
+    private static readonly Regex MarkdownHeading = new(@"^\s{0,3}#{1,6}\s+", RegexOptions.Compiled | RegexOptions.Multiline);
+    private static readonly Regex MarkdownBoldItalic = new(@"(\*\*\*|___|\*\*|__|\*|_)(.+?)\1", RegexOptions.Compiled);
+    private static readonly Regex MarkdownInlineCode = new(@"`([^`]+)`", RegexOptions.Compiled);
+    private static readonly Regex MarkdownLink = new(@"\[([^\]]+)\]\([^)]+\)", RegexOptions.Compiled);
+    private static readonly Regex MarkdownListPrefix = new(@"^\s*(?:[-*•]|\d+[.)])\s+", RegexOptions.Compiled | RegexOptions.Multiline);
+    private static readonly Regex SentenceSplit = new(@"(?<=[\.!\?…])\s+(?=\S)", RegexOptions.Compiled);
+
+    /// <summary>True when content must be stored verbatim (flashcards, skill JSON, already-valid Android TTS lines).</summary>
     public static bool ShouldPublishAsRawJson(string? text)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -36,7 +46,9 @@ public static class BilingualSegmentFormatter
         }
 
         var t = text.Trim();
-        if (LooksLikeAndroidTtsSentenceLines(t))
+        if (HermesReplySplit.ContainsVoiceEnvelope(t)
+            || LooksLikeAndroidTtsSentenceLines(t)
+            || LooksLikeAndroidChatTtsProtocol(t))
         {
             return true;
         }
@@ -46,12 +58,7 @@ public static class BilingualSegmentFormatter
             return false;
         }
 
-        if (FlashcardTypeRegex.IsMatch(t) || SkillIntentRegex.IsMatch(t))
-        {
-            return true;
-        }
-
-        return LooksLikeBilingualPayload(t);
+        return FlashcardTypeRegex.IsMatch(t) || SkillIntentRegex.IsMatch(t) || TutorTypeRegex.IsMatch(t);
     }
 
     /// <summary>Normalize Android TTS: trim lines, drop empty.</summary>
@@ -64,24 +71,15 @@ public static class BilingualSegmentFormatter
     private static bool LooksLikeAndroidTtsSentenceLines(string text)
     {
         var lines = text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (lines.Length == 0)
+        // Prefer multi-line TTS (one sentence per line). A single JSON object is often an agent dump.
+        if (lines.Length < 2)
         {
             return false;
         }
 
         foreach (var line in lines)
         {
-            if (!line.StartsWith('{') || !line.EndsWith('}'))
-            {
-                return false;
-            }
-
-            if (FlashcardTypeRegex.IsMatch(line) || SkillIntentRegex.IsMatch(line))
-            {
-                return false;
-            }
-
-            if (!line.Contains("\"ru\"", StringComparison.Ordinal) && !line.Contains("\"en\"", StringComparison.Ordinal))
+            if (!IsAndroidTtsObjectLine(line))
             {
                 return false;
             }
@@ -90,7 +88,66 @@ public static class BilingualSegmentFormatter
         return true;
     }
 
-    /// <summary>Builds {"ru":"…","en":"…",…} with duplicate keys allowed (manual JSON).</summary>
+    /// <summary>
+    /// AndroidChat Incoming TTS protocol: leading <c>{"ru"/"en":…}</c> (+ optional silent trailing text).
+    /// </summary>
+    public static bool LooksLikeAndroidChatTtsProtocol(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var lines = text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (lines.Length == 0 || !IsAndroidTtsObjectLine(lines[0]))
+        {
+            return false;
+        }
+
+        if (lines.Length == 1)
+        {
+            // Tiny status phrases only, e.g. {"ru":"скриншот создан"}.
+            // Longer single blobs (multi-sentence / brands) still go through FormatPlainAsSentenceLines.
+            var line = lines[0];
+            if (line.Length > 90)
+            {
+                return false;
+            }
+
+            if (line.Contains(". ", StringComparison.Ordinal)
+                || line.Contains("! ", StringComparison.Ordinal)
+                || line.Contains("? ", StringComparison.Ordinal)
+                || line.Contains("…", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        return true;
+    }
+
+    private static bool IsAndroidTtsObjectLine(string line)
+    {
+        if (!line.StartsWith('{') || !line.EndsWith('}'))
+        {
+            return false;
+        }
+
+        if (FlashcardTypeRegex.IsMatch(line) || SkillIntentRegex.IsMatch(line) || TutorTypeRegex.IsMatch(line))
+        {
+            return false;
+        }
+
+        return line.Contains("\"ru\"", StringComparison.Ordinal)
+               || line.Contains("\"en\"", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Builds Android TTS payload for Supabase <c>messages.content</c>.
+    /// AndroidChat ≥ 1.0.41 requires <c>[Voice]…[/Voice]</c> around TTS JSON objects.
+    /// </summary>
     public static string ToSupabaseContent(string plainText)
     {
         if (string.IsNullOrWhiteSpace(plainText))
@@ -99,16 +156,98 @@ public static class BilingualSegmentFormatter
         }
 
         var trimmed = plainText.Trim();
-        if (ShouldPublishAsRawJson(plainText))
+
+        if (FlashcardTypeRegex.IsMatch(trimmed) || SkillIntentRegex.IsMatch(trimmed) || TutorTypeRegex.IsMatch(trimmed))
         {
-            return LooksLikeAndroidTtsSentenceLines(trimmed)
-                ? NormalizeAndroidTtsSentenceLines(trimmed)
-                : trimmed;
+            return trimmed;
         }
 
-        var segments = CoalesceAdjacent(SegmentByScript(trimmed));
-        segments = SanitizeVoiceSegments(segments);
+        // Already Voice-wrapped (agent or prior hop) — publish as-is.
+        if (HermesReplySplit.ContainsVoiceEnvelope(trimmed))
+        {
+            return trimmed;
+        }
 
+        string inner;
+        if (LooksLikeAndroidTtsSentenceLines(trimmed) || LooksLikeAndroidChatTtsProtocol(trimmed))
+        {
+            inner = NormalizeAndroidTtsSentenceLines(trimmed);
+        }
+        else if (trimmed.StartsWith('{')
+                 && LooksLikeBilingualPayload(trimmed)
+                 && !trimmed.Contains('\n'))
+        {
+            // Single bilingual JSON object (often one huge "ru" with markdown) → extract and reformat.
+            var extracted = TryExtractSingleObjectVoicePlainText(trimmed);
+            inner = !string.IsNullOrWhiteSpace(extracted)
+                ? FormatPlainAsSentenceLines(extracted)
+                : FormatPlainAsSentenceLines(trimmed);
+        }
+        else
+        {
+            inner = FormatPlainAsSentenceLines(trimmed);
+        }
+
+        return EnsureVoiceEnvelope(inner);
+    }
+
+    /// <summary>Wraps TTS JSON lines in <c>[Voice]…[/Voice]</c> when missing (AndroidChat ≥ 1.0.41).</summary>
+    public static string EnsureVoiceEnvelope(string? ttsBody)
+    {
+        if (string.IsNullOrWhiteSpace(ttsBody))
+        {
+            return "{}";
+        }
+
+        var t = ttsBody.Trim();
+        if (HermesReplySplit.ContainsVoiceEnvelope(t)
+            || FlashcardTypeRegex.IsMatch(t)
+            || SkillIntentRegex.IsMatch(t)
+            || TutorTypeRegex.IsMatch(t))
+        {
+            return t;
+        }
+
+        if (t is "{}" or "[]")
+        {
+            return t;
+        }
+
+        return "[Voice]\n" + t + "\n[/Voice]";
+    }
+
+    /// <summary>Strip markdown, split sentences, emit one TTS JSON object per sentence.</summary>
+    public static string FormatPlainAsSentenceLines(string plainText)
+    {
+        var cleaned = StripMarkdownForTts(plainText);
+        if (string.IsNullOrWhiteSpace(cleaned))
+        {
+            return "{}";
+        }
+
+        var sentences = SplitIntoSentences(cleaned);
+        if (sentences.Count == 0)
+        {
+            return "{}";
+        }
+
+        var lines = new List<string>();
+        foreach (var sentence in sentences)
+        {
+            var obj = BuildSentenceObject(sentence);
+            if (obj.Length > 2)
+            {
+                lines.Add(obj);
+            }
+        }
+
+        return lines.Count == 0 ? "{}" : string.Join('\n', lines);
+    }
+
+    private static string BuildSentenceObject(string sentence)
+    {
+        var segments = CoalesceAdjacent(SegmentByScript(sentence));
+        segments = SanitizeVoiceSegments(segments);
         if (segments.Count == 0)
         {
             return "{}";
@@ -175,12 +314,65 @@ public static class BilingualSegmentFormatter
             .Replace("•", ", ", StringComparison.Ordinal)
             .Replace("·", ", ", StringComparison.Ordinal)
             .Replace("—", " ", StringComparison.Ordinal)
+            .Replace("–", " ", StringComparison.Ordinal)
             .Replace("-", " ", StringComparison.Ordinal);
 
         s = CollapseLongSpaces.Replace(s, " ").Trim();
-
-        // Trailing orphan punctuation after guillemet removal (e.g. "Запланировано:" → keep colon for natural pause)
         return s;
+    }
+
+    internal static string StripMarkdownForTts(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return string.Empty;
+        }
+
+        var s = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
+        s = MarkdownHeading.Replace(s, string.Empty);
+        s = MarkdownListPrefix.Replace(s, string.Empty);
+        s = MarkdownLink.Replace(s, "$1");
+        s = MarkdownInlineCode.Replace(s, "$1");
+        // Repeated passes for nested **_x_** style; usually one is enough.
+        for (var i = 0; i < 3; i++)
+        {
+            var next = MarkdownBoldItalic.Replace(s, "$2");
+            if (next == s)
+            {
+                break;
+            }
+
+            s = next;
+        }
+
+        s = s.Replace("**", string.Empty, StringComparison.Ordinal)
+            .Replace("__", string.Empty, StringComparison.Ordinal);
+        s = CollapseLongSpaces.Replace(s, " ");
+        return s.Trim();
+    }
+
+    private static List<string> SplitIntoSentences(string text)
+    {
+        var result = new List<string>();
+        foreach (var para in text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (para.Length == 0)
+            {
+                continue;
+            }
+
+            var parts = SentenceSplit.Split(para);
+            foreach (var part in parts)
+            {
+                var t = part.Trim();
+                if (t.Length > 0)
+                {
+                    result.Add(t);
+                }
+            }
+        }
+
+        return result;
     }
 
     private static List<(string Lang, string Text)> CoalesceAdjacent(List<(string Lang, string Text)> segments)
@@ -241,6 +433,13 @@ public static class BilingualSegmentFormatter
 
     private static string? TryExtractSingleObjectVoicePlainText(string t)
     {
+        // Prefer ordered regex extraction (duplicate keys). JsonDocument keeps only last key.
+        var ordered = ExtractOrderedRuEnFragments(t);
+        if (ordered.Count > 0)
+        {
+            return string.Join(" ", ordered.Select(f => f.Text));
+        }
+
         try
         {
             using var doc = JsonDocument.Parse(t);
@@ -277,6 +476,37 @@ public static class BilingualSegmentFormatter
         {
             return null;
         }
+    }
+
+    private static readonly Regex OrderedRuEn = new(
+        "\"(ru|en)\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    private static List<(string Lang, string Text)> ExtractOrderedRuEnFragments(string jsonObject)
+    {
+        var list = new List<(string Lang, string Text)>();
+        foreach (Match m in OrderedRuEn.Matches(jsonObject))
+        {
+            var lang = m.Groups[1].Value;
+            var raw = m.Groups[2].Value;
+            try
+            {
+                var text = JsonSerializer.Deserialize<string>("\"" + raw + "\"", EscapeOptions);
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    list.Add((lang, text));
+                }
+            }
+            catch
+            {
+                if (!string.IsNullOrWhiteSpace(raw))
+                {
+                    list.Add((lang, raw));
+                }
+            }
+        }
+
+        return list;
     }
 
     private static bool LooksLikeBilingualPayload(string json)
@@ -332,7 +562,7 @@ public static class BilingualSegmentFormatter
                 Flush();
             }
 
-            currentLang ??= lang;
+            currentLang = lang;
             buffer.Append(ch);
         }
 
@@ -348,7 +578,8 @@ public static class BilingualSegmentFormatter
         }
 
         // Digits stay neutral so "5 мин" stays in the Russian segment.
-        if (char.IsAsciiLetter(ch))
+        // Explicit ASCII letters (avoid relying on IsAsciiLetter across TFMs).
+        if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z'))
         {
             return "en";
         }
@@ -360,4 +591,3 @@ public static class BilingualSegmentFormatter
         ch is >= '\u0400' and <= '\u04FF'
         or >= '\u0500' and <= '\u052F';
 }
-

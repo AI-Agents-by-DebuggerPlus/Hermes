@@ -9,5 +9,6 @@ public static class AndroidTtsSupabaseInstructions
     public static string OutboundBlockRu =>
         AppAssistantKnowledge.AndroidTtsSupabaseOutboundRu
         + "\n\nЕсли пользователь просит карточки (flashcard) — следуй инструкциям flashcard JSON выше; "
-        + "для всех остальных вопросов — только JSON по одному предложению на строку, как в примере.";
+        + "для всех остальных вопросов — блоки `[info]` + `[Voice]…[/Voice]` "
+        + "(внутри Voice только JSON `{\"ru\":…}` / `{\"en\":…}` по одному предложению на строку).";
 }

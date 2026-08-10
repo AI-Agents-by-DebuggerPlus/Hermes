@@ -5,8 +5,43 @@
 См. также:
 
 - [Формат сообщений Supabase](Формат_сообщений_Supabase.md) — схема таблицы, `sender_name`, `recipient_name`
+- [AndroidChat-Incoming-TTS-Protocol.md](AndroidChat-Incoming-TTS-Protocol.md) — канон AndroidChat ≥ 1.0.41 (`[Voice]…[/Voice]`)
 - `Hermes.Wpf/Services/BilingualSegmentFormatter.cs` — эталонная реализация на C#
 - `Hermes.InAppAssistant/AppAssistantKnowledge.cs` — правила для модели (`AndroidTtsSupabaseOutboundRu`)
+
+---
+
+## Две части ответа Hermes: `[info]` + `[Voice]`
+
+Когда ответ предназначен и для **чтения** (WPF / AndroidChat UI), и для **озвучки**, агент обязан вывести оба блока.
+
+| Ключ | Назначение |
+|------|------------|
+| `[info]` | Информативная часть для чтения (можно markdown, детали) |
+| `[Voice]…[/Voice]` | Только TTS JSON для озвучки AndroidChat (≥ 1.0.41) |
+
+```text
+[info]
+Показания воды переданы. Статус на сайте: принято. Следующая отправка — по расписанию.
+
+[Voice]
+{"ru":"Показания воды переданы. Статус: принято."}
+{"ru":"Следующая отправка по расписанию."}
+[/Voice]
+```
+
+**Hermes.Wpf:**
+- в чат / toast / history попадает тело `[info]` (`HermesReplySplit.ForChatDisplay`);
+- в Supabase `content` уходит TTS с оболочкой `[Voice]…[/Voice]` (`HermesReplySplit.ForSpeakSource` → `BilingualSegmentFormatter.ToSupabaseContent`, который сам оборачивает JSON в Voice при необходимости);
+- legacy `[speak]` ещё разбирается, но в AGENTS проектов больше не рекомендуется.
+
+**AndroidChat ≥ 1.0.41:**
+- показывать `[info]` / plain вне Voice;
+- озвучивать **только** содержимое `[Voice]…[/Voice]`.
+
+Flashcard / skill JSON — без `[info]`/`[Voice]`, по прежним правилам.
+
+> **Важно:** одних строк `{"en":…}` в `content` без `[Voice]` **недостаточно** — озвучки не будет.
 
 ---
 
@@ -46,8 +81,12 @@ Android **не обязан** озвучивать:
 - 2–4 предложения на ответ;
 - без символов `-` и `—`;
 - без таблиц и маркированных списков;
+- **длина:** по умолчанию **2–3 предложения** по сути вопроса; развёрнуто — только по явной просьбе пользователя («подробнее», «разверни», …);
 - `"ru"` — русский текст; `"en"` — латиница, бренды, имена (`OpenRouter`, `Windows`, `W S L`, `Supabase`);
 - внутри одной строки — чередующиеся пары `"ru"` / `"en"` (сколько нужно для одного предложения).
+
+Если агент прислал plain markdown, Hermes.Wpf (`BilingualSegmentFormatter.ToSupabaseContent`) перед INSERT:
+снимает markdown, режет на предложения и собирает многострочный ru/en JSON (весь ответ, без обрезки).
 
 ### 2. Один JSON-объект на всё сообщение
 
@@ -257,5 +296,7 @@ Hermes.Wpf **не перекодирует** уже готовые многос�
 | Версия | Дата       | Изменения |
 |--------|------------|-----------|
 | 1.0    | 2026-06-03 | Первый документ: multi-line sentence JSON, duplicate keys, TTS locale rules |
+| 1.1    | 2026-08-06 | Два блока ответа: `[info]` (чтение) + `[speak]` (озвучка AndroidChat) |
+| 1.2    | 2026-08-09 | AndroidChat ≥ 1.0.41: обязательная оболочка `[Voice]…[/Voice]`; WPF оборачивает TTS при publish |
 
-При изменении формата обновляйте этот файл и `BilingualSegmentFormatter.cs` синхронно.
+При изменении формата обновляйте этот файл, `HermesReplySplit.cs`, `BilingualSegmentFormatter.cs` и `ProjectAgentsBootstrapService` синхронно.

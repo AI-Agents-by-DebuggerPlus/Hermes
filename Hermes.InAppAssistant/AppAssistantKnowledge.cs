@@ -15,15 +15,22 @@ public static class AppAssistantKnowledge
 
     /// <summary>Outbound / system rules when replies sync to Supabase for Android TTS.</summary>
     public const string AndroidTtsSupabaseOutboundRu =
-        "### Supabase → Android TTS\n"
-        + "Ответ уходит в таблицу messages и озвучивается на Android. Для обычных реплик (не flashcard/skill JSON) "
-        + "выводи **только** строки JSON, без markdown и без текста до или после.\n"
-        + "**Одно предложение = одна строка = один JSON-объект.** Между строками только перевод строки (\\n).\n"
-        + "Внутри строки: чередующиеся \"ru\" и \"en\" (повторяющиеся ключи допустимы). "
-        + "\"ru\" — русский текст; \"en\" — латиница, бренды, имена (OpenRouter, Windows, W S L, Supabase).\n"
-        + "Без символов \"-\" и \"—\". Без таблиц и списков. Коротко: 2–4 предложения.\n"
-        + "Шаблон строки: {\"ru\":\"…\",\"en\":\"…\",…} — столько пар ru/en, сколько нужно для одного предложения.\n"
-        + "Пример:\n"
+        "### Supabase → AndroidChat (озвучка ≥ 1.0.41)\n"
+        + "Ответ уходит в таблицу messages. AndroidChat **читает** текст (в т.ч. `[info]`) и **озвучивает только** "
+        + "содержимое `[Voice]…[/Voice]`.\n"
+        + "Формат **обязателен** для обычных реплик (не flashcard/skill JSON):\n\n"
+        + "[info]\n"
+        + "Текст для чтения: можно markdown, списки, детали по запросу пользователя.\n\n"
+        + "[Voice]\n"
+        + "Только строки JSON для TTS (одно предложение = одна строка = один объект), без markdown.\n"
+        + "[/Voice]\n\n"
+        + "Внутри Voice: объекты с ключами \"ru\" и/или \"en\". \"ru\" — русский; \"en\" — латиница, бренды, имена "
+        + "(OpenRouter, Windows, W S L, Supabase).\n"
+        + "Без символов \"-\" и \"—\". Без таблиц и списков внутри Voice.\n"
+        + "**Длина Voice:** по умолчанию 2–3 предложения по сути. Развёрнутый `[info]` — если пользователь "
+        + "просил подробности; Voice всё равно кратко резюмирует.\n"
+        + "Без `[Voice]` озвучки не будет (даже при наличии {\"en\":…}). Legacy `[speak]` не использовать.\n"
+        + "Пример внутри Voice:\n"
         + AndroidTtsExampleJson;
 
     public static string BuildSystemPrompt(string applicationId, string? liveContext)
