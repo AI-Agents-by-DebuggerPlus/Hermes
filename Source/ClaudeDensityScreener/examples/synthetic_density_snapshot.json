@@ -1,0 +1,35 @@
+{
+  "symbol": "BTCUSDT",
+  "current_price": 50050.0,
+  "generated_at": 1786910631.5495443,
+  "levels": [
+    {
+      "symbol": "BTCUSDT",
+      "price": 49924.875,
+      "side": "bid",
+      "volume": 20.2,
+      "strength": 1.0,
+      "source": "orderbook",
+      "bucket_low": 49799.75,
+      "bucket_high": 50050.0,
+      "first_seen": 1786910631.4887228,
+      "last_seen": 1786910631.5492933,
+      "eaten_ratio": 0.0,
+      "distance_pct": -0.25
+    },
+    {
+      "symbol": "BTCUSDT",
+      "price": 50425.375,
+      "side": "ask",
+      "volume": 20.2,
+      "strength": 1.0,
+      "source": "both",
+      "bucket_low": 50300.25,
+      "bucket_high": 50550.5,
+      "first_seen": 1786910631.4887228,
+      "last_seen": 1786910631.5492933,
+      "eaten_ratio": 0.0,
+      "distance_pct": 0.75
+    }
+  ]
+}

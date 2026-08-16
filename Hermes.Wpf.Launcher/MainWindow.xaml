@@ -1,0 +1,185 @@
+<Window x:Class="Hermes.Wpf.Launcher.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Hermes.Wpf Launcher"
+        Width="880" Height="620"
+        MinWidth="720" MinHeight="480"
+        WindowStartupLocation="CenterScreen"
+        Background="#0B0E11">
+  <Window.Resources>
+    <Style TargetType="ComboBoxItem">
+      <Setter Property="Background" Value="#2B3139"/>
+      <Setter Property="Foreground" Value="#EAECEF"/>
+      <Setter Property="Padding" Value="8,6"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ComboBoxItem">
+            <Border x:Name="Bd" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+              <ContentPresenter/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsHighlighted" Value="True">
+                <Setter TargetName="Bd" Property="Background" Value="#383f49"/>
+                <Setter Property="Foreground" Value="#F8D12F"/>
+              </Trigger>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Bd" Property="Background" Value="#383f49"/>
+                <Setter Property="Foreground" Value="#F8D12F"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </Window.Resources>
+
+  <Grid Margin="16">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <StackPanel Grid.Row="0" Margin="0,0,0,12">
+      <TextBlock Text="Hermes.Wpf Launcher"
+                 FontSize="20" FontWeight="SemiBold"
+                 Foreground="#F8D12F"/>
+      <TextBlock x:Name="PathLabel"
+                 Margin="0,6,0,0"
+                 Foreground="#848E9C"
+                 TextWrapping="Wrap"
+                 FontSize="11"/>
+    </StackPanel>
+
+    <Border Grid.Row="1"
+            Background="#181A20"
+            BorderBrush="#2B3139"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="12"
+            Margin="0,0,0,12">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="280"/>
+          <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <ScrollViewer Grid.Column="0"
+                      VerticalScrollBarVisibility="Auto"
+                      Margin="0,0,14,0">
+          <StackPanel>
+            <TextBlock Text="Hermes.Wpf" Foreground="#848E9C" Margin="0,0,0,6"/>
+            <ComboBox x:Name="ConfigCombo"
+                      SelectedIndex="0"
+                      Background="#2B3139"
+                      Foreground="#EAECEF"
+                      BorderBrush="#383f49"
+                      Padding="8,6"
+                      Margin="0,0,0,8">
+              <ComboBoxItem Content="Debug"/>
+              <ComboBoxItem Content="Release"/>
+            </ComboBox>
+
+            <Button x:Name="BtnRebuild"
+                    Style="{StaticResource PrimaryBtn}"
+                    Content="Rebuild + Launch"
+                    Click="RebuildLaunch_Click"/>
+            <Button x:Name="BtnRelaunch"
+                    Style="{StaticResource DarkBtn}"
+                    Content="Relaunch only (SkipBuild)"
+                    Click="Relaunch_Click"/>
+            <Button x:Name="BtnPull"
+                    Style="{StaticResource DarkBtn}"
+                    Content="Git Pull + Rebuild + Launch"
+                    Click="PullRebuild_Click"/>
+            <Button x:Name="BtnBuildOnly"
+                    Style="{StaticResource DarkBtn}"
+                    Content="Build only (NoLaunch)"
+                    Click="BuildOnly_Click"/>
+            <Button x:Name="BtnClose"
+                    Style="{StaticResource DarkBtn}"
+                    Content="Close Hermes.Wpf instances"
+                    Click="CloseOnly_Click"/>
+
+            <TextBlock Text="Testing" Foreground="#F8D12F" Margin="0,16,0,4" FontWeight="SemiBold"/>
+            <TextBlock Text="Launch apps for visual review"
+                       Foreground="#848E9C" FontSize="11" Margin="0,0,0,8"
+                       TextWrapping="Wrap"/>
+
+            <Button x:Name="BtnTestDensityUi"
+                    Style="{StaticResource PrimaryBtn}"
+                    Content="Density Heatmap (WPF)"
+                    Click="TestDensityUi_Click"/>
+            <Button x:Name="BtnTestDensity"
+                    Style="{StaticResource DarkBtn}"
+                    Content="Density Screener console (Spot)"
+                    Click="TestDensity_Click"/>
+            <Button x:Name="BtnTestDensityFutures"
+                    Style="{StaticResource DarkBtn}"
+                    Content="Density Screener console (Futures Demo)"
+                    Click="TestDensityFutures_Click"/>
+            <Button x:Name="BtnTestBounce"
+                    Style="{StaticResource DarkBtn}"
+                    Content="Bounce strategy (dry-run)"
+                    Click="TestBounce_Click"/>
+            <Button x:Name="BtnTestFutures"
+                    Style="{StaticResource DarkBtn}"
+                    Content="Binance Demo Futures"
+                    Click="TestFutures_Click"/>
+            <Button x:Name="BtnTestSpot"
+                    Style="{StaticResource DarkBtn}"
+                    Content="Binance Demo Spot"
+                    Click="TestSpot_Click"/>
+            <Button x:Name="BtnTestAll"
+                    Style="{StaticResource DarkBtn}"
+                    Content="Launch all test apps"
+                    Click="TestAll_Click"/>
+            <Button x:Name="BtnTestQa"
+                    Style="{StaticResource DarkBtn}"
+                    Content="Run QA checks (Trading Analytics)"
+                    Click="TestQa_Click"/>
+            <Button x:Name="BtnTestChecklist"
+                    Style="{StaticResource DarkBtn}"
+                    Content="Open MANUAL_CHECKLIST.md"
+                    Click="TestChecklist_Click"/>
+          </StackPanel>
+        </ScrollViewer>
+
+        <DockPanel Grid.Column="1">
+          <TextBlock DockPanel.Dock="Top"
+                     Text="Log"
+                     Foreground="#848E9C"
+                     Margin="0,0,0,6"/>
+          <TextBox x:Name="LogBox"
+                   IsReadOnly="True"
+                   TextWrapping="Wrap"
+                   AcceptsReturn="True"
+                   VerticalScrollBarVisibility="Auto"
+                   HorizontalScrollBarVisibility="Auto"
+                   FontFamily="Consolas"
+                   FontSize="12"
+                   Background="#0B0E11"
+                   Foreground="#EAECEF"
+                   BorderBrush="#2B3139"
+                   CaretBrush="#F8D12F"/>
+        </DockPanel>
+      </Grid>
+    </Border>
+
+    <DockPanel Grid.Row="2">
+      <TextBlock x:Name="StatusLabel"
+                 DockPanel.Dock="Left"
+                 VerticalAlignment="Center"
+                 Foreground="#848E9C"
+                 Text="Ready"/>
+      <Button DockPanel.Dock="Right"
+              Style="{StaticResource DarkBtn}"
+              Content="Clear log"
+              Margin="8,0,0,0"
+              Padding="12,6"
+              HorizontalAlignment="Right"
+              HorizontalContentAlignment="Center"
+              Click="ClearLog_Click"/>
+    </DockPanel>
+  </Grid>
+</Window>

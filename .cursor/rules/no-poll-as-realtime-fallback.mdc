@@ -1,0 +1,28 @@
+---
+description: Hermes — Realtime WebSocket only; RemoteTerminal без poll
+alwaysApply: true
+---
+
+# Hermes: Realtime без poll-fallback
+
+Локально для репозитория Hermes (дополняет глобальное правило).
+
+## Общие
+
+1. Входящие Supabase `messages` — **только** WebSocket / Realtime.
+2. Не использовать периодический REST SELECT как запасной канал, если WS упал.
+3. SELECT/poll истории — **только по запросу**, без таймера.
+
+## RemoteTerminal
+
+- Live `messages` — **только WebSocket**.
+- **Poll / F5** — разовый SELECT **только по запросу** (кнопка / горячая клавиша), не таймер и не авто-fallback.
+- Скриншоты HWT: сообщение `type=hwt_screenshot` → fullscreen 10 с → погашение + countdown в статусе.
+
+## Примеры в репо
+
+| Компонент | Канал |
+|-----------|--------|
+| RemoteTerminal live feed | WebSocket only |
+| HWT → RemoteTerminal publish | on-demand `refresh`, не timer publish |
+| EnglishLearning / Wpf relay | Realtime WS; не добавлять poll-fallback |

@@ -159,6 +159,21 @@ public partial class MainViewModel
             walletBalance,
             leverage);
 
+        var isNewPosition = !Positions.Any(p =>
+            p.Symbol.Equals(cmd.Symbol, StringComparison.OrdinalIgnoreCase));
+        var riskError = RiskManager.ValidateOrder(
+            settings,
+            notionalUsdt,
+            walletBalance,
+            leverage,
+            Positions.ToList(),
+            cmd.Symbol!,
+            isNewPosition);
+        if (riskError is not null)
+        {
+            return Fail(cmd, riskError);
+        }
+
         if (!OrderVolumeUsdtHelper.TryResolveContracts(symbolInfo, notionalUsdt, price, out _, out var qtyText, out var error))
         {
             return Fail(cmd, error);
