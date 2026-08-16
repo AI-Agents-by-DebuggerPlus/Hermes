@@ -16,6 +16,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="8" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="8" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="8" />
@@ -150,16 +151,57 @@
                                            TextWrapping="Wrap"
                                            TextAlignment="Left"
                                            Text="{Binding Text}" />
-                                <Image Margin="0,8,0,0"
-                                       MaxWidth="560"
-                                       HorizontalAlignment="Left"
-                                       Cursor="Hand"
-                                       Stretch="Uniform"
-                                       MouseLeftButtonUp="ChatImage_OnMouseLeftButtonUp"
-                                       Tag="{Binding ImagePath}"
-                                       ToolTip="Нажмите, чтобы открыть в отдельном окне с масштабом"
-                                       Source="{Binding ImagePath, Converter={StaticResource FilePathToImageSourceConverter}}"
-                                       Visibility="{Binding ImagePath, Converter={StaticResource NullOrEmptyToVisibilityConverter}}" />
+                                <ItemsControl Margin="0,8,0,0"
+                                              ItemsSource="{Binding PreviewAttachments}">
+                                    <ItemsControl.Style>
+                                        <Style TargetType="ItemsControl">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasPreviewAttachments}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ItemsControl.Style>
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Margin="0,0,8,6"
+                                                    Padding="6"
+                                                    Background="#252C3B"
+                                                    BorderBrush="#30363D"
+                                                    BorderThickness="1"
+                                                    CornerRadius="4">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Border Width="120"
+                                                            Height="90"
+                                                            Margin="0,0,8,0"
+                                                            Background="#1B1F27"
+                                                            CornerRadius="3"
+                                                            Visibility="{Binding IsImage, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                        <Image Cursor="Hand"
+                                                               Stretch="Uniform"
+                                                               MouseLeftButtonUp="ChatImage_OnMouseLeftButtonUp"
+                                                               Tag="{Binding FilePath}"
+                                                               ToolTip="Нажмите, чтобы открыть в отдельном окне с масштабом"
+                                                               Source="{Binding FilePath, Converter={StaticResource FilePathToImageSourceConverter}, ConverterParameter=240}" />
+                                                    </Border>
+                                                    <TextBlock MaxWidth="180"
+                                                               VerticalAlignment="Center"
+                                                               FontSize="12"
+                                                               Foreground="#EAECEF"
+                                                               Text="{Binding DisplayName}"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               ToolTip="{Binding FilePath}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </StackPanel>
                         </Border>
                     </DataTemplate>
@@ -290,15 +332,106 @@
                            TextWrapping="Wrap" />
             </Border>
 
-            <TextBox Grid.Row="9"
-                     x:Name="MessageInputTextBox"
-                     Height="70"
-                     FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
-                     AcceptsReturn="True"
-                     TextWrapping="Wrap"
-                     PreviewKeyDown="MessageInputTextBox_OnPreviewKeyDown"
-                     Text="{Binding Chat.UserInput, UpdateSourceTrigger=PropertyChanged}" />
-            <StackPanel Grid.Row="11" Orientation="Horizontal" HorizontalAlignment="Right">
+            <ItemsControl Grid.Row="8"
+                          Margin="0,4,0,0"
+                          ItemsSource="{Binding Chat.PendingAttachments}">
+                <ItemsControl.Style>
+                    <Style TargetType="ItemsControl">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Chat.HasPendingAttachments}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ItemsControl.Style>
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Margin="0,0,8,6"
+                                Padding="6"
+                                Background="#252C3B"
+                                BorderBrush="#30363D"
+                                BorderThickness="1"
+                                CornerRadius="4">
+                            <StackPanel Orientation="Horizontal">
+                                <Border Width="120"
+                                        Height="90"
+                                        Margin="0,0,8,0"
+                                        Background="#1B1F27"
+                                        CornerRadius="3"
+                                        Visibility="{Binding IsImage, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <Image Cursor="Hand"
+                                           Stretch="Uniform"
+                                           MouseLeftButtonUp="ChatImage_OnMouseLeftButtonUp"
+                                           Tag="{Binding FilePath}"
+                                           ToolTip="{Binding FilePath}"
+                                           Source="{Binding FilePath, Converter={StaticResource FilePathToImageSourceConverter}, ConverterParameter=240}" />
+                                </Border>
+                                <TextBlock MaxWidth="180"
+                                           VerticalAlignment="Center"
+                                           FontSize="12"
+                                           Foreground="#EAECEF"
+                                           Text="{Binding DisplayName}"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip="{Binding FilePath}" />
+                                <Button Margin="8,0,0,0"
+                                        Padding="4,0"
+                                        VerticalAlignment="Center"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding DataContext.RemoveChatAttachmentCommand, ElementName=Root}"
+                                        CommandParameter="{Binding}"
+                                        Content="✕"
+                                        Cursor="Hand"
+                                        FontSize="11"
+                                        Foreground="#848E9C"
+                                        ToolTip="Убрать вложение" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <Border Grid.Row="10"
+                    AllowDrop="True"
+                    Background="Transparent"
+                    Drop="ChatInput_OnDrop"
+                    DragOver="ChatInput_OnDragOver">
+                <TextBox x:Name="MessageInputTextBox"
+                         Height="70"
+                         FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
+                         AcceptsReturn="True"
+                         AllowDrop="True"
+                         TextWrapping="Wrap"
+                         PreviewKeyDown="MessageInputTextBox_OnPreviewKeyDown"
+                         Drop="ChatInput_OnDrop"
+                         DragOver="ChatInput_OnDragOver"
+                         Text="{Binding Chat.UserInput, UpdateSourceTrigger=PropertyChanged}" />
+            </Border>
+            <StackPanel Grid.Row="12" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Margin="0,0,8,0"
+                        Padding="10,6"
+                        FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
+                        Content="📎 Файл"
+                        Command="{Binding AttachChatFileCommand}"
+                        ToolTip="Прикрепить файл(ы) к сообщению (копия в hermes/attachments)" />
+                <Button Margin="0,0,8,0"
+                        Padding="10,6"
+                        FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
+                        Content="🖼 Скрин"
+                        Command="{Binding AttachChatScreenshotCommand}"
+                        ToolTip="Скриншот монитора → вложение к сообщению" />
+                <Button Margin="0,0,8,0"
+                        Padding="10,6"
+                        FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
+                        Content="Очистить"
+                        Command="{Binding ClearChatAttachmentsCommand}"
+                        ToolTip="Убрать все вложения" />
                 <Button Margin="0,0,8,0"
                         Padding="10,6"
                         FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
@@ -316,6 +449,12 @@
                         FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
                         Content="Analyze Code"
                         Command="{Binding AnalyzeCodeCommand}" />
+                <Button Margin="0,0,8,0"
+                        Padding="10,6"
+                        FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
+                        Content="Retry last"
+                        Command="{Binding RetryLastMessageCommand}"
+                        ToolTip="Отредактировать последнее сообщение пользователя и снова отправить в Hermes" />
                 <Button Width="100"
                         FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
                         Content="Send"

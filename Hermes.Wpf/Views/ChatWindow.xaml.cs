@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using Hermes.Wpf.ViewModels;
+using Hermes.Wpf.Services;
 
 namespace Hermes.Wpf.Views;
 public partial class ChatWindow : System.Windows.Window
@@ -11,6 +12,7 @@ public partial class ChatWindow : System.Windows.Window
     {
         _viewModel = viewModel;
         InitializeComponent();
+        Title = AppVersion.ChatWindowTitle;
         DataContext = viewModel;
         Loaded += ChatWindow_OnLoaded;
         ContentRendered += ChatWindow_OnContentRendered;

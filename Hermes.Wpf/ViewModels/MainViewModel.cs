@@ -362,7 +362,21 @@ public sealed class MainViewModel : BaseViewModel
         AddProjectCommand = new RelayCommand(_ => AddProject());
         BrowseProjectFolderCommand = new RelayCommand(_ => BrowseProjectFolder());
         RenameProjectCommand = new RelayCommand(async _ => await RenameSelectedProjectAsync(), _ => CanExecuteProjectCommand());
-        SendMessageCommand = new RelayCommand(async _ => await SendMessageAsync(), _ => CanExecuteProjectCommand() && !string.IsNullOrWhiteSpace(Chat.UserInput));
+        SendMessageCommand = new RelayCommand(
+            _ => _ = SendMessageAsync(),
+            _ => CanSendChatMessage());
+        AttachChatFileCommand = new RelayCommand(
+            _ => AttachChatFilesFromDialog(),
+            _ => CanExecuteProjectCommand() && !_isBusy);
+        AttachChatScreenshotCommand = new RelayCommand(
+            _ => AttachChatScreenshot(),
+            _ => CanExecuteProjectCommand() && !_isBusy);
+        ClearChatAttachmentsCommand = new RelayCommand(
+            _ => ClearPendingChatAttachments(),
+            _ => Chat.HasPendingAttachments);
+        RemoveChatAttachmentCommand = new RelayCommand(
+            p => RemovePendingChatAttachment(p as ChatAttachment),
+            p => p is ChatAttachment);
         RetryLastMessageCommand = new RelayCommand(
             async _ => await RetryLastUserMessageAsync(),
             _ => CanExecuteProjectCommand() && FindLastUserMessageText() is not null);
@@ -422,11 +436,13 @@ public sealed class MainViewModel : BaseViewModel
 
         Chat.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(ChatViewModel.UserInput))
+            if (e.PropertyName == nameof(ChatViewModel.UserInput)
+                || e.PropertyName == nameof(ChatViewModel.HasPendingAttachments))
             {
                 CommandManager.InvalidateRequerySuggested();
             }
         };
+        Chat.PendingAttachments.CollectionChanged += (_, __) => CommandManager.InvalidateRequerySuggested();
 
         Projects.PropertyChanged += (_, _) => CommandManager.InvalidateRequerySuggested();
 
@@ -459,7 +475,7 @@ public sealed class MainViewModel : BaseViewModel
         var ver = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
                   ?? asm.GetName().Version?.ToString()
                   ?? "?";
-        _logService.LogInfo($"[startup] Hermes.Wpf version={ver}, WSL distro (settings)={Settings.WslDistro}");
+        _logService.LogInfo($"[startup] Hermes.Wpf {AppVersion.LogStamp}, WSL distro (settings)={Settings.WslDistro}");
         _logService.LogInfo($"[startup] Logs root: {HermesLogPaths.LogsRoot}");
         _logService.LogInfo($"[startup] Session log: {_logService.CurrentLogFilePath}");
         _logService.LogInfo($"[startup] Chat logs: {HermesLogPaths.ChatLogsRoot}");
@@ -1456,6 +1472,10 @@ public sealed class MainViewModel : BaseViewModel
     public ICommand BrowseProjectFolderCommand { get; }
     public ICommand RenameProjectCommand { get; }
     public ICommand SendMessageCommand { get; }
+    public ICommand AttachChatFileCommand { get; }
+    public ICommand AttachChatScreenshotCommand { get; }
+    public ICommand ClearChatAttachmentsCommand { get; }
+    public ICommand RemoveChatAttachmentCommand { get; }
     public ICommand RetryLastMessageCommand { get; }
     public ICommand GatewayRunCommand { get; }
     public ICommand StatusCommand { get; }
@@ -2393,16 +2413,227 @@ public sealed class MainViewModel : BaseViewModel
         return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
     }
 
+    private bool CanSendChatMessage() =>
+        !string.IsNullOrWhiteSpace(Chat.UserInput) || Chat.HasPendingAttachments;
+
+    private void ClearPendingChatAttachments()
+    {
+        Chat.ClearPendingAttachments();
+        CommandManager.InvalidateRequerySuggested();
+    }
+
+    private void RemovePendingChatAttachment(ChatAttachment? attachment)
+    {
+        if (attachment is null)
+        {
+            return;
+        }
+
+        Chat.PendingAttachments.Remove(attachment);
+        CommandManager.InvalidateRequerySuggested();
+    }
+
+    private void AttachChatFilesFromDialog()
+    {
+        if (Projects.SelectedProject is null)
+        {
+            AppendTerminal("[chat] Выберите проект перед вложением файла.", isError: true);
+            return;
+        }
+
+        var dlg = new OpenFileDialog
+        {
+            Title = "Прикрепить файлы к чату",
+            Multiselect = true,
+            CheckFileExists = true,
+            Filter = "Все файлы|*.*|Изображения|*.png;*.jpg;*.jpeg;*.gif;*.webp;*.bmp|Документы|*.pdf;*.txt;*.md;*.docx;*.xlsx;*.csv",
+        };
+
+        if (dlg.ShowDialog() != true)
+        {
+            return;
+        }
+
+        AttachChatFilesFromPaths(dlg.FileNames);
+    }
+
+    private void AttachChatScreenshot()
+    {
+        if (Projects.SelectedProject is null)
+        {
+            AppendTerminal("[chat] Выберите проект перед скриншотом.", isError: true);
+            return;
+        }
+
+        try
+        {
+            var capture = _desktopScreenCapture.CapturePrimaryMonitor();
+            var source = !string.IsNullOrWhiteSpace(capture.AnnotatedImagePath) && File.Exists(capture.AnnotatedImagePath)
+                ? capture.AnnotatedImagePath
+                : capture.ImagePath;
+            if (string.IsNullOrWhiteSpace(source) || !File.Exists(source))
+            {
+                AppendTerminal("[chat] Скриншот не создан.", isError: true);
+                return;
+            }
+
+            AttachChatFilesFromPaths(new[] { source });
+            AppendTerminal($"[chat] Скриншот прикреплён: {Path.GetFileName(source)}");
+        }
+        catch (Exception ex)
+        {
+            AppendTerminal("[chat] Скриншот: " + ex.Message, isError: true);
+            _logService.LogWarn("[chat-attach] screenshot: " + ex.Message);
+        }
+    }
+
+    /// <summary>Paste/drop entry point from ChatView.</summary>
+    public void AttachChatFilesFromPaths(IEnumerable<string> paths)
+    {
+        var project = Projects.SelectedProject;
+        if (project is null)
+        {
+            AppendTerminal("[chat] Выберите проект перед вложением.", isError: true);
+            return;
+        }
+
+        var added = 0;
+        foreach (var path in paths)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                {
+                    continue;
+                }
+
+                if (Chat.PendingAttachments.Count >= 12)
+                {
+                    AppendTerminal("[chat] Лимит 12 вложений на сообщение.", isError: true);
+                    break;
+                }
+
+                var att = ChatAttachmentStore.ImportFile(path, project.WindowsPath);
+                Chat.PendingAttachments.Add(att);
+                added++;
+            }
+            catch (Exception ex)
+            {
+                AppendTerminal("[chat] Вложение: " + ex.Message, isError: true);
+                _logService.LogWarn("[chat-attach] " + ex.Message);
+            }
+        }
+
+        if (added > 0)
+        {
+            CommandManager.InvalidateRequerySuggested();
+        }
+    }
+
+    /// <summary>Clipboard image paste from ChatView (Ctrl+V).</summary>
+    public bool TryAttachClipboardImage()
+    {
+        var project = Projects.SelectedProject;
+        if (project is null || !Clipboard.ContainsImage())
+        {
+            return false;
+        }
+
+        try
+        {
+            var image = Clipboard.GetImage();
+            if (image is null)
+            {
+                return false;
+            }
+
+            if (Chat.PendingAttachments.Count >= 12)
+            {
+                AppendTerminal("[chat] Лимит 12 вложений на сообщение.", isError: true);
+                return true;
+            }
+
+            var att = ChatAttachmentStore.ImportBitmapSource(image, project.WindowsPath);
+            Chat.PendingAttachments.Add(att);
+            CommandManager.InvalidateRequerySuggested();
+            AppendTerminal("[chat] Изображение из буфера прикреплено.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            AppendTerminal("[chat] Буфер: " + ex.Message, isError: true);
+            return false;
+        }
+    }
+
+    private static string BuildChatAttachmentAgentPayload(
+        string userText,
+        IReadOnlyList<ChatAttachment> attachments,
+        ProjectService projectService)
+    {
+        var text = (userText ?? string.Empty).Trim();
+        if (attachments.Count == 0)
+        {
+            return text;
+        }
+
+        var lines = new List<string>();
+        if (!string.IsNullOrEmpty(text))
+        {
+            lines.Add(text);
+            lines.Add(string.Empty);
+        }
+
+        lines.Add("Attached files (local paths for tools/vision — WSL):");
+        foreach (var a in attachments)
+        {
+            var wsl = projectService.ConvertToWslPath(a.FilePath);
+            var kind = a.IsImage ? "image" : "file";
+            lines.Add($"- [{kind}] {a.DisplayName} → {wsl}");
+        }
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private static string BuildChatAttachmentBubbleText(string userText, IReadOnlyList<ChatAttachment> attachments)
+    {
+        var text = (userText ?? string.Empty).Trim();
+        if (attachments.Count == 0)
+        {
+            return text;
+        }
+
+        var names = string.Join(", ", attachments.Select(a => a.DisplayName));
+        var prefix = attachments.Count == 1 ? "📎 " + names : $"📎 {attachments.Count} files: {names}";
+        return string.IsNullOrEmpty(text) ? prefix : text + Environment.NewLine + prefix;
+    }
+
     private async Task SendMessageAsync()
     {
         var text = Chat.UserInput.Trim();
-        if (string.IsNullOrEmpty(text))
+        var pending = Chat.PendingAttachments.ToList();
+        if (string.IsNullOrEmpty(text) && pending.Count == 0)
         {
             return;
         }
 
         Chat.UserInput = string.Empty;
-        await SendMessageTextAsync(text);
+        Chat.ClearPendingAttachments();
+        CommandManager.InvalidateRequerySuggested();
+
+        var agentPayload = BuildChatAttachmentAgentPayload(text, pending, _projectService);
+        var bubble = BuildChatAttachmentBubbleText(text, pending);
+        var imagePath = pending.FirstOrDefault(a => a.IsImage)?.FilePath;
+        var attachmentPaths = pending.Select(a => a.FilePath).ToList();
+        var attachments = pending.Count > 0 ? pending : null;
+
+        await ExecuteHermesUserTurnAsync(
+            prependUserBubble: true,
+            agentUserPayload: agentPayload,
+            uiUserBubbleLine: bubble,
+            uiImagePath: imagePath,
+            uiAttachmentPaths: attachmentPaths.Count > 0 ? attachmentPaths : null,
+            uiAttachments: attachments);
     }
 
     private Task SendMessageTextAsync(string text) =>
@@ -2485,7 +2716,13 @@ public sealed class MainViewModel : BaseViewModel
     /// <param name="prependUserBubble">Local chat sends <c>true</c>; inbound Supabase already pushed the bubble → <c>false</c>.</param>
     /// <param name="agentUserPayload">Plain user text forwarded to Hermes outbound prompt builder.</param>
     /// <param name="uiUserBubbleLine">When prepending user bubble and null, defaults to payload.</param>
-    private async Task ExecuteHermesUserTurnAsync(bool prependUserBubble, string agentUserPayload, string? uiUserBubbleLine = null)
+    private async Task ExecuteHermesUserTurnAsync(
+        bool prependUserBubble,
+        string agentUserPayload,
+        string? uiUserBubbleLine = null,
+        string? uiImagePath = null,
+        IReadOnlyList<string>? uiAttachmentPaths = null,
+        IReadOnlyList<ChatAttachment>? uiAttachments = null)
     {
         if (Projects.SelectedProject is null)
         {
@@ -2500,7 +2737,14 @@ public sealed class MainViewModel : BaseViewModel
             if (prependUserBubble)
             {
                 var bubbleText = uiUserBubbleLine ?? agentUserPayload;
-                Chat.Messages.Add(new ChatMessage { Role = "User", Text = bubbleText });
+                Chat.Messages.Add(new ChatMessage
+            {
+                Role = "User",
+                Text = bubbleText,
+                ImagePath = uiImagePath,
+                AttachmentPaths = uiAttachmentPaths,
+                Attachments = uiAttachments,
+            });
                 _chatLogService.AppendMessage(project.Name, "User", bubbleText);
                 await PublishUserTurnToSupabaseIfPossibleAsync(bubbleText);
             }
@@ -2513,7 +2757,14 @@ public sealed class MainViewModel : BaseViewModel
             if (prependUserBubble)
             {
                 var bubbleText = uiUserBubbleLine ?? agentUserPayload;
-                Chat.Messages.Add(new ChatMessage { Role = "User", Text = bubbleText });
+                Chat.Messages.Add(new ChatMessage
+            {
+                Role = "User",
+                Text = bubbleText,
+                ImagePath = uiImagePath,
+                AttachmentPaths = uiAttachmentPaths,
+                Attachments = uiAttachments,
+            });
                 _chatLogService.AppendMessage(project.Name, "User", bubbleText);
                 await PublishUserTurnToSupabaseIfPossibleAsync(bubbleText);
                 _logService.LogInfo(
@@ -2535,7 +2786,14 @@ public sealed class MainViewModel : BaseViewModel
         if (prependUserBubble)
         {
             var bubbleText = uiUserBubbleLine ?? agentUserPayload;
-            Chat.Messages.Add(new ChatMessage { Role = "User", Text = bubbleText });
+            Chat.Messages.Add(new ChatMessage
+            {
+                Role = "User",
+                Text = bubbleText,
+                ImagePath = uiImagePath,
+                AttachmentPaths = uiAttachmentPaths,
+                Attachments = uiAttachments,
+            });
             _chatLogService.AppendMessage(project.Name, "User", bubbleText);
             await PublishUserTurnToSupabaseIfPossibleAsync(bubbleText);
         }

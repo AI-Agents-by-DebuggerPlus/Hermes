@@ -117,6 +117,15 @@ public partial class ChatView : UserControl
 
     private void MessageInputTextBox_OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control && e.Key == Key.V)
+        {
+            if (DataContext is MainViewModel pasteVm && pasteVm.TryAttachClipboardImage())
+            {
+                e.Handled = true;
+                return;
+            }
+        }
+
         if (e.Key != Key.Enter)
         {
             return;
@@ -137,6 +146,30 @@ public partial class ChatView : UserControl
         if (viewModel.SendMessageCommand.CanExecute(null))
         {
             viewModel.SendMessageCommand.Execute(null);
+        }
+    }
+
+    private void ChatInput_OnDragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop)
+            ? DragDropEffects.Copy
+            : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void ChatInput_OnDrop(object sender, DragEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (e.Data.GetDataPresent(DataFormats.FileDrop)
+            && e.Data.GetData(DataFormats.FileDrop) is string[] files
+            && files.Length > 0)
+        {
+            vm.AttachChatFilesFromPaths(files);
+            e.Handled = true;
         }
     }
 }

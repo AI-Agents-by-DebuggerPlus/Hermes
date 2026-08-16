@@ -26,6 +26,12 @@ public sealed class FilePathToImageSourceConverter : IValueConverter
             image.BeginInit();
             image.CacheOption = BitmapCacheOption.OnLoad;
             image.UriSource = new Uri(full, UriKind.Absolute);
+            // Thumbnails for pending chips: ConverterParameter=240
+            if (parameter is string s && int.TryParse(s, out var decodeW) && decodeW > 0)
+            {
+                image.DecodePixelWidth = decodeW;
+            }
+
             image.EndInit();
             image.Freeze();
             return image;

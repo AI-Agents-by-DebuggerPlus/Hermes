@@ -29,6 +29,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Title = AppVersion.MainWindowTitle;
         _logService = new LogService();
         _chatLogService = new ChatLogService(_logService);
         _hermesService = new HermesService(_logService);
@@ -103,9 +104,14 @@ public partial class MainWindow : Window
         OpenChatWindow();
     }
 
-    private void OpenChatWindow()
+    public void OpenChatWindow()
     {
         if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (vm.Projects.SelectedProject is null)
         {
             return;
         }
@@ -255,7 +261,7 @@ public partial class MainWindow : Window
     {
         if (_logsWindow is null || !_logsWindow.IsLoaded)
         {
-            _logsWindow = new LogsWindow(_logService);
+            _logsWindow = new LogsWindow(_logService, _settings!, _settingsService);
             _logsWindow.Owner = this;
             _logsWindow.Show();
             return;

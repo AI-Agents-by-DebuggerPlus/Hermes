@@ -30,6 +30,8 @@ public static class ChatMessageImageParser
             Role = message.Role,
             Text = text,
             ImagePath = path,
+            AttachmentPaths = message.AttachmentPaths,
+            Attachments = message.Attachments,
             Timestamp = message.Timestamp,
         };
     }
