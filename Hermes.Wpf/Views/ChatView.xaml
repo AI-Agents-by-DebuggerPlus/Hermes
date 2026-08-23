@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:services="clr-namespace:Hermes.Wpf.Services"
              x:Name="Root"
              mc:Ignorable="d">
     <Border Style="{StaticResource PanelBorderStyle}">
@@ -143,14 +144,24 @@
                                 BorderThickness="1"
                                 CornerRadius="6">
                             <StackPanel>
-                                <TextBlock FontWeight="Bold"
-                                           FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
-                                           Text="{Binding Role}" />
+                                <DockPanel LastChildFill="True">
+                                    <TextBlock DockPanel.Dock="Right"
+                                               Margin="12,0,0,0"
+                                               VerticalAlignment="Center"
+                                               FontSize="11"
+                                               Foreground="#848E9C"
+                                               Text="{Binding DisplayTimestamp}"
+                                               ToolTip="{Binding Timestamp}"/>
+                                    <TextBlock FontWeight="Bold"
+                                               FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
+                                               Text="{Binding Role}" />
+                                </DockPanel>
                                 <TextBlock Margin="0,4,0,0"
                                            FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
                                            TextWrapping="Wrap"
                                            TextAlignment="Left"
-                                           Text="{Binding Text}" />
+                                           Foreground="#EAECEF"
+                                           services:ChatMessageLinkifier.BindText="{Binding Text}" />
                                 <ItemsControl Margin="0,8,0,0"
                                               ItemsSource="{Binding PreviewAttachments}">
                                     <ItemsControl.Style>
