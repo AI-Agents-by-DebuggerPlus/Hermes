@@ -1,0 +1,72 @@
+<Window x:Class="Hermes.Wpf.Views.ProjectRelatedWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Связанные проекты и приложения"
+        Height="480"
+        Width="520"
+        MinHeight="360"
+        MinWidth="400"
+        Background="{StaticResource AppBackgroundBrush}"
+        Foreground="{StaticResource PrimaryTextBrush}"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="8" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Style="{StaticResource HeaderTextStyle}"
+                   Text="{Binding Title}" />
+        <TextBlock Grid.Row="2"
+                   Foreground="#848E9C"
+                   TextWrapping="Wrap"
+                   Text="{Binding Subtitle}" />
+
+        <ListBox Grid.Row="4"
+                 ItemsSource="{Binding Items}"
+                 Background="#181A20"
+                 BorderBrush="#30363D"
+                 Foreground="#EAECEF">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <DockPanel Margin="4,6">
+                        <Button DockPanel.Dock="Right"
+                                MinWidth="88"
+                                Height="28"
+                                Margin="8,0,0,0"
+                                Padding="10,0"
+                                Background="#252C3B"
+                                BorderBrush="#30363D"
+                                Foreground="#EAECEF"
+                                Content="{Binding ActionLabel}"
+                                Cursor="Hand"
+                                Command="{Binding DataContext.ActCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding}" />
+                        <StackPanel>
+                            <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
+                            <TextBlock Margin="0,2,0,0"
+                                       FontSize="12"
+                                       Foreground="#848E9C"
+                                       TextWrapping="Wrap"
+                                       Text="{Binding Detail}" />
+                        </StackPanel>
+                    </DockPanel>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <Button Grid.Row="6"
+                Width="100"
+                Height="30"
+                HorizontalAlignment="Right"
+                Content="Закрыть"
+                IsCancel="True"
+                Click="Close_OnClick" />
+    </Grid>
+</Window>

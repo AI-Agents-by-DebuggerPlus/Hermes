@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using Hermes.Wpf.Models;
@@ -13,6 +14,7 @@ public sealed class ReniWaterSchTasksService
 {
     public const string MonthlyTaskName = "Hermes_ReniWater_MonthlySubmit";
     public const string HourlyTaskName = "Hermes_ReniWater_HourlyNotify";
+    public const string OnceTaskName = "Hermes_ReniWater_OnceSubmit";
 
     private readonly LogService _log;
     private readonly Func<HermesSettings> _settings;
@@ -37,12 +39,48 @@ public sealed class ReniWaterSchTasksService
         return (code == 0, detail);
     }
 
+    public async Task<(bool Ok, string Detail)> RegisterOnceTaskAsync(
+        DateTime runAtLocal,
+        CancellationToken cancellationToken = default)
+    {
+        var submitScript = ResolveSubmitScriptPath();
+        if (submitScript is null)
+        {
+            return (false, "run_submit.ps1 не найден.");
+        }
+
+        if (runAtLocal <= DateTime.Now)
+        {
+            return (false, "Время запуска должно быть в будущем.");
+        }
+
+        _log.LogInfo($"[reni-water] schtasks once register at {runAtLocal:O}");
+        var sd = runAtLocal.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture);
+        var st = runAtLocal.ToString("HH:mm", CultureInfo.InvariantCulture);
+        var tr =
+            $"powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"{submitScript}\"";
+
+        RunProcess("schtasks", $"/Delete /TN \"{OnceTaskName}\" /F");
+        var (code, output) = await RunProcessAsync(
+                "schtasks",
+                $"/Create /TN \"{OnceTaskName}\" /TR \"{tr}\" /SC ONCE /SD {sd} /ST {st} /F /RL LIMITED",
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        if (code != 0)
+        {
+            return (false, string.IsNullOrWhiteSpace(output) ? $"exit {code}" : output.Trim());
+        }
+
+        return (true, $"Задача {OnceTaskName} создана на {runAtLocal:dd.MM.yyyy HH:mm}.");
+    }
+
     public (bool Ok, string Detail) UnregisterTasks()
     {
         _log.LogInfo("[reni-water] schtasks unregister");
         var sb = new StringBuilder();
         var ok = true;
-        foreach (var name in new[] { MonthlyTaskName, HourlyTaskName })
+        foreach (var name in new[] { MonthlyTaskName, HourlyTaskName, OnceTaskName })
         {
             var (code, output) = RunProcess("schtasks", $"/Delete /TN \"{name}\" /F");
             if (code != 0 && !output.Contains("does not exist", StringComparison.OrdinalIgnoreCase)
@@ -62,7 +100,7 @@ public sealed class ReniWaterSchTasksService
     {
         var sb = new StringBuilder();
         sb.AppendLine("Windows Task Scheduler (только если Hermes CLI зарегистрировал задачи):");
-        foreach (var name in new[] { MonthlyTaskName, HourlyTaskName })
+        foreach (var name in new[] { MonthlyTaskName, HourlyTaskName, OnceTaskName })
         {
             var (_, output) = RunProcess("schtasks", $"/Query /TN \"{name}\" /FO LIST /V");
             if (string.IsNullOrWhiteSpace(output)
@@ -132,6 +170,46 @@ public sealed class ReniWaterSchTasksService
             @"D:\Programming\AI_Agents\Hermes\scripts\reni_water",
             "register_scheduled_tasks.ps1");
         return File.Exists(repo) ? repo : null;
+    }
+
+    private string? ResolveSubmitScriptPath()
+    {
+        var configured = (_settings().ReniWaterScriptDirectory ?? string.Empty).Trim();
+        if (!string.IsNullOrEmpty(configured))
+        {
+            var p = Path.Combine(configured, "run_submit.ps1");
+            if (File.Exists(p))
+            {
+                return p;
+            }
+        }
+
+        var repo = Path.Combine(
+            @"D:\Programming\AI_Agents\Hermes\scripts\reni_water",
+            "run_submit.ps1");
+        return File.Exists(repo) ? repo : null;
+    }
+
+    private static async Task<(int ExitCode, string Output)> RunProcessAsync(
+        string fileName,
+        string arguments,
+        CancellationToken cancellationToken)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = fileName,
+            Arguments = arguments,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+        };
+
+        using var process = Process.Start(psi)!;
+        var stdout = await process.StandardOutput.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+        var stderr = await process.StandardError.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+        await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+        return (process.ExitCode, (stdout + "\n" + stderr).Trim());
     }
 
     private static async Task<(int ExitCode, string Output)> RunPowerShellFileAsync(

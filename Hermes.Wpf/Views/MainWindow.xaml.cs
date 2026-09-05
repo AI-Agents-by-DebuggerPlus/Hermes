@@ -25,6 +25,11 @@ public partial class MainWindow : Window
     private ExternalBrainService? _externalBrainService;
     private ExternalBrainWindow? _externalBrainWindow;
     private SpreadsheetViewerWindow? _spreadsheetViewerWindow;
+    private ProjectManagerWindow? _projectManagerWindow;
+    private AgentMiniConsoleWindow? _miniConsoleWindow;
+    private MainConsoleWindow? _mainConsoleWindow;
+    private ProjectManagerDashboardWindow? _portfolioDashboardWindow;
+    private TaskDashboardWindow? _taskDashboardWindow;
 
     public MainWindow()
     {
@@ -63,6 +68,13 @@ public partial class MainWindow : Window
 
         DataContext = vm;
         vm.AttachSaveExperienceOpener(OpenSaveExperienceUi);
+        vm.AttachChatWindowOpener(OpenChatWindow);
+        vm.AttachProjectManagerWindowOpener(OpenProjectManagerWindow);
+        vm.AttachMiniConsoleOpener(OpenMiniConsoleWindow);
+        vm.AttachMainConsoleOpener(OpenMainConsoleWindow);
+        vm.AttachProjectManagerDashboardOpener(OpenProjectManagerDashboardWindow);
+        vm.AttachProjectRelatedWindowOpener(OpenProjectRelatedWindow);
+        vm.AttachWordPressGalleryOpener(() => OpenWordPressGallery_OnClick(this, new RoutedEventArgs()));
         vm.SyncWslAgentMemoryToVault("startup");
         vm.SyncPlatformKnowledgeToVault("startup");
         await vm.EnsureSelectedProjectHistoryLoadedAsync();
@@ -80,6 +92,63 @@ public partial class MainWindow : Window
             OpenSetupWizard();
             _settings.IsFirstRun = false;
             await _settingsService.SaveAsync(_settings);
+        }
+
+        await PromptMissedScheduledTasksAsync(vm).ConfigureAwait(true);
+    }
+
+    private async Task PromptMissedScheduledTasksAsync(MainViewModel vm)
+    {
+        IReadOnlyList<MissedScheduledTaskInfo> missed;
+        try
+        {
+            missed = vm.DetectMissedScheduledTasks();
+        }
+        catch (Exception ex)
+        {
+            _logService.LogWarn($"[missed-tasks] detect failed: {ex.Message}");
+            return;
+        }
+
+        if (missed.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var task in missed)
+        {
+            var popup = new MissedTaskPopupWindow(task)
+            {
+                Owner = this,
+            };
+            var accepted = popup.ShowDialog() == true && popup.RunNowRequested;
+            if (!accepted)
+            {
+                _logService.LogInfo($"[missed-tasks] dismissed: {task.Id}");
+                continue;
+            }
+
+            _logService.LogInfo($"[missed-tasks] Run Now requested: {task.Id}");
+            try
+            {
+                var (ok, message) = await vm.RunMissedScheduledTaskAsync(task).ConfigureAwait(true);
+                MessageBox.Show(
+                    this,
+                    message,
+                    ok ? "Задача выполнена" : "Ошибка выполнения",
+                    MessageBoxButton.OK,
+                    ok ? MessageBoxImage.Information : MessageBoxImage.Warning);
+            }
+            catch (Exception ex)
+            {
+                _logService.LogError($"[missed-tasks] Run Now failed: {ex.Message}");
+                MessageBox.Show(
+                    this,
+                    ex.Message,
+                    "Ошибка Run Now",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
         }
     }
 
@@ -134,6 +203,110 @@ public partial class MainWindow : Window
         {
             chatWindow.ScrollChatToEnd();
         }
+    }
+
+    public void OpenProjectManagerWindow()
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (_projectManagerWindow is null || !_projectManagerWindow.IsLoaded)
+        {
+            _projectManagerWindow = new ProjectManagerWindow(vm)
+            {
+                Owner = this,
+            };
+            _projectManagerWindow.Show();
+            return;
+        }
+
+        if (_projectManagerWindow.WindowState == WindowState.Minimized)
+        {
+            _projectManagerWindow.WindowState = WindowState.Normal;
+        }
+
+        _projectManagerWindow.Activate();
+    }
+
+    public void OpenMiniConsoleWindow()
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (_miniConsoleWindow is null || !_miniConsoleWindow.IsLoaded)
+        {
+            _miniConsoleWindow = new AgentMiniConsoleWindow(
+                vm.ActivityBus,
+                () => vm.Projects.SelectedProject?.Name)
+            {
+                Owner = this,
+            };
+            _miniConsoleWindow.Closed += (_, _) => _miniConsoleWindow = null;
+            _miniConsoleWindow.Show();
+            return;
+        }
+
+        _miniConsoleWindow.Activate();
+    }
+
+    public void OpenMainConsoleWindow()
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (_mainConsoleWindow is null || !_mainConsoleWindow.IsLoaded)
+        {
+            _mainConsoleWindow = new MainConsoleWindow(vm.ActivityBus)
+            {
+                Owner = this,
+            };
+            _mainConsoleWindow.Closed += (_, _) => _mainConsoleWindow = null;
+            _mainConsoleWindow.Show();
+            return;
+        }
+
+        _mainConsoleWindow.Activate();
+    }
+
+    public void OpenProjectManagerDashboardWindow()
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (_portfolioDashboardWindow is null || !_portfolioDashboardWindow.IsLoaded)
+        {
+            _portfolioDashboardWindow = new ProjectManagerDashboardWindow(vm.PortfolioStore)
+            {
+                Owner = this,
+            };
+            _portfolioDashboardWindow.Closed += (_, _) => _portfolioDashboardWindow = null;
+            _portfolioDashboardWindow.Show();
+            return;
+        }
+
+        _portfolioDashboardWindow.Activate();
+    }
+
+    private void OpenProjectRelatedWindow(HermesProject project)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var w = new ProjectRelatedWindow(vm, project)
+        {
+            Owner = this,
+        };
+        w.Show();
     }
 
     private void OpenWordPressGallery_OnClick(object sender, RoutedEventArgs e)
@@ -314,6 +487,34 @@ public partial class MainWindow : Window
     private void OpenSetupButton_OnClick(object sender, RoutedEventArgs e)
     {
         OpenSetupWizard();
+    }
+
+    private void OpenTaskDashboardButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (_taskDashboardWindow is null || !_taskDashboardWindow.IsLoaded)
+        {
+            _taskDashboardWindow = new TaskDashboardWindow(
+                vm.AgentScheduler,
+                t => vm.RunSchedulerTaskNowAsync(t))
+            {
+                Owner = this,
+            };
+            _taskDashboardWindow.Closed += (_, _) => _taskDashboardWindow = null;
+            _taskDashboardWindow.Show();
+            return;
+        }
+
+        if (_taskDashboardWindow.WindowState == WindowState.Minimized)
+        {
+            _taskDashboardWindow.WindowState = WindowState.Normal;
+        }
+
+        _taskDashboardWindow.Activate();
     }
 
     private void OpenSettingsButton_OnClick(object sender, RoutedEventArgs e)

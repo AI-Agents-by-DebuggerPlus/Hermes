@@ -1,0 +1,28 @@
+<Window x:Class="Hermes.Wpf.Views.MainConsoleWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="MainConsole — все агенты"
+        Width="780" Height="520"
+        MinWidth="520" MinHeight="320"
+        Background="#0B0E11" Foreground="#EAECEF"
+        WindowStartupLocation="CenterOwner">
+  <DockPanel Margin="12">
+    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+        <Button Content="Refresh" Margin="0,0,8,0" Padding="10,4" Click="Refresh_Click"
+                Background="#2B3139" Foreground="#EAECEF" BorderBrush="#383f49"/>
+        <Button Content="Clear" Padding="10,4" Click="Clear_Click"
+                Background="#2B3139" Foreground="#EAECEF" BorderBrush="#383f49"/>
+      </StackPanel>
+      <StackPanel>
+        <TextBlock Text="MainConsole" FontSize="18" FontWeight="SemiBold" Foreground="#F8D12F"/>
+        <TextBlock Text="Текущие действия и история всех Agent Workspaces" Foreground="#848E9C" FontSize="12"/>
+      </StackPanel>
+    </DockPanel>
+    <TextBox x:Name="FilterBox" DockPanel.Dock="Top" Margin="0,0,0,8" Height="28"
+             Background="#181A20" Foreground="#EAECEF" BorderBrush="#2B3139"
+             TextChanged="Filter_Changed" ToolTip="Фильтр по имени workspace (пусто = все)"/>
+    <ListBox x:Name="LogList" Background="#181A20" BorderBrush="#2B3139" Foreground="#EAECEF"
+             FontFamily="Consolas" FontSize="12"/>
+  </DockPanel>
+</Window>

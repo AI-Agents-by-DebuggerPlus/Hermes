@@ -85,6 +85,12 @@ internal static class WpfLocalIntentParser
                 WindowEndDay = ReadInt(root, "window_end"),
                 Hour = ReadInt(root, "hour"),
                 Minute = ReadInt(root, "minute"),
+                Title = ReadString(root, "title"),
+                Command = ReadString(root, "command"),
+                TaskId = ReadString(root, "task_id"),
+                Project = ReadString(root, "project"),
+                Status = ReadString(root, "status"),
+                Notes = ReadString(root, "notes"),
             };
             return true;
         }

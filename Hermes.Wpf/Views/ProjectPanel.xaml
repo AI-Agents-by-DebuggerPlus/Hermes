@@ -3,10 +3,13 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             mc:Ignorable="d">
+             mc:Ignorable="d"
+             ToolTipService.IsEnabled="False">
     <Border Style="{StaticResource PanelBorderStyle}">
         <Grid>
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="8" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="8" />
                 <RowDefinition Height="Auto" />
@@ -22,58 +25,127 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="8" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="8" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="8" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <TextBlock Grid.Row="0" Style="{StaticResource HeaderTextStyle}" Text="Project Manager" />
-            <TextBox Grid.Row="2"
-                     Height="30"
-                     Text="{Binding Projects.NewProjectPath, UpdateSourceTrigger=PropertyChanged}"
-                     ToolTip="Полный путь Windows к папке проекта, например D:\Work\HermesAgent" />
-
-            <StackPanel Grid.Row="4"
-                        Height="34"
-                        VerticalAlignment="Top"
-                        Orientation="Horizontal">
-                <Button Width="112"
-                        Height="30"
-                        Margin="0,0,10,0"
-                        Content="Add Project"
-                        Command="{Binding AddProjectCommand}"
-                        ToolTip="Добавить папку из поля или из «Обзор…»" />
-                <Button Width="112"
-                        Height="30"
-                        Content="Обзор…"
-                        Command="{Binding BrowseProjectFolderCommand}"
-                        ToolTip="Выбрать папку в диалоге" />
+            <DockPanel Grid.Row="0" LastChildFill="True">
+                <Button DockPanel.Dock="Right"
+                        Width="88"
+                        Height="28"
+                        Margin="8,0,0,0"
+                        VerticalAlignment="Center"
+                        Content="В окне"
+                        Command="{Binding OpenProjectManagerWindowCommand}" />
+                <TextBlock Style="{StaticResource HeaderTextStyle}"
+                           VerticalAlignment="Center"
+                           Text="Agent Workspaces" />
+            </DockPanel>
+            <StackPanel Grid.Row="2">
+                <TextBox x:Name="NewProjectPathBox"
+                         Height="30"
+                         Background="#181A20"
+                         Foreground="#EAECEF"
+                         CaretBrush="#EAECEF"
+                         BorderBrush="#2B3139"
+                         Padding="6,4"
+                         Text="{Binding Projects.NewProjectPath, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBlock Margin="0,4,0,0"
+                           FontSize="11"
+                           Foreground="#848E9C"
+                           TextWrapping="Wrap"
+                           Text="Путь Windows, например D:\Work\HermesAgent" />
             </StackPanel>
 
-            <ListBox Grid.Row="4"
-                     Margin="0,46,0,0"
-                     ItemsSource="{Binding Projects.Projects}"
-                     SelectedItem="{Binding Projects.SelectedProject, Mode=TwoWay}"
-                     DisplayMemberPath="Name" />
+            <WrapPanel Grid.Row="4" Orientation="Horizontal">
+                <Button Width="100"
+                        Height="30"
+                        Margin="0,0,8,4"
+                        Content="Add Project"
+                        Command="{Binding AddProjectCommand}" />
+                <Button Width="88"
+                        Height="30"
+                        Margin="0,0,8,4"
+                        Content="Обзор…"
+                        Command="{Binding BrowseProjectFolderCommand}" />
+                <Button Width="88"
+                        Height="30"
+                        Margin="0,0,8,4"
+                        Content="Rename"
+                        Command="{Binding RenameProjectCommand}" />
+            </WrapPanel>
 
-            <TextBlock Grid.Row="6" Style="{StaticResource HeaderTextStyle}" Text="Quick Actions" />
-            <Button Grid.Row="8"
-                    Height="30"
-                    Content="Status"
-                    Command="{Binding StatusCommand}"
-                    ToolTip="Hermes CLI: вызов `status` в WSL для выбранного проекта (работоспособность агента, без сообщения модели)." />
+            <Grid Grid.Row="6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <ListBox x:Name="ProjectsList"
+                         Grid.Column="0"
+                         ItemsSource="{Binding Projects.Projects}"
+                         SelectedItem="{Binding Projects.SelectedProject, Mode=TwoWay}"
+                         DisplayMemberPath="Name"
+                         SelectionMode="Single"
+                         IsSynchronizedWithCurrentItem="True"
+                         MouseDoubleClick="ProjectsList_OnMouseDoubleClick"
+                         PreviewKeyDown="ProjectsList_OnPreviewKeyDown"
+                         PreviewKeyUp="ProjectsList_OnPreviewKeyUp" />
+                <StackPanel Grid.Column="1"
+                            Margin="6,0,0,0"
+                            VerticalAlignment="Top">
+                    <Button Width="32"
+                            Height="32"
+                            Margin="0,0,0,6"
+                            Content="▲"
+                            FontSize="12"
+                            Command="{Binding MoveProjectUpCommand}"
+                            Background="#2B3139"
+                            Foreground="#EAECEF"
+                            BorderBrush="#383f49" />
+                    <Button Width="32"
+                            Height="32"
+                            Content="▼"
+                            FontSize="12"
+                            Command="{Binding MoveProjectDownCommand}"
+                            Background="#2B3139"
+                            Foreground="#EAECEF"
+                            BorderBrush="#383f49" />
+                </StackPanel>
+            </Grid>
+
+            <TextBlock Grid.Row="8" Style="{StaticResource HeaderTextStyle}" Text="Quick Actions" />
+            <TextBlock Grid.Row="8"
+                       Margin="110,4,0,0"
+                       FontSize="11"
+                       Foreground="#848E9C"
+                       VerticalAlignment="Center"
+                       Text="Ctrl+↑/↓ — порядок" />
             <Button Grid.Row="10"
                     Height="30"
-                    Content="Gateway Run"
-                    Command="{Binding GatewayRunCommand}"
-                    ToolTip="Hermes CLI: `gateway run` — поднять/проверить gateway внутри текущего проекта." />
+                    Content="Status"
+                    Command="{Binding StatusCommand}" />
             <Button Grid.Row="12"
                     Height="30"
-                    Content="Reset Webhook"
-                    Command="{Binding ResetWebhookCommand}"
-                    ToolTip="Hermes CLI: `gateway reset-webhook` — сброс точки входа webhook (если заточено под ваш дистрибутив)." />
+                    Content="Gateway Run"
+                    Command="{Binding GatewayRunCommand}" />
             <Button Grid.Row="14"
                     Height="30"
+                    Content="Reset Webhook"
+                    Command="{Binding ResetWebhookCommand}" />
+            <Button Grid.Row="16"
+                    Height="30"
                     Content="Analyze Code"
-                    Command="{Binding AnalyzeCodeCommand}"
-                    ToolTip="Открыть обычный чат модели Hermes с запросом проанализировать код выбранного проекта (через `hermes chat`, не только терминальный quick-command)." />
+                    Command="{Binding AnalyzeCodeCommand}" />
+            <Button Grid.Row="18"
+                    Height="30"
+                    Content="Mt5 test cmds…"
+                    Command="{Binding OpenMt5TerminalTestCommandsCommand}" />
+            <Button Grid.Row="20"
+                    Height="30"
+                    Content="Mt5 test orders…"
+                    Command="{Binding OpenMt5TerminalTestOrdersCommand}" />
         </Grid>
     </Border>
 </UserControl>

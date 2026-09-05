@@ -50,6 +50,16 @@
                             Content="Settings"
                             ToolTip="Настройки приложения, Supabase, OpenRouter, Trading Platform"
                             Click="OpenSettingsButton_OnClick" />
+                    <Button Width="110"
+                            Margin="0,0,8,0"
+                            Content="Dashboard"
+                            ToolTip="Планировщик задач агентов: запланированные и текущие напоминания"
+                            Click="OpenTaskDashboardButton_OnClick" />
+                    <Button Width="120"
+                            Margin="0,0,8,0"
+                            Content="MainConsole"
+                            ToolTip="Консоль действий всех Agent Workspaces"
+                            Command="{Binding OpenMainConsoleCommand}" />
                     <Button Width="90"
                             Margin="0,0,8,0"
                             Content="Help"

@@ -25,9 +25,34 @@
             </Grid.RowDefinitions>
 
             <StackPanel Grid.Row="0">
-                <TextBlock Style="{StaticResource HeaderTextStyle}"
-                           FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
-                           Text="Chat" />
+                <DockPanel LastChildFill="True">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button Margin="0,0,8,0" Padding="8,4"
+                                Content="Mini Console"
+                                Command="{Binding OpenMiniConsoleCommand}"
+                                ToolTip="Действия текущего Agent Workspace"/>
+                        <Button Padding="8,4"
+                                Content="PM Dashboard"
+                                Command="{Binding OpenProjectManagerDashboardCommand}"
+                                ToolTip="ProjectManager Dashboard — инициативы (только для workspace ProjectManager)">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Setter Property="Padding" Value="8,4"/>
+                                    <Setter Property="Margin" Value="0"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsProjectManagerWorkspace}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource HeaderTextStyle}"
+                               FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
+                               Text="Chat" />
+                </DockPanel>
                 <TextBlock Margin="0,4,0,0"
                            FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
                            Foreground="#9CA3AF"
@@ -455,6 +480,18 @@
                         Content="💾 Save experience"
                         Command="{Binding SaveExperienceCommand}"
                         ToolTip="Сохранить последнюю связку вопрос/ответ в память vault" />
+                <Button Margin="0,0,8,0"
+                        Padding="10,6"
+                        FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
+                        Content="Mt5 cmds…"
+                        Command="{Binding OpenMt5TerminalTestCommandsCommand}"
+                        ToolTip="Тестовые команды агенту Mt5Terminal на человеческом языке (как из чата)" />
+                <Button Margin="0,0,8,0"
+                        Padding="10,6"
+                        FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"
+                        Content="Mt5 orders…"
+                        Command="{Binding OpenMt5TerminalTestOrdersCommand}"
+                        ToolTip="Тестовые карточки market/pending ордеров относительно цены активного графика" />
                 <Button Width="120"
                         Margin="0,0,8,0"
                         FontSize="{Binding DataContext.ChatFontSize, ElementName=Root}"

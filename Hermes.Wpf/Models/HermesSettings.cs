@@ -31,8 +31,14 @@ public sealed class HermesSettings
     /// <summary>Windows path of last selected project tab.</summary>
     public string? LastSelectedProjectPath { get; set; }
 
+    /// <summary>Per-project avatar path and optional ecosystem id (key = WindowsPath).</summary>
+    public Dictionary<string, ProjectUiMeta> ProjectUiMetaByPath { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>Chat pane font size in WPF dips (labeled “pt” in Settings).</summary>
     public double ChatFontSize { get; set; } = 14;
+
+    /// <summary>When true, play a sound and show a toast when Hermes finishes a chat turn.</summary>
+    public bool NotifyOnHermesReply { get; set; } = true;
 
     /// <summary>
     /// When true, local chat sends and inbound Supabase user rows do not invoke Hermes; messages still appear in UI and outgoing desktop messages still publish to Supabase when relay is on.
@@ -60,7 +66,12 @@ public sealed class HermesSettings
     /// </summary>
     public bool SupabaseUseLocalCreatedAt { get; set; }
 
-    /// <summary>Polling interval while relay is enabled (seconds).</summary>
+    /// <summary>
+    /// When true, also poll <c>messages</c> via PostgREST (fallback). Default false — inbound via Realtime WebSocket only.
+    /// </summary>
+    public bool EnableSupabasePoll { get; set; }
+
+    /// <summary>Polling interval while <see cref="EnableSupabasePoll"/> is true (seconds).</summary>
     public int SupabasePollIntervalSeconds { get; set; } = 3;
 
     public bool SupabaseUseAnonymousAuth { get; set; } = true;
@@ -74,10 +85,14 @@ public sealed class HermesSettings
     /// <summary><c>sender_name</c> for rows inserted when the user sends from this desktop (must differ from <see cref="SupabaseHermesSenderName"/> and from mobile clients).</summary>
     public string SupabaseLocalSenderName { get; set; } = "Desktop";
 
-    /// <summary>When true, only rows with <c>recipient_name</c> = <see cref="SupabaseInboundRecipientName"/> are injected into chat / trigger Hermes.</summary>
+    /// <summary>
+    /// When true, only Hermes-bound rows are injected into chat / trigger the agent:
+    /// <c>recipient_name</c> = <see cref="SupabaseInboundRecipientName"/> (default <c>Hermes</c>)
+    /// or <c>Hermes.&lt;ProjectName&gt;</c> (opens that Project Manager chat).
+    /// </summary>
     public bool SupabaseFilterInboundByRecipient { get; set; } = true;
 
-    /// <summary>Required <c>recipient_name</c> for inbound Supabase rows (default Hermes).</summary>
+    /// <summary>Default inbound address (plain Hermes). Project routing uses Hermes.ProjectName.</summary>
     public string SupabaseInboundRecipientName { get; set; } = "Hermes";
 
     /// <summary><c>recipient_name</c> for rows published by Hermes agent from this desktop (default Android).</summary>
@@ -85,6 +100,26 @@ public sealed class HermesSettings
 
     /// <summary><c>recipient_name</c> for user messages sent from this desktop into Supabase (default Hermes).</summary>
     public string SupabaseLocalOutboundRecipientName { get; set; } = "Hermes";
+
+    /// <summary>
+    /// Mirror Hermes.Wpf session log lines to <c>messages</c> for RemoteTerminal.Xp (backup viewer).
+    /// Requires <see cref="SupabaseRelayEnabled"/> and a connected relay.
+    /// </summary>
+    public bool SupabaseRemoteLogEnabled { get; set; }
+
+    /// <summary><c>recipient_name</c> for mirrored log rows (default RemoteTerminal).</summary>
+    public string SupabaseRemoteLogRecipientName { get; set; } = "RemoteTerminal";
+
+    /// <summary><c>sender_name</c> for mirrored log rows (default Hermes).</summary>
+    public string SupabaseRemoteLogSenderName { get; set; } = "Hermes";
+
+    /// <summary>When true, also mirror INFO lines; otherwise WARN/ERROR/TERM only.</summary>
+    public bool SupabaseRemoteLogIncludeInfo { get; set; }
+
+    /// <summary>
+    /// Publish HermesWpfTerminal status.json snapshots to RemoteTerminal via Supabase.
+    /// </summary>
+    public bool SupabaseHwtStatusPublishEnabled { get; set; } = true;
 
     /// <summary>Monitor WhatsApp Web (WebView2) and inject new messages from <see cref="WhatsAppContactDisplayName"/> into chat.</summary>
     public bool WhatsAppWebEnabled { get; set; } = true;
@@ -276,6 +311,12 @@ public sealed class HermesSettings
 
     /// <summary>Persisted successful Reni submit count for auto-crystallize threshold.</summary>
     public int ReniWaterLearningSuccessCount { get; set; }
+
+    /// <summary>
+    /// Route Reni Water chat phrases to Hermes CLI (skill + browser tool + project data) instead of the
+    /// built-in WPF Playwright/Task Scheduler handler. CLI-first per Nous Research design; WPF handler stays as fallback.
+    /// </summary>
+    public bool ReniWaterUseCliAgent { get; set; } = true;
 
     /// <summary>Inject Trading Platform bridge instructions and live snapshot into outbound hermes chat.</summary>
     public bool TradingPlatformIntegrationEnabled { get; set; } = false;

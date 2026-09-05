@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows;
@@ -67,6 +67,13 @@ public sealed class MainViewModel : BaseViewModel
     private readonly EnglishTutorVocabularyStore _englishTutorVocabulary = new();
     private readonly EnglishTutorObsidianExporter _englishTutorExporter;
     private Action? _saveExperienceOpener;
+    private Action? _openChatWindow;
+    private Action? _openProjectManagerWindow;
+    private Action? _openMiniConsole;
+    private Action? _openMainConsole;
+    private Action? _openProjectManagerDashboard;
+    private Action<HermesProject>? _openProjectRelatedWindow;
+    private Action? _openWordPressGallery;
     private readonly MouseSkillService _mouseSkill;
     private readonly DesktopScreenCaptureService _desktopScreenCapture;
     private readonly DesktopVisionSkill _desktopVisionSkill;
@@ -83,9 +90,15 @@ public sealed class MainViewModel : BaseViewModel
     private readonly ExternalBrainWriteService _externalBrainWriter;
     private readonly LocalExecutionLearningService _localLearning;
     private readonly ReniWaterExecutionCoordinator _reniWaterCoordinator;
+    private readonly AgentTaskSchedulerService _agentScheduler;
+    private readonly PortfolioStoreService _portfolioStore;
+    private readonly AgentActivityBus _activityBus;
     private readonly WpfLocalActionExecutor _wpfLocalExecutor;
     private readonly ReniWaterLocalChatHandler _reniWaterLocalChat;
     private readonly Mt5TerminalIpcClient _mt5TerminalIpc;
+    private readonly Mt5TerminalSymbolsService _mt5SymbolsService;
+    private readonly SupabaseRemoteLogBridge _remoteLogBridge;
+    private readonly HwtStatusSupabasePublisher _hwtStatusPublisher;
     private readonly CliLearningFollowUpService _cliFollowUp;
     private readonly HermesCliSessionStore _cliSessionStore = new();
     private readonly ProjectAgentsBootstrapService _projectAgentsBootstrap;
@@ -104,11 +117,17 @@ public sealed class MainViewModel : BaseViewModel
     public GeneratedSkillsViewModel GeneratedSkills { get; }
     private readonly DispatcherTimer _watchdogTimer;
     private readonly DispatcherTimer _reniWaterPollTimer;
+    private readonly DispatcherTimer _mt5AgentChatInjectTimer;
+    private Mt5TerminalTestCommandsWindow? _mt5TestCommandsWindow;
+    private Mt5TerminalTestOrdersWindow? _mt5TestOrdersWindow;
+    private bool _mt5AgentChatInjectBusy;
     private bool _reniWaterBusy;
     private bool _isReniWaterStatusBarVisible;
     private string _reniWaterStatusText = string.Empty;
     private string? _reniWaterPendingScreenshotPath;
     private bool _canViewReniWaterScreenshot;
+    /// <summary>Last HWT chart PNG successfully published to RemoteTerminal (for local repeat).</summary>
+    private string? _lastHwtScreenshotPath;
     private bool _isBusy;
     private string _terminalOutput = "Terminal ready.";
     private ConnectionState _currentConnectionState = ConnectionState.Disconnected;
@@ -119,6 +138,8 @@ public sealed class MainViewModel : BaseViewModel
 
     private CancellationTokenSource? _historyLoadCts;
     private Task? _pendingHistoryLoad;
+    /// <summary>Project whose messages are currently in Chat.Messages (history bind).</summary>
+    private string? _chatHistoryBoundProject;
     /// <summary>Skip SelectedProject side-effects (save/load) while renaming to avoid re-entrancy crash.</summary>
     private bool _suppressProjectSelectionHandler;
 
@@ -132,6 +153,7 @@ public sealed class MainViewModel : BaseViewModel
     private SupabaseRealtimeWebSocket? _supabaseRealtime;
     private readonly SupabaseHermesEchoTracker _supabaseEchoTracker = new();
     private readonly HashSet<Guid> _supabaseSeenMessageIds = [];
+    private readonly HashSet<string> _supabaseSeenPhotoNonces = new(StringComparer.OrdinalIgnoreCase);
     private DispatcherTimer? _supabaseRelayTimer;
     /// <summary>False until first successful relay connect; gates optional poll ticks.</summary>
     private bool _supabasePollingEnabled;
@@ -250,14 +272,30 @@ public sealed class MainViewModel : BaseViewModel
             _wslAgentMemorySync,
             reason => { _ = PersistSettingsQuietAsync(); });
         _reniWaterCoordinator = new ReniWaterExecutionCoordinator(_reniWater, _localLearning, logService);
+        _agentScheduler = new AgentTaskSchedulerService(logService);
+        _agentScheduler.TaskDue += task => _ = DispatchSchedulerTaskAsync(task);
+        _agentScheduler.Start();
+        _portfolioStore = new PortfolioStoreService(logService);
+        _activityBus = new AgentActivityBus();
         _wpfLocalExecutor = new WpfLocalActionExecutor(
             () => Settings,
             _reniWaterCoordinator,
             _reniWater,
             _reniSchTasks,
-            _localLearning);
+            _localLearning,
+            _agentScheduler,
+            _portfolioStore);
         _reniWaterLocalChat = new ReniWaterLocalChatHandler(_reniWater, _wpfLocalExecutor, logService);
         _mt5TerminalIpc = new Mt5TerminalIpcClient(logService);
+        _mt5SymbolsService = new Mt5TerminalSymbolsService(_mt5TerminalIpc, logService);
+        _remoteLogBridge = new SupabaseRemoteLogBridge(logService, Settings, () => _supabaseRelay);
+        _remoteLogBridge.Start();
+        _hwtStatusPublisher = new HwtStatusSupabasePublisher(
+            logService,
+            Settings,
+            () => _supabaseRelay,
+            () => Projects.SelectedProject?.WindowsPath);
+        _hwtStatusPublisher.Start();
         _cliFollowUp = new CliLearningFollowUpService(_hermesService, logService, () => Settings);
         _chatFontSize = ClampChatFontForUi(Settings.ChatFontSize);
         Settings.ChatFontSize = _chatFontSize;
@@ -308,6 +346,9 @@ public sealed class MainViewModel : BaseViewModel
                 return;
             }
 
+            // Persist the project that currently owns Chat.Messages before switching away.
+            await PersistBoundChatHistoryBeforeSwitchAsync().ConfigureAwait(true);
+
             SnapshotProjectsIntoSettings();
 
             try
@@ -327,13 +368,24 @@ public sealed class MainViewModel : BaseViewModel
             if (Projects.SelectedProject is null)
             {
                 _logService.SetActiveProject(null);
+                RaisePropertyChanged(nameof(IsProjectManagerWorkspace));
+                CommandManager.InvalidateRequerySuggested();
                 RefreshChatModeStatusUi();
                 Chat.Messages.Clear();
+                _chatHistoryBoundProject = null;
                 return;
             }
 
             _logService.SetActiveProject(Projects.SelectedProject.Name);
+            RaisePropertyChanged(nameof(IsProjectManagerWorkspace));
+            CommandManager.InvalidateRequerySuggested();
             _projectAgentsBootstrap.EnsureProjectHermesArtifacts(Projects.SelectedProject.WindowsPath);
+            if (TradingAnalyticsMt5SymbolsParser.IsTradingAnalyticsProject(Projects.SelectedProject.Name))
+            {
+                _ = TryEnsureTradingAnalyticsMt5SymbolsAsync(
+                    Projects.SelectedProject.WindowsPath,
+                    forceRefresh: false);
+            }
             RefreshChatModeStatusUi();
             _ = PublishSessionContextToSupabaseIfChangedAsync("project-selected");
 
@@ -362,9 +414,17 @@ public sealed class MainViewModel : BaseViewModel
         AddProjectCommand = new RelayCommand(_ => AddProject());
         BrowseProjectFolderCommand = new RelayCommand(_ => BrowseProjectFolder());
         RenameProjectCommand = new RelayCommand(async _ => await RenameSelectedProjectAsync(), _ => CanExecuteProjectCommand());
+        MoveProjectUpCommand = new RelayCommand(_ => MoveSelectedProject(-1), _ => CanMoveSelectedProject(-1));
+        MoveProjectDownCommand = new RelayCommand(_ => MoveSelectedProject(1), _ => CanMoveSelectedProject(1));
+        OpenProjectManagerWindowCommand = new RelayCommand(_ => RequestOpenProjectManagerWindow());
+        OpenMiniConsoleCommand = new RelayCommand(_ => RequestOpenMiniConsole());
+        OpenMainConsoleCommand = new RelayCommand(_ => RequestOpenMainConsole());
+        OpenProjectManagerDashboardCommand = new RelayCommand(
+            _ => RequestOpenProjectManagerDashboard(),
+            _ => IsProjectManagerWorkspace);
         SendMessageCommand = new RelayCommand(
-            _ => _ = SendMessageAsync(),
-            _ => CanSendChatMessage());
+            async _ => await SendMessageAsync(),
+            _ => CanExecuteProjectCommand() && CanSendChatMessage());
         AttachChatFileCommand = new RelayCommand(
             _ => AttachChatFilesFromDialog(),
             _ => CanExecuteProjectCommand() && !_isBusy);
@@ -384,6 +444,12 @@ public sealed class MainViewModel : BaseViewModel
         StatusCommand = new RelayCommand(async _ => await RunQuickActionAsync("status"), _ => CanExecuteProjectCommand());
         ResetWebhookCommand = new RelayCommand(async _ => await RunQuickActionAsync("gateway reset-webhook"), _ => CanExecuteProjectCommand());
         AnalyzeCodeCommand = new RelayCommand(async _ => await SendMessageTextAsync("Проанализируй код текущего проекта"), _ => CanExecuteProjectCommand());
+        OpenMt5TerminalTestCommandsCommand = new RelayCommand(
+            _ => OpenMt5TerminalTestCommands(),
+            _ => CanOpenMt5TerminalTestCommands());
+        OpenMt5TerminalTestOrdersCommand = new RelayCommand(
+            _ => OpenMt5TerminalTestOrders(),
+            _ => CanOpenMt5TerminalTestOrders());
         ReconnectCommand = new RelayCommand(async _ => await RefreshConnectionAsync(), _ => !_isConnectionBusy);
         SaveSettingsCommand = new RelayCommand(async _ => await _settingsService.SaveAsync(Settings));
         ToggleSupabaseRelayCommand = new RelayCommand(
@@ -442,8 +508,8 @@ public sealed class MainViewModel : BaseViewModel
                 CommandManager.InvalidateRequerySuggested();
             }
         };
-        Chat.PendingAttachments.CollectionChanged += (_, __) => CommandManager.InvalidateRequerySuggested();
 
+        Chat.PendingAttachments.CollectionChanged += (_, __) => CommandManager.InvalidateRequerySuggested();
         Projects.PropertyChanged += (_, _) => CommandManager.InvalidateRequerySuggested();
 
         _watchdogTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(25) };
@@ -461,6 +527,11 @@ public sealed class MainViewModel : BaseViewModel
         _reniWaterPollTimer.Start();
         RefreshReniWaterPendingUi();
 
+        // On-demand inject from HWT Cmds… (file drop, not Supabase poll-fallback).
+        _mt5AgentChatInjectTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+        _mt5AgentChatInjectTimer.Tick += async (_, _) => await TickMt5AgentChatInjectAsync().ConfigureAwait(true);
+        _mt5AgentChatInjectTimer.Start();
+
         _reniSchTasks.ClearDeprecatedInAppScheduleFields();
         _ = PersistSettingsQuietAsync();
 
@@ -471,10 +542,6 @@ public sealed class MainViewModel : BaseViewModel
 
     private void LogStartupBanner()
     {
-        var asm = Assembly.GetExecutingAssembly();
-        var ver = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-                  ?? asm.GetName().Version?.ToString()
-                  ?? "?";
         _logService.LogInfo($"[startup] Hermes.Wpf {AppVersion.LogStamp}, WSL distro (settings)={Settings.WslDistro}");
         _logService.LogInfo($"[startup] Logs root: {HermesLogPaths.LogsRoot}");
         _logService.LogInfo($"[startup] Session log: {_logService.CurrentLogFilePath}");
@@ -1264,26 +1331,398 @@ public sealed class MainViewModel : BaseViewModel
             return;
         }
 
-        var displayResponse = await ResolveMt5TerminalRouterChatAsync(projectName, result).ConfigureAwait(true);
-        if (string.IsNullOrWhiteSpace(displayResponse))
+        var rawResponse = await ResolveMt5TerminalRouterChatAsync(projectName, result, payload).ConfigureAwait(true);
+        if (string.IsNullOrWhiteSpace(rawResponse))
         {
-            displayResponse = string.IsNullOrWhiteSpace(result.EffectiveDisplayText)
+            rawResponse = string.IsNullOrWhiteSpace(result.EffectiveDisplayText)
                 ? "(пустой ответ)"
                 : result.EffectiveDisplayText;
+        }
+
+        TradingAnalyticsSignalCard? tradeSignal = null;
+        var displaySource = rawResponse;
+        if (TradingAnalyticsSignalParser.IsTradingAnalyticsProject(projectName))
+        {
+            if (TradingAnalyticsMt5SymbolsParser.TryParseFetchRequest(rawResponse, out var forceSymbolsRefresh))
+            {
+                displaySource = TradingAnalyticsMt5SymbolsParser.StripFromDisplay(displaySource);
+                _logService.LogInfo("[mt5-symbols] agent requested Mt5Terminal symbol catalog fetch");
+                await TryEnsureTradingAnalyticsMt5SymbolsAsync(
+                    Projects.SelectedProject?.WindowsPath ?? projectName,
+                    forceSymbolsRefresh).ConfigureAwait(true);
+            }
+
+            if (TradingAnalyticsSignalParser.TryParseObjectFromJsonOnly(rawResponse, out var jsonSignal))
+            {
+                tradeSignal = jsonSignal;
+                displaySource = TradingAnalyticsSignalParser.StripSignalJsonFromDisplay(rawResponse);
+                _logService.LogInfo("[trade-signal] parsed from trade_signal JSON");
+            }
+            else if (TradingAnalyticsSignalParser.TryParseFromStructuredText(rawResponse, out var textSignal))
+            {
+                tradeSignal = textSignal;
+                _logService.LogInfo("[trade-signal] parsed from markdown (agent omitted trade_signal JSON)");
+            }
+        }
+
+        var displayResponse = HermesReplySplit.ForChatDisplay(displaySource);
+
+        // Narrow exception: scheduler_* / portfolio_* even in pure CLI mode.
+        if (WpfLocalIntentParser.TryConsumeIntent(rawResponse, out var harnessIntent)
+            && harnessIntent is not null
+            && IsWpfLocalHarnessAction(harnessIntent.Action))
+        {
+            var (schedDisplay, _, _) = await ProcessWpfLocalTurnAsync(
+                rawResponse,
+                harnessIntent,
+                projectName,
+                payload,
+                wslPath,
+                "cli-harness").ConfigureAwait(true);
+            displayResponse = schedDisplay;
         }
 
         Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = displayResponse });
         _chatLogService.AppendMessage(projectName, "Hermes", displayResponse);
         NotifyHermesReplyArrived(projectName, displayResponse);
-        await PublishAssistantTurnToSupabaseIfPossibleAsync(displayResponse);
+        await PublishAssistantTurnToSupabaseIfPossibleAsync(rawResponse);
         await TrySaveHistoryAfterTurnAsync(projectName);
         RequestChatScrollToBottom();
+
+        if (tradeSignal is not null)
+        {
+            await TryOfferTradingAnalyticsSignalApprovalAsync(projectName, tradeSignal).ConfigureAwait(true);
+        }
+    }
+
+    private static bool IsWpfLocalHarnessAction(string action) =>
+        action.StartsWith("scheduler_", StringComparison.OrdinalIgnoreCase)
+        || action.StartsWith("portfolio_", StringComparison.OrdinalIgnoreCase);
+
+    private async Task TryOfferTradingAnalyticsSignalApprovalAsync(
+        string projectName,
+        TradingAnalyticsSignalCard signal)
+    {
+        var mt5Path = ResolveMt5TerminalProjectPath();
+        var chartSymbol = Mt5TerminalIpcClient.TryReadChartSymbol(mt5Path);
+        _logService.LogInfo(
+            $"[trade-signal] Parsed {signal.Symbol} {signal.PendingOrderTypeLabel} entry={signal.EffectiveEntry} chart={chartSymbol ?? "?"}");
+
+        var approved = await Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            var owner = Application.Current.MainWindow;
+            var dlg = new TradeSignalApprovalWindow(signal, chartSymbol)
+            {
+                Owner = owner,
+            };
+            return dlg.ShowDialog() == true;
+        }).Task.ConfigureAwait(true);
+
+        if (!approved)
+        {
+            _logService.LogInfo("[trade-signal] User cancelled Apply.");
+            AppendTerminal("[trade-signal] Сигнал отменён (Cancel).");
+            return;
+        }
+
+        var route = TradingAnalyticsSignalExecutor.ToMt5Command(signal);
+        try
+        {
+            var exec = await _mt5TerminalIpc
+                .ExecuteAsync(route, mt5Path, TimeSpan.FromSeconds(30))
+                .ConfigureAwait(true);
+            var msg = Mt5TerminalIpcClient.FormatChatMessage(route, exec);
+            Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = msg });
+            _chatLogService.AppendMessage(projectName, "Hermes", msg);
+            await TrySaveHistoryAfterTurnAsync(projectName).ConfigureAwait(true);
+            RequestChatScrollToBottom();
+            AppendTerminal(
+                $"[trade-signal] Apply → Mt5Terminal ok={exec.Ok} {exec.Error ?? exec.Message ?? string.Empty}",
+                isError: !exec.Ok);
+        }
+        catch (Exception ex)
+        {
+            _logService.LogError("[trade-signal] " + ex.Message);
+            AppendTerminal("[trade-signal] Apply failed: " + ex.Message, isError: true);
+        }
+    }
+
+    private string? ResolveMt5TerminalProjectPath()
+    {
+        var project = Projects.Projects.FirstOrDefault(p =>
+            Mt5TerminalTradeRouter.IsMt5TerminalProject(p.Name));
+        if (project is not null)
+        {
+            return project.WindowsPath;
+        }
+
+        return @"D:\Programming\AI_Agents\HermesProjects\Mt5Terminal";
+    }
+
+    private async Task TryEnsureTradingAnalyticsMt5SymbolsAsync(string? tradingAnalyticsProjectPath, bool forceRefresh)
+    {
+        if (string.IsNullOrWhiteSpace(tradingAnalyticsProjectPath))
+        {
+            return;
+        }
+
+        if (!forceRefresh && !_mt5SymbolsService.ShouldRefreshCache(tradingAnalyticsProjectPath))
+        {
+            var existing = _mt5SymbolsService.TryLoadCache(tradingAnalyticsProjectPath);
+            if (existing is not null)
+            {
+                _logService.LogInfo($"[mt5-symbols] using cache ({existing.Count} symbols, {existing.FetchedAtUtc:u})");
+                return;
+            }
+        }
+
+        var mt5Path = ResolveMt5TerminalProjectPath();
+        try
+        {
+            var catalog = await _mt5SymbolsService
+                .EnsureCachedAsync(tradingAnalyticsProjectPath, mt5Path, forceRefresh)
+                .ConfigureAwait(true);
+            if (catalog is null)
+            {
+                AppendTerminal(
+                    "[mt5-symbols] Не удалось получить список символов из Mt5Terminal (HWT открыт? EA на графике?)",
+                    isError: true);
+                return;
+            }
+
+            AppendTerminal(
+                $"[mt5-symbols] Кэш обновлён: {catalog.Count} символов → {Mt5TerminalSymbolsService.ResolveCachePath(tradingAnalyticsProjectPath)}");
+        }
+        catch (Exception ex)
+        {
+            _logService.LogError("[mt5-symbols] " + ex.Message);
+            AppendTerminal("[mt5-symbols] Ошибка: " + ex.Message, isError: true);
+        }
+    }
+
+    /// <summary>
+    /// Trading Analytics local smoke test: show Apply/Cancel for a fixed XAUUSD Sell Limit card (no Hermes CLI).
+    /// Triggers: «тестовая карточка сигнала», «test trade signal».
+    /// </summary>
+    private async Task<bool> TryHandleTradingAnalyticsTestSignalLocalAsync(string userPayload, string projectName)
+    {
+        if (!TradingAnalyticsSignalParser.IsTradingAnalyticsProject(projectName))
+        {
+            return false;
+        }
+
+        var t = (userPayload ?? string.Empty).Trim().ToLowerInvariant();
+        if (t.Length == 0)
+        {
+            return false;
+        }
+
+        var hit = t is "тестовая карточка" or "тестовая карточка сигнала" or "test trade signal" or "test signal card"
+                  || t.Contains("тестовая карточка сигнала", StringComparison.Ordinal)
+                  || t.Contains("test trade signal", StringComparison.Ordinal);
+        if (!hit)
+        {
+            return false;
+        }
+
+        var card = new TradingAnalyticsSignalCard
+        {
+            SignalId = "test-xauusd-sell-limit-" + DateTime.UtcNow.ToString("HHmmss"),
+            Symbol = "XAUUSD",
+            Side = "sell",
+            OrderType = "limit",
+            Entry = 4490,
+            StopLoss = 4505,
+            TakeProfit = 4450,
+            Lot = 0.01,
+            Timeframe = "H1",
+            Summary = "TEST: Sell Limit XAUUSD (local smoke test — Apply → place_pending)",
+        };
+
+        var info =
+            "Тестовая карточка XAUUSD Sell Limit entry=4490 SL=4505 TP=4450 lot=0.01.\n"
+            + "График HWT должен быть XAUUSD. Real trading ON + Algo Trading в MT5.\n"
+            + "Сейчас откроется Apply / Cancel.";
+        Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = info });
+        _chatLogService.AppendMessage(projectName, "Hermes", info);
+        RequestChatScrollToBottom();
+        _logService.LogInfo("[trade-signal] local test card XAUUSD Sell Limit");
+        await TryOfferTradingAnalyticsSignalApprovalAsync(projectName, card).ConfigureAwait(true);
+        return true;
+    }
+
+    /// <summary>
+    /// Mt5Terminal local «повтор» / repeat: re-send last published HWT screenshot to RemoteTerminal.
+    /// No Hermes CLI, no new ChartScreenShot IPC.
+    /// </summary>
+    private async Task<bool> TryHandleMt5TerminalRepeatLocalAsync(string userPayload, string projectName)
+    {
+        if (!Mt5TerminalTradeRouter.IsMt5TerminalProject(projectName))
+        {
+            return false;
+        }
+
+        if (!Mt5TerminalTradeRouter.LooksLikeRepeatRequest(userPayload))
+        {
+            return false;
+        }
+
+        _logService.LogInfo("[mt5-repeat] local (no Hermes CLI)");
+
+        var path = _lastHwtScreenshotPath;
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            var miss =
+                """
+                [info]
+                Нет сохранённого скриншота для повтора. Сначала отправьте Screenshot.
+
+                [Voice]
+                {"ru":"Нет сохранённого скриншота."}
+                [/Voice]
+                """;
+            PostMt5TerminalLocalReply(projectName, miss.Trim());
+            AppendTerminal("[mt5-repeat] no last screenshot path", isError: true);
+            return true;
+        }
+
+        try
+        {
+            if (_supabaseRelay is not { IsConnected: true })
+            {
+                var offline =
+                    """
+                    [info]
+                    Relay offline — RemoteTerminal не уведомлён.
+
+                    [Voice]
+                    {"ru":"Relay offline."}
+                    [/Voice]
+                    """;
+                PostMt5TerminalLocalReply(projectName, offline.Trim());
+                AppendTerminal("[mt5-repeat] relay offline", isError: true);
+                return true;
+            }
+
+            var shot = await _supabaseRelay.PublishHwtScreenshotAsync(path, replay: true).ConfigureAwait(true);
+            AppendTerminal($"[mt5-repeat] republish ok={shot.Ok} {shot.Message}", isError: !shot.Ok);
+
+            if (shot.Ok)
+            {
+                var ok =
+                    """
+                    [info]
+                    Повтор: последний скриншот снова отправлен в RemoteTerminal.
+
+                    [Voice]
+                    {"ru":"Повтор скриншота."}
+                    [/Voice]
+                    """;
+                PostMt5TerminalLocalReply(projectName, ok.Trim());
+            }
+            else
+            {
+                var fail =
+                    "[info]\nПовтор не удался: " + shot.Message
+                    + "\n\n[Voice]\n{\"ru\":\"Повтор не удался.\"}\n[/Voice]";
+                PostMt5TerminalLocalReply(projectName, fail);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logService.LogWarn("[mt5-repeat] " + ex.Message);
+            PostMt5TerminalLocalReply(
+                projectName,
+                "[info]\nПовтор: " + ex.Message + "\n\n[Voice]\n{\"ru\":\"Ошибка повтора.\"}\n[/Voice]");
+            AppendTerminal("[mt5-repeat] " + ex.Message, isError: true);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Mt5Terminal local «refresh»: IPC snapshot + publish <c>hwt_status</c> to RemoteTerminal. No Hermes CLI.
+    /// </summary>
+    private async Task<bool> TryHandleMt5TerminalRefreshLocalAsync(string userPayload, string projectName)
+    {
+        if (!Mt5TerminalTradeRouter.IsMt5TerminalProject(projectName))
+        {
+            return false;
+        }
+
+        if (!Mt5TerminalTradeRouter.LooksLikeRefreshRequest(userPayload))
+        {
+            return false;
+        }
+
+        _logService.LogInfo("[mt5-refresh] local (no Hermes CLI)");
+        var id = Guid.NewGuid().ToString("N");
+        try
+        {
+            var exec = await _mt5TerminalIpc
+                .ExecuteAsync(
+                    new Mt5TerminalRouteCommand { Action = "snapshot", Id = id },
+                    Projects.SelectedProject?.WindowsPath,
+                    TimeSpan.FromSeconds(45))
+                .ConfigureAwait(true);
+
+            var pub = await _hwtStatusPublisher.PublishNowAsync().ConfigureAwait(true);
+            var ok = exec.Ok && pub.Ok;
+            AppendTerminal(
+                $"[mt5-refresh] ipc ok={exec.Ok} publish ok={pub.Ok} {pub.Message}",
+                isError: !ok);
+
+            if (ok)
+            {
+                PostMt5TerminalLocalReply(
+                    projectName,
+                    """
+                    [info]
+                    Терминал обновлён → RemoteTerminal.
+
+                    [Voice]
+                    {"ru":"Терминал обновлён."}
+                    [/Voice]
+                    """.Trim());
+            }
+            else
+            {
+                var detail = string.IsNullOrWhiteSpace(pub.Message) ? exec.Error ?? exec.Message : pub.Message;
+                PostMt5TerminalLocalReply(
+                    projectName,
+                    "[info]\nRefresh: " + detail
+                    + "\n\n[Voice]\n{\"ru\":\"Обновление не удалось.\"}\n[/Voice]");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logService.LogWarn("[mt5-refresh] " + ex.Message);
+            PostMt5TerminalLocalReply(
+                projectName,
+                "[info]\nRefresh: " + ex.Message + "\n\n[Voice]\n{\"ru\":\"Ошибка обновления.\"}\n[/Voice]");
+            AppendTerminal("[mt5-refresh] " + ex.Message, isError: true);
+        }
+
+        return true;
+    }
+
+    private void PostMt5TerminalLocalReply(string projectName, string rawWithVoice)
+    {
+        var display = HermesReplySplit.ForChatDisplay(rawWithVoice);
+        DispatchToUi(() => Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = display }));
+        _chatLogService.AppendMessage(projectName, "Hermes", display);
+        RequestChatScrollToBottom();
+        _ = PublishAssistantTurnToSupabaseIfPossibleAsync(rawWithVoice);
+        _ = TrySaveHistoryAfterTurnAsync(projectName);
     }
 
     /// <summary>
     /// Mt5Terminal: agent is a whitelist router (JSON in stdout). WPF executes via HermesWpfTerminal IPC.
     /// </summary>
-    private async Task<string> ResolveMt5TerminalRouterChatAsync(string projectName, HermesExecutionResult result)
+    private async Task<string> ResolveMt5TerminalRouterChatAsync(
+        string projectName,
+        HermesExecutionResult result,
+        string? userMessage = null)
     {
         if (!Mt5TerminalTradeRouter.IsMt5TerminalProject(projectName))
         {
@@ -1298,8 +1737,43 @@ public sealed class MainViewModel : BaseViewModel
         var route = Mt5TerminalTradeRouter.TryParseFromAgentOutput(parseSource);
         if (route is null)
         {
-            _logService.LogWarn("[mt5-router] no whitelist JSON in agent stdout — execution skipped");
-            return Mt5TerminalTradeRouter.FormatMissingJsonChat();
+            // Clear chart-screenshot intent even if agent omitted JSON / used old session rules.
+            if (Mt5TerminalTradeRouter.LooksLikeChartScreenshotRequest(userMessage))
+            {
+                route = new Mt5TerminalRouteCommand
+                {
+                    Action = "screenshot",
+                    Id = Guid.NewGuid().ToString("N"),
+                };
+                _logService.LogInfo("[mt5-router] no JSON — forced screenshot from user intent");
+            }
+            else if (Mt5TerminalTradeRouter.LooksLikeRefreshRequest(userMessage))
+            {
+                route = new Mt5TerminalRouteCommand
+                {
+                    Action = "refresh",
+                    Id = Guid.NewGuid().ToString("N"),
+                };
+                _logService.LogInfo("[mt5-router] no JSON — forced refresh from user intent");
+            }
+            else if (Mt5TerminalTradeRouter.LooksLikeStatusOrBalanceRequest(userMessage))
+            {
+                route = new Mt5TerminalRouteCommand
+                {
+                    Action = "snapshot",
+                    Id = Guid.NewGuid().ToString("N"),
+                };
+                _logService.LogInfo("[mt5-router] no JSON — forced snapshot from status/balance intent");
+            }
+            else
+            {
+                _logService.LogWarn("[mt5-router] no whitelist JSON in agent stdout — execution skipped");
+                return Mt5TerminalTradeRouter.FormatMissingJsonChat();
+            }
+        }
+        else
+        {
+            route = Mt5TerminalTradeRouter.CorrectRouteForUserIntent(route, userMessage);
         }
 
         if (route.IsUnsupported)
@@ -1312,13 +1786,78 @@ public sealed class MainViewModel : BaseViewModel
         _logService.LogInfo($"[mt5-router] execute action={route.Action} id={route.Id}");
         try
         {
+            var timeout = string.Equals(route.Action, "screenshot", StringComparison.OrdinalIgnoreCase)
+                ? TimeSpan.FromSeconds(60)
+                : TimeSpan.FromSeconds(45);
+
+            // refresh → IPC snapshot (обновить status.json) + publish to RemoteTerminal
+            var ipcRoute = string.Equals(route.Action, "refresh", StringComparison.OrdinalIgnoreCase)
+                ? new Mt5TerminalRouteCommand { Action = "snapshot", Id = route.Id }
+                : route;
+
             var exec = await _mt5TerminalIpc
-                .ExecuteAsync(route, projectPath, TimeSpan.FromSeconds(45))
+                .ExecuteAsync(ipcRoute, projectPath, timeout)
                 .ConfigureAwait(true);
+
+            if (string.Equals(route.Action, "refresh", StringComparison.OrdinalIgnoreCase))
+            {
+                var pub = await _hwtStatusPublisher.PublishNowAsync().ConfigureAwait(true);
+                exec.Ok = exec.Ok && pub.Ok;
+                exec.Message = string.IsNullOrWhiteSpace(exec.Message)
+                    ? pub.Message
+                    : exec.Message + "\n" + pub.Message;
+                if (!pub.Ok && string.IsNullOrWhiteSpace(exec.Error))
+                {
+                    exec.Error = pub.Message;
+                }
+
+                AppendTerminal(
+                    $"[mt5-ipc] refresh publish ok={pub.Ok} {pub.Message}",
+                    isError: !pub.Ok);
+            }
+
+            if (string.Equals(route.Action, "screenshot", StringComparison.OrdinalIgnoreCase)
+                && exec.Ok
+                && !string.IsNullOrWhiteSpace(exec.ScreenshotPath))
+            {
+                try
+                {
+                    if (_supabaseRelay is { IsConnected: true })
+                    {
+                        var shot = await _supabaseRelay
+                            .PublishHwtScreenshotAsync(exec.ScreenshotPath!)
+                            .ConfigureAwait(true);
+                        if (shot.Ok)
+                        {
+                            _lastHwtScreenshotPath = exec.ScreenshotPath;
+                        }
+
+                        AppendTerminal(
+                            $"[hwt-screenshot] remote ok={shot.Ok} {shot.Message}",
+                            isError: !shot.Ok);
+                        if (!string.IsNullOrWhiteSpace(shot.Message))
+                        {
+                            exec.Message = string.IsNullOrWhiteSpace(exec.Message)
+                                ? shot.Message
+                                : exec.Message + "\n" + shot.Message;
+                        }
+                    }
+                    else
+                    {
+                        AppendTerminal("[hwt-screenshot] relay offline — RemoteTerminal не уведомлён", isError: true);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logService.LogWarn("[hwt-screenshot] " + ex.Message);
+                    AppendTerminal("[hwt-screenshot] " + ex.Message, isError: true);
+                }
+            }
+
             AppendTerminal(
                 $"[mt5-ipc] {route.Action} ok={exec.Ok}" + (string.IsNullOrWhiteSpace(exec.Error) ? string.Empty : " " + exec.Error),
                 isError: !exec.Ok);
-            return Mt5TerminalIpcClient.FormatChatMessage(route, exec);
+            return Mt5TerminalIpcClient.FormatChatMessage(route, exec, userMessage);
         }
         catch (Exception ex)
         {
@@ -1471,6 +2010,12 @@ public sealed class MainViewModel : BaseViewModel
     public ICommand AddProjectCommand { get; }
     public ICommand BrowseProjectFolderCommand { get; }
     public ICommand RenameProjectCommand { get; }
+    public ICommand MoveProjectUpCommand { get; }
+    public ICommand MoveProjectDownCommand { get; }
+    public ICommand OpenProjectManagerWindowCommand { get; }
+    public ICommand OpenMiniConsoleCommand { get; }
+    public ICommand OpenMainConsoleCommand { get; }
+    public ICommand OpenProjectManagerDashboardCommand { get; }
     public ICommand SendMessageCommand { get; }
     public ICommand AttachChatFileCommand { get; }
     public ICommand AttachChatScreenshotCommand { get; }
@@ -1481,6 +2026,13 @@ public sealed class MainViewModel : BaseViewModel
     public ICommand StatusCommand { get; }
     public ICommand ResetWebhookCommand { get; }
     public ICommand AnalyzeCodeCommand { get; }
+
+    /// <summary>Human-language test commands → Mt5Terminal agent chat (same as typing).</summary>
+    public ICommand OpenMt5TerminalTestCommandsCommand { get; }
+
+    /// <summary>Quote-relative market/pending test order cards → Mt5Terminal IPC.</summary>
+    public ICommand OpenMt5TerminalTestOrdersCommand { get; }
+
     public ICommand ReconnectCommand { get; }
     public ICommand SaveSettingsCommand { get; }
 
@@ -1518,6 +2070,152 @@ public sealed class MainViewModel : BaseViewModel
 
     public ICommand CheckReniWaterSessionCommand { get; }
 
+    public AgentTaskSchedulerService AgentScheduler => _agentScheduler;
+
+    public PortfolioStoreService PortfolioStore => _portfolioStore;
+
+    public AgentActivityBus ActivityBus => _activityBus;
+
+    public bool IsProjectManagerWorkspace =>
+        Projects.SelectedProject is { Name: var n }
+        && n.Equals("ProjectManager", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Dashboard / Run Now: inject reminder into the owning project chat.</summary>
+    public Task RunSchedulerTaskNowAsync(AgentScheduledTask task)
+    {
+        if (task.Status is AgentTaskStatus.Completed or AgentTaskStatus.Cancelled)
+        {
+            AppendTerminal($"[scheduler] Задача {task.Id} уже закрыта — Run Now пропущен.");
+            return Task.CompletedTask;
+        }
+
+        return DispatchSchedulerTaskAsync(task, forceNow: true);
+    }
+
+    private async Task DispatchSchedulerTaskAsync(AgentScheduledTask task, bool forceNow = false)
+    {
+        try
+        {
+            if (forceNow
+                && task.Status is not AgentTaskStatus.Completed and not AgentTaskStatus.Cancelled)
+            {
+                // Ensure timer won't also fire; status Fired for overdue/Run Now.
+                _agentScheduler.MarkFired(task.Id);
+            }
+
+            var project = Projects.Projects.FirstOrDefault(p =>
+                string.Equals(p.Name, task.ProjectName, StringComparison.OrdinalIgnoreCase));
+            if (project is null)
+            {
+                _logService.LogWarn(
+                    $"[scheduler] project «{task.ProjectName}» not loaded; cannot dispatch id={task.Id}");
+                AppendTerminal(
+                    $"[scheduler] Проект «{task.ProjectName}» не в списке — напоминание id={task.Id} не отправлено.",
+                    isError: true);
+                return;
+            }
+
+            if (!ReferenceEquals(Projects.SelectedProject, project))
+            {
+                Projects.SelectedProject = project;
+                await EnsureSelectedProjectHistoryLoadedAsync().ConfigureAwait(true);
+            }
+
+            var payload =
+                $"[scheduler reminder] id={task.Id}\n"
+                + $"Задача: {task.Title}\n\n"
+                + $"{task.Command}\n\n"
+                + "Выполни задачу. После успеха или если неактуально — удали из планировщика:\n"
+                + $"{{\"skill\":\"wpf_local\",\"action\":\"scheduler_complete\",\"task_id\":\"{task.Id}\"}}";
+
+            _logService.LogInfo($"[scheduler] inject → {task.ProjectName} id={task.Id}");
+            AppendTerminal($"[scheduler] Напоминание → {task.ProjectName}: {task.Title}");
+
+            // Wait if another Hermes turn is in progress (simple backoff).
+            for (var i = 0; i < 60 && _isBusy; i++)
+            {
+                await Task.Delay(1000).ConfigureAwait(true);
+            }
+
+            if (_isBusy)
+            {
+                _logService.LogWarn($"[scheduler] still busy; drop inject id={task.Id}");
+                AppendTerminal($"[scheduler] Агент занят — напоминание id={task.Id} отложено (остаётся Fired).", isError: true);
+                return;
+            }
+
+            await SendMessageTextAsync(payload).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _logService.LogError($"[scheduler] dispatch error id={task.Id}: {ex.Message}");
+            AppendTerminal($"[scheduler] Ошибка доставки: {ex.Message}", isError: true);
+        }
+    }
+
+    /// <summary>Detect scheduled work that should have run while Hermes.Wpf / PC was off.</summary>
+    public IReadOnlyList<MissedScheduledTaskInfo> DetectMissedScheduledTasks()
+    {
+        var detector = new MissedScheduledTaskService(_logService, () => Settings);
+        return detector.DetectMissed();
+    }
+
+    /// <summary>Run Now from missed-task popup (local Playwright path, not CLI).</summary>
+    public async Task<(bool Ok, string Message)> RunMissedScheduledTaskAsync(MissedScheduledTaskInfo task)
+    {
+        _logService.LogInfo($"[missed-tasks] Run Now id={task.Id} kind={task.Kind}");
+        switch (task.Kind)
+        {
+            case MissedTaskKind.ReniWaterMonthly:
+            case MissedTaskKind.ReniWaterOnce:
+            {
+                _reniWaterBusy = true;
+                try
+                {
+                    var project = Projects.SelectedProject?.Name ?? "Utilities";
+                    var result = await _wpfLocalExecutor
+                        .ExecuteAsync(
+                            new WpfLocalIntent { Action = "reni_water_submit" },
+                            project,
+                            $"Run Now (missed): {task.Title}",
+                            "missed-task-popup",
+                            CancellationToken.None)
+                        .ConfigureAwait(true);
+
+                    if (result.Ok)
+                    {
+                        Settings.ReniWaterLastMonthlyRunKey =
+                            DateTime.Now.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+                        await _settingsService.SaveAsync(Settings).ConfigureAwait(true);
+                    }
+
+                    var line = result.Ok
+                        ? $"✅ {result.UserMessage}"
+                        : $"⚠ {result.UserMessage}";
+                    Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = line });
+                    if (!string.IsNullOrWhiteSpace(result.ScreenshotPath))
+                    {
+                        Chat.Messages.Add(new ChatMessage
+                        {
+                            Role = "Hermes",
+                            Text = $"Screenshot: {result.ScreenshotPath}",
+                            ImagePath = result.ScreenshotPath,
+                        });
+                    }
+
+                    return (result.Ok, result.UserMessage);
+                }
+                finally
+                {
+                    _reniWaterBusy = false;
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+            default:
+                return (false, $"Неизвестная задача: {task.Id}");
+        }
+    }
+
     public bool CanViewReniWaterScreenshot
     {
         get => _canViewReniWaterScreenshot;
@@ -1539,8 +2237,16 @@ public sealed class MainViewModel : BaseViewModel
     /// <summary>Detach timers before Supabase shutdown (main window closing).</summary>
     public void ShutdownFlashcardSkillBeforeRelay()
     {
+        _remoteLogBridge.Dispose();
+        _hwtStatusPublisher.Dispose();
         _flashcardSkill.Dispose();
+        _agentScheduler.Dispose();
         _reniWaterPollTimer.Stop();
+        _mt5AgentChatInjectTimer.Stop();
+        try { _mt5TestCommandsWindow?.Close(); } catch { /* ignore */ }
+        _mt5TestCommandsWindow = null;
+        try { _mt5TestOrdersWindow?.Close(); } catch { /* ignore */ }
+        _mt5TestOrdersWindow = null;
     }
 
     public bool IsFlashcardStatusBarVisible
@@ -1564,6 +2270,180 @@ public sealed class MainViewModel : BaseViewModel
 
     public void AttachSaveExperienceOpener(Action opener) =>
         _saveExperienceOpener = opener ?? throw new ArgumentNullException(nameof(opener));
+
+    public void AttachChatWindowOpener(Action opener) =>
+        _openChatWindow = opener ?? throw new ArgumentNullException(nameof(opener));
+
+    public void AttachProjectManagerWindowOpener(Action opener) =>
+        _openProjectManagerWindow = opener ?? throw new ArgumentNullException(nameof(opener));
+
+    public void AttachMiniConsoleOpener(Action opener) =>
+        _openMiniConsole = opener ?? throw new ArgumentNullException(nameof(opener));
+
+    public void AttachMainConsoleOpener(Action opener) =>
+        _openMainConsole = opener ?? throw new ArgumentNullException(nameof(opener));
+
+    public void AttachProjectManagerDashboardOpener(Action opener) =>
+        _openProjectManagerDashboard = opener ?? throw new ArgumentNullException(nameof(opener));
+
+    public void AttachProjectRelatedWindowOpener(Action<HermesProject> opener) =>
+        _openProjectRelatedWindow = opener ?? throw new ArgumentNullException(nameof(opener));
+
+    public void RequestOpenChatWindow() => _openChatWindow?.Invoke();
+
+    public void RequestOpenProjectManagerWindow() => _openProjectManagerWindow?.Invoke();
+
+    public void RequestOpenMiniConsole() => _openMiniConsole?.Invoke();
+
+    public void RequestOpenMainConsole() => _openMainConsole?.Invoke();
+
+    public void RequestOpenProjectManagerDashboard() => _openProjectManagerDashboard?.Invoke();
+
+    public void ShowProjectRelatedWindow(HermesProject project) =>
+        _openProjectRelatedWindow?.Invoke(project);
+
+    public ProjectUiMeta? GetProjectUiMeta(string windowsPath)
+    {
+        if (string.IsNullOrWhiteSpace(windowsPath))
+        {
+            return null;
+        }
+
+        Settings.ProjectUiMetaByPath ??= new Dictionary<string, ProjectUiMeta>(StringComparer.OrdinalIgnoreCase);
+        return Settings.ProjectUiMetaByPath.TryGetValue(windowsPath.Trim(), out var meta) ? meta : null;
+    }
+
+    public void SetProjectAvatarFromDialog(HermesProject project)
+    {
+        var dlg = new OpenFileDialog
+        {
+            Title = "Аватар проекта",
+            Filter = "Изображения|*.png;*.jpg;*.jpeg;*.gif;*.webp;*.bmp|Все файлы|*.*",
+            CheckFileExists = true,
+        };
+
+        if (dlg.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            var stored = ProjectAvatarStore.ImportAvatar(dlg.FileName, project.WindowsPath);
+            Settings.ProjectUiMetaByPath ??= new Dictionary<string, ProjectUiMeta>(StringComparer.OrdinalIgnoreCase);
+            if (!Settings.ProjectUiMetaByPath.TryGetValue(project.WindowsPath, out var meta) || meta is null)
+            {
+                meta = new ProjectUiMeta();
+                Settings.ProjectUiMetaByPath[project.WindowsPath] = meta;
+            }
+
+            meta.AvatarPath = stored;
+            _ = PersistSettingsQuietAsync();
+            AppendTerminal($"[project] Аватар сохранён: {project.Name}");
+        }
+        catch (Exception ex)
+        {
+            AppendTerminal("[project] Аватар: " + ex.Message, isError: true);
+        }
+    }
+
+    public void LaunchRelatedApp(ProjectRelatedAppInfo app)
+    {
+        if (string.Equals(app.Id, "wordpress-gallery", StringComparison.OrdinalIgnoreCase))
+        {
+            _openWordPressGallery?.Invoke();
+            return;
+        }
+
+        if (string.Equals(app.Id, "binance-futures", StringComparison.OrdinalIgnoreCase))
+        {
+            LaunchBinanceDemoFuturesManual();
+            return;
+        }
+
+        if (string.Equals(app.Id, "binance-spot", StringComparison.OrdinalIgnoreCase))
+        {
+            LaunchBinanceDemoSpotManual();
+            return;
+        }
+
+        if (string.Equals(app.Id, "command-center", StringComparison.OrdinalIgnoreCase))
+        {
+            AppendTerminal("[project] Command Center уже открыт.");
+            return;
+        }
+
+        var exe = ResolveRelatedAppExe(app);
+        if (exe is null)
+        {
+            AppendTerminal($"[project] Не найден exe для «{app.Title}». Пересоберите решение.", isError: true);
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = exe,
+                UseShellExecute = true,
+            });
+            AppendTerminal($"[project] Запущено: {Path.GetFileName(exe)}");
+        }
+        catch (Exception ex)
+        {
+            AppendTerminal($"[project] Запуск «{app.Title}»: {ex.Message}", isError: true);
+        }
+    }
+
+    private static string? ResolveRelatedAppExe(ProjectRelatedAppInfo app)
+    {
+        if (!string.IsNullOrWhiteSpace(app.ExeFileName))
+        {
+            var beside = Path.Combine(AppContext.BaseDirectory, app.ExeFileName);
+            if (File.Exists(beside))
+            {
+                return beside;
+            }
+        }
+
+        if (app.DevRelativeExePaths is { Count: > 0 })
+        {
+            var root = FindRepoRoot();
+            if (root is not null)
+            {
+                foreach (var rel in app.DevRelativeExePaths)
+                {
+                    var full = Path.GetFullPath(Path.Combine(root, rel));
+                    if (File.Exists(full))
+                    {
+                        return full;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static string? FindRepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "Hermes.sln"))
+                || Directory.Exists(Path.Combine(dir.FullName, "Hermes.Wpf")))
+            {
+                return dir.FullName;
+            }
+
+            dir = dir.Parent;
+        }
+
+        return null;
+    }
+
+    public void AttachWordPressGalleryOpener(Action opener) =>
+        _openWordPressGallery = opener ?? throw new ArgumentNullException(nameof(opener));
 
     public MemoryDraft? GetLastExperienceDraft() => _lastExperienceDraft;
 
@@ -2098,12 +2978,47 @@ public sealed class MainViewModel : BaseViewModel
             Chat.Messages.Add(ChatMessageImageParser.Normalize(message));
         }
 
+        _chatHistoryBoundProject = project.Name;
+
         _logService.LogInfo(
             $"[history] Loaded {history.Messages.Count} message(s) for «{project.Name}» from {historyPath}" +
             (history.Messages.Count == 0 ? " (empty or new session)" : string.Empty));
 
         SyncChatModeStatusBubble(persistHistory: false);
         RequestChatScrollToBottom();
+    }
+
+    /// <summary>
+    /// Before switching projects, write the in-memory chat under the project it belongs to
+    /// (avoids losing the last turn when only chat_*.log was appended).
+    /// </summary>
+    private async Task PersistBoundChatHistoryBeforeSwitchAsync()
+    {
+        var bound = _chatHistoryBoundProject;
+        if (string.IsNullOrWhiteSpace(bound) || Chat.Messages.Count == 0)
+        {
+            return;
+        }
+
+        var next = Projects.SelectedProject?.Name;
+        if (!string.IsNullOrWhiteSpace(next)
+            && string.Equals(bound, next, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        try
+        {
+            var snapshot = Chat.Messages.ToList();
+            await SaveHistorySnapshotAsync(bound, snapshot).ConfigureAwait(true);
+            _logService.LogInfo(
+                $"[history] Saved {snapshot.Count} message(s) for «{bound}» before switch" +
+                (string.IsNullOrWhiteSpace(next) ? string.Empty : $" → «{next}»"));
+        }
+        catch (Exception ex)
+        {
+            _logService.LogError($"[history] Pre-switch save failed ({bound}): {ex.Message}");
+        }
     }
 
     public async Task EnsureSelectedProjectHistoryLoadedAsync()
@@ -2150,6 +3065,40 @@ public sealed class MainViewModel : BaseViewModel
     }
 
     private bool CanExecuteProjectCommand() => !_isBusy && Projects.SelectedProject is not null;
+
+    private bool CanMoveSelectedProject(int delta)
+    {
+        if (_isBusy || Projects.SelectedProject is null || Projects.Projects.Count < 2)
+        {
+            return false;
+        }
+
+        var idx = Projects.Projects.IndexOf(Projects.SelectedProject);
+        if (idx < 0)
+        {
+            return false;
+        }
+
+        var next = idx + delta;
+        return next >= 0 && next < Projects.Projects.Count;
+    }
+
+    private void MoveSelectedProject(int delta)
+    {
+        if (!CanMoveSelectedProject(delta))
+        {
+            return;
+        }
+
+        var selected = Projects.SelectedProject!;
+        var idx = Projects.Projects.IndexOf(selected);
+        var newIndex = idx + delta;
+        Projects.Projects.Move(idx, newIndex);
+        SnapshotProjectsIntoSettings();
+        _ = PersistSettingsQuietAsync();
+        CommandManager.InvalidateRequerySuggested();
+        AppendTerminal($"[workspaces] «{selected.Name}» → позиция {newIndex + 1}/{Projects.Projects.Count}");
+    }
 
     public async Task RefreshConnectionAsync()
     {
@@ -2639,6 +3588,190 @@ public sealed class MainViewModel : BaseViewModel
     private Task SendMessageTextAsync(string text) =>
         ExecuteHermesUserTurnAsync(prependUserBubble: true, agentUserPayload: text, uiUserBubbleLine: null);
 
+    private bool CanOpenMt5TerminalTestCommands() =>
+        !_isBusy
+        && Projects.SelectedProject is not null
+        && Mt5TerminalTradeRouter.IsMt5TerminalProject(Projects.SelectedProject.Name);
+
+    private bool CanOpenMt5TerminalTestOrders() =>
+        !_isBusy && ResolveMt5TerminalProjectPath() is not null;
+
+    private void OpenMt5TerminalTestCommands()
+    {
+        if (_mt5TestCommandsWindow != null)
+        {
+            try
+            {
+                if (_mt5TestCommandsWindow.IsLoaded)
+                {
+                    _mt5TestCommandsWindow.Activate();
+                    return;
+                }
+            }
+            catch
+            {
+                _mt5TestCommandsWindow = null;
+            }
+        }
+
+        _mt5TestCommandsWindow = new Mt5TerminalTestCommandsWindow(SendMessageTextAsync)
+        {
+            Owner = Application.Current?.MainWindow,
+        };
+        _mt5TestCommandsWindow.Closed += (_, _) => _mt5TestCommandsWindow = null;
+        _mt5TestCommandsWindow.Show();
+    }
+
+    private void OpenMt5TerminalTestOrders()
+    {
+        if (_mt5TestOrdersWindow != null)
+        {
+            try
+            {
+                if (_mt5TestOrdersWindow.IsLoaded)
+                {
+                    _mt5TestOrdersWindow.Activate();
+                    return;
+                }
+            }
+            catch
+            {
+                _mt5TestOrdersWindow = null;
+            }
+        }
+
+        _mt5TestOrdersWindow = new Mt5TerminalTestOrdersWindow(
+            ResolveMt5TerminalProjectPath,
+            ApplyMt5TerminalTestOrderAsync)
+        {
+            Owner = Application.Current?.MainWindow,
+        };
+        _mt5TestOrdersWindow.Closed += (_, _) => _mt5TestOrdersWindow = null;
+        _mt5TestOrdersWindow.Show();
+    }
+
+    private async Task<string> ApplyMt5TerminalTestOrderAsync(Mt5TerminalRouteCommand command)
+    {
+        var path = ResolveMt5TerminalProjectPath();
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return "FAIL: проект Mt5Terminal не найден";
+        }
+
+        AppendTerminal($"[mt5-test-order] {command.Action} id={command.Id}");
+        var timeout = TimeSpan.FromSeconds(45);
+        var exec = await _mt5TerminalIpc.ExecuteAsync(command, path, timeout).ConfigureAwait(true);
+        var msg = Mt5TerminalIpcClient.FormatChatMessage(command, exec);
+
+        var projectName = Projects.SelectedProject?.Name;
+        if (string.IsNullOrWhiteSpace(projectName))
+        {
+            projectName = "Mt5Terminal";
+        }
+
+        // Prefer showing report in Mt5Terminal chat history.
+        if (!Mt5TerminalTradeRouter.IsMt5TerminalProject(projectName))
+        {
+            var mt5 = Projects.Projects.FirstOrDefault(p => Mt5TerminalTradeRouter.IsMt5TerminalProject(p.Name));
+            if (mt5 is not null)
+            {
+                Projects.SelectedProject = mt5;
+                projectName = mt5.Name;
+                await EnsureSelectedProjectHistoryLoadedAsync().ConfigureAwait(true);
+            }
+        }
+
+        var userLine = BuildTestOrderUserBubble(command);
+        Chat.Messages.Add(new ChatMessage { Role = "User", Text = userLine });
+        Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = msg });
+        _chatLogService.AppendMessage(projectName, "User", userLine);
+        _chatLogService.AppendMessage(projectName, "Hermes", msg);
+        await TrySaveHistoryAfterTurnAsync(projectName).ConfigureAwait(true);
+        RequestChatScrollToBottom();
+        AppendTerminal(
+            $"[mt5-test-order] ok={exec.Ok}" + (string.IsNullOrWhiteSpace(exec.Error) ? string.Empty : " " + exec.Error),
+            isError: !exec.Ok);
+
+        return exec.Ok ? "OK: " + (exec.Message ?? command.Action) : "FAIL: " + (exec.Error ?? "unknown");
+    }
+
+    private static string BuildTestOrderUserBubble(Mt5TerminalRouteCommand cmd)
+    {
+        var a = (cmd.Action ?? string.Empty).Trim().ToLowerInvariant();
+        if (a is "buy_market" or "buy")
+        {
+            return $"[test order] Buy Market lot={cmd.Lot?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "?"} {cmd.Symbol}";
+        }
+
+        if (a is "sell_market" or "sell")
+        {
+            return $"[test order] Sell Market lot={cmd.Lot?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "?"} {cmd.Symbol}";
+        }
+
+        if (a == "place_pending")
+        {
+            return $"[test order] {cmd.PendingOrderType} {cmd.Symbol} @ {cmd.Price} SL={cmd.StopLoss} TP={cmd.TakeProfit} lot={cmd.Lot}";
+        }
+
+        return $"[test order] {cmd.Action}";
+    }
+
+    private async Task TickMt5AgentChatInjectAsync()
+    {
+        if (_mt5AgentChatInjectBusy || _isBusy)
+        {
+            return;
+        }
+
+        if (!Mt5TerminalAgentChatInject.TryConsume(null, out var text, out var id))
+        {
+            return;
+        }
+
+        _mt5AgentChatInjectBusy = true;
+        try
+        {
+            if (!await EnsureMt5TerminalProjectSelectedAsync().ConfigureAwait(true))
+            {
+                AppendTerminal(
+                    $"[mt5-inject] no Mt5Terminal project for id={id}: {text}",
+                    isError: true);
+                return;
+            }
+
+            AppendTerminal($"[mt5-inject] → agent chat id={id}: {text}");
+            await SendMessageTextAsync(text).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _logService.LogWarn("[mt5-inject] " + ex.Message);
+            AppendTerminal("[mt5-inject] " + ex.Message, isError: true);
+        }
+        finally
+        {
+            _mt5AgentChatInjectBusy = false;
+        }
+    }
+
+    private async Task<bool> EnsureMt5TerminalProjectSelectedAsync()
+    {
+        if (Mt5TerminalTradeRouter.IsMt5TerminalProject(Projects.SelectedProject?.Name))
+        {
+            return true;
+        }
+
+        var mt5 = Projects.Projects.FirstOrDefault(p =>
+            Mt5TerminalTradeRouter.IsMt5TerminalProject(p.Name));
+        if (mt5 is null)
+        {
+            return false;
+        }
+
+        Projects.SelectedProject = mt5;
+        await EnsureSelectedProjectHistoryLoadedAsync().ConfigureAwait(true);
+        return true;
+    }
+
     private int FindLastUserMessageIndex()
     {
         for (var i = Chat.Messages.Count - 1; i >= 0; i--)
@@ -2700,6 +3833,8 @@ public sealed class MainViewModel : BaseViewModel
                 Role = "User",
                 Text = text,
                 ImagePath = Chat.Messages[userIndex].ImagePath,
+                AttachmentPaths = Chat.Messages[userIndex].AttachmentPaths,
+                Attachments = Chat.Messages[userIndex].Attachments,
                 Timestamp = Chat.Messages[userIndex].Timestamp,
             };
         }
@@ -2732,12 +3867,15 @@ public sealed class MainViewModel : BaseViewModel
 
         var project = Projects.SelectedProject;
 
-        if (TryHandleServerModeCommandLocal(agentUserPayload, project.Name))
+        async Task PrependUserIfNeededAsync()
         {
-            if (prependUserBubble)
+            if (!prependUserBubble)
             {
-                var bubbleText = uiUserBubbleLine ?? agentUserPayload;
-                Chat.Messages.Add(new ChatMessage
+                return;
+            }
+
+            var bubbleText = uiUserBubbleLine ?? agentUserPayload;
+            Chat.Messages.Add(new ChatMessage
             {
                 Role = "User",
                 Text = bubbleText,
@@ -2745,10 +3883,13 @@ public sealed class MainViewModel : BaseViewModel
                 AttachmentPaths = uiAttachmentPaths,
                 Attachments = uiAttachments,
             });
-                _chatLogService.AppendMessage(project.Name, "User", bubbleText);
-                await PublishUserTurnToSupabaseIfPossibleAsync(bubbleText);
-            }
+            _chatLogService.AppendMessage(project.Name, "User", bubbleText);
+            await PublishUserTurnToSupabaseIfPossibleAsync(bubbleText);
+        }
 
+        if (TryHandleServerModeCommandLocal(agentUserPayload, project.Name))
+        {
+            await PrependUserIfNeededAsync();
             return;
         }
 
@@ -2756,17 +3897,7 @@ public sealed class MainViewModel : BaseViewModel
         {
             if (prependUserBubble)
             {
-                var bubbleText = uiUserBubbleLine ?? agentUserPayload;
-                Chat.Messages.Add(new ChatMessage
-            {
-                Role = "User",
-                Text = bubbleText,
-                ImagePath = uiImagePath,
-                AttachmentPaths = uiAttachmentPaths,
-                Attachments = uiAttachments,
-            });
-                _chatLogService.AppendMessage(project.Name, "User", bubbleText);
-                await PublishUserTurnToSupabaseIfPossibleAsync(bubbleText);
+                await PrependUserIfNeededAsync();
                 _logService.LogInfo(
                     "[agent] Пауза: сообщение в чат и в Supabase (если relay подключён), без вызова Hermes.");
             }
@@ -2783,20 +3914,7 @@ public sealed class MainViewModel : BaseViewModel
         PushHermesThinkingStatus();
         var wslPath = ResolveHermesWslWorkingDirectory(project.WindowsPath);
 
-        if (prependUserBubble)
-        {
-            var bubbleText = uiUserBubbleLine ?? agentUserPayload;
-            Chat.Messages.Add(new ChatMessage
-            {
-                Role = "User",
-                Text = bubbleText,
-                ImagePath = uiImagePath,
-                AttachmentPaths = uiAttachmentPaths,
-                Attachments = uiAttachments,
-            });
-            _chatLogService.AppendMessage(project.Name, "User", bubbleText);
-            await PublishUserTurnToSupabaseIfPossibleAsync(bubbleText);
-        }
+        await PrependUserIfNeededAsync();
 
         try
         {
@@ -2811,6 +3929,25 @@ public sealed class MainViewModel : BaseViewModel
                 {
                     ResetCliSessionForProject(project.Name);
                     PostCliSessionResetReply(project.Name);
+                    return;
+                }
+
+                // Mt5Terminal: «повтор» / repeat — без Hermes CLI, только WPF → RemoteTerminal.
+                if (await TryHandleMt5TerminalRepeatLocalAsync(agentUserPayload, project.Name)
+                        .ConfigureAwait(true))
+                {
+                    return;
+                }
+
+                if (await TryHandleMt5TerminalRefreshLocalAsync(agentUserPayload, project.Name)
+                        .ConfigureAwait(true))
+                {
+                    return;
+                }
+
+                if (await TryHandleTradingAnalyticsTestSignalLocalAsync(agentUserPayload, project.Name)
+                        .ConfigureAwait(true))
+                {
                     return;
                 }
 
@@ -3175,14 +4312,24 @@ public sealed class MainViewModel : BaseViewModel
                 displayResponse = HermesModeAcknowledgments.TradingModeActivated;
             }
 
+            var chatDisplay = HermesReplySplit.ForChatDisplay(displayResponse);
             if (!string.IsNullOrEmpty(assistantImagePath))
             {
-                await AppendAssistantChatWithImageAsync(project.Name, displayResponse, assistantImagePath)
-                    .ConfigureAwait(true);
+                var img = ResolveExistingScreenshotPath(assistantImagePath);
+                Chat.Messages.Add(
+                    new ChatMessage
+                    {
+                        Role = "Hermes",
+                        Text = chatDisplay,
+                        ImagePath = img,
+                    });
+                var logLine = img is null ? chatDisplay : $"{chatDisplay} [image:{img}]";
+                _chatLogService.AppendMessage(project.Name, "Hermes", logLine);
             }
             else
             {
-                Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = displayResponse });
+                Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = chatDisplay });
+                _chatLogService.AppendMessage(project.Name, "Hermes", chatDisplay);
             }
 
             _lastExperienceDraft = turnExperienceDraft ?? _memoryExtractor.ExtractExperience(payload, displayResponse);
@@ -3196,8 +4343,7 @@ public sealed class MainViewModel : BaseViewModel
                 _externalBrain.RestartWatcherAndReload("role-capture");
             }
 
-            _chatLogService.AppendMessage(project.Name, "Hermes", displayResponse);
-            NotifyHermesReplyArrived(project.Name, displayResponse);
+            NotifyHermesReplyArrived(project.Name, chatDisplay);
             SyncWslAgentMemoryToVault("after-chat");
             SyncPlatformKnowledgeToVault("after-chat");
             _ = WslMemory.RefreshAsync();
@@ -3321,6 +4467,12 @@ public sealed class MainViewModel : BaseViewModel
             }
 
             RefreshReniWaterPendingUi();
+
+            // Scheduler / portfolio harness CRUD — skip CLI post-local follow-up.
+            if (IsWpfLocalHarnessAction(intent.Action))
+            {
+                return (display, exec.ScreenshotPath, null);
+            }
 
             var followUp = await _cliFollowUp.SendAsync(userPayload, exec, wslPath).ConfigureAwait(true);
             if (!string.IsNullOrWhiteSpace(followUp))
@@ -4076,10 +5228,7 @@ public sealed class MainViewModel : BaseViewModel
                 return;
             }
 
-            var asm = Assembly.GetExecutingAssembly();
-            var version = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-                          ?? asm.GetName().Version?.ToString()
-                          ?? "?";
+            var version = AppVersion.Number;
             var json = AppLifecycleSupabasePayload.BuildStartupJson("hermes_wpf", version);
             var voice = AppLifecycleSupabasePayload.BuildSupabaseContent("Hermes Command Center");
             var label = CanonicalHermesSenderName();
@@ -4273,14 +5422,15 @@ public sealed class MainViewModel : BaseViewModel
         }
 
         var label = CanonicalHermesSenderName();
-        var contentForSupabase = BilingualSegmentFormatter.ToSupabaseContent(assistantPlainText);
+        var speakSource = HermesReplySplit.ForSpeakSource(assistantPlainText);
+        var contentForSupabase = BilingualSegmentFormatter.ToSupabaseContent(speakSource);
 
         try
         {
             var recipient = CanonicalHermesOutboundRecipient();
             await _supabaseRelay.InsertAssistantRowAsync(label, recipient, contentForSupabase);
             _supabaseEchoTracker.RegisterAfterSuccessfulPublish(label, contentForSupabase);
-            var formatKind = BilingualSegmentFormatter.ShouldPublishAsRawJson(assistantPlainText) ? "raw" : "bilingual";
+            var formatKind = BilingualSegmentFormatter.ShouldPublishAsRawJson(speakSource) ? "raw" : "bilingual";
             _logService.LogInfo(
                 $"[supabase] Ответ агента записан в messages (sender_name={label}, recipient_name={recipient}, chars={contentForSupabase.Length}, format={formatKind}).");
         }
@@ -4556,6 +5706,11 @@ public sealed class MainViewModel : BaseViewModel
             return false;
         }
 
+        if (IsHwtScreenshotContent(m.Content))
+        {
+            return false;
+        }
+
         return true;
     }
 
@@ -4564,6 +5719,18 @@ public sealed class MainViewModel : BaseViewModel
     {
         var t = (content ?? string.Empty).TrimStart();
         return t.StartsWith("[LOG:", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsHwtScreenshotContent(string? content)
+    {
+        var t = (content ?? string.Empty).TrimStart();
+        if (t.Length < 10 || t[0] != '{')
+        {
+            return false;
+        }
+
+        return t.Contains("\"hwt_screenshot\"", StringComparison.OrdinalIgnoreCase)
+               || t.Contains("\"hwt_screenshot_repeat\"", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsHermesSenderRow(SupabaseMessageRow m, string canonical) =>
@@ -4605,6 +5772,7 @@ public sealed class MainViewModel : BaseViewModel
 
             var rows = await _supabaseRelay.FetchAllSortedAsync();
             _supabaseSeenMessageIds.Clear();
+            _supabaseSeenPhotoNonces.Clear();
 
             if (Settings.SupabaseImportFullHistoryOnConnect)
             {
@@ -4698,6 +5866,7 @@ public sealed class MainViewModel : BaseViewModel
         _supabaseRelay = null;
         _supabasePollingEnabled = false;
         _supabaseSeenMessageIds.Clear();
+        _supabaseSeenPhotoNonces.Clear();
         _lastPublishedSessionFingerprint = null;
         RaiseSupabaseConnectionUi();
         return Task.CompletedTask;
@@ -4743,6 +5912,13 @@ public sealed class MainViewModel : BaseViewModel
             return;
         }
 
+        // HWT status / RemoteTerminal traffic is view-only — never treat as chat inbound.
+        if (IsHwtStatusOrRemoteTerminalTraffic(m))
+        {
+            _ = _supabaseSeenMessageIds.Add(m.Id);
+            return;
+        }
+
         await _supabasePollGate.WaitAsync().ConfigureAwait(true);
         try
         {
@@ -4765,9 +5941,27 @@ public sealed class MainViewModel : BaseViewModel
         }
     }
 
+    private static bool IsHwtStatusOrRemoteTerminalTraffic(SupabaseMessageRow m)
+    {
+        var recipient = (m.RecipientName ?? string.Empty).Trim();
+        if (string.Equals(recipient, "RemoteTerminal", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var content = (m.Content ?? string.Empty).TrimStart();
+        return content.StartsWith("{\"type\":\"hwt_status\"", StringComparison.OrdinalIgnoreCase)
+               || content.StartsWith("{\"type\": \"hwt_status\"", StringComparison.OrdinalIgnoreCase);
+    }
+
     private void HydrateSupabaseSnapshotRowIntoChat(SupabaseMessageRow m)
     {
         if (IsOwnMirroredUserRow(m))
+        {
+            return;
+        }
+
+        if (IsHwtStatusOrRemoteTerminalTraffic(m))
         {
             return;
         }
@@ -4778,6 +5972,11 @@ public sealed class MainViewModel : BaseViewModel
         }
 
         if (IsSupabaseServiceLogContent(m.Content))
+        {
+            return;
+        }
+
+        if (IsHwtScreenshotContent(m.Content))
         {
             return;
         }
@@ -4795,6 +5994,16 @@ public sealed class MainViewModel : BaseViewModel
         }
 
         var name = string.IsNullOrWhiteSpace(m.SenderName) ? "Remote" : m.SenderName.Trim();
+        if (AndroidChatPhotoPayload.TryParse(m.Content, m.SenderName, out var photo))
+        {
+            Chat.Messages.Add(new ChatMessage
+            {
+                Role = "User",
+                Text = $"{name}: 📷 {photo.Name}",
+            });
+            return;
+        }
+
         Chat.Messages.Add(new ChatMessage { Role = "User", Text = $"{name}: {m.Content}" });
     }
 
@@ -4877,6 +6086,11 @@ public sealed class MainViewModel : BaseViewModel
 
     private async Task HandleInboundSupabaseRowAsync(SupabaseMessageRow m)
     {
+        if (IsHwtStatusOrRemoteTerminalTraffic(m))
+        {
+            return;
+        }
+
         var canon = CanonicalHermesSenderName();
         if (IsHermesSenderRow(m, canon))
         {
@@ -4928,12 +6142,25 @@ public sealed class MainViewModel : BaseViewModel
             return;
         }
 
+        if (IsHwtScreenshotContent(m.Content))
+        {
+            _logService.LogInfo("[supabase] Skip hwt_screenshot in Hermes chat (RemoteTerminal protocol).");
+            return;
+        }
+
         if (!await EnsureProjectContextForInboundRecipientAsync(m.RecipientName).ConfigureAwait(true))
         {
             return;
         }
 
         var remoteName = string.IsNullOrWhiteSpace(m.SenderName) ? "Remote" : m.SenderName.Trim();
+
+        if (AndroidChatPhotoPayload.TryParse(m.Content, m.SenderName, out var photo))
+        {
+            await HandleInboundAndroidChatPhotoAsync(remoteName, photo).ConfigureAwait(true);
+            return;
+        }
+
         var payloadForAgent = string.IsNullOrEmpty((m.Content ?? string.Empty).Trim())
             ? "(пустое сообщение из Supabase)"
             : (m.Content ?? string.Empty).Trim();
@@ -4958,7 +6185,13 @@ public sealed class MainViewModel : BaseViewModel
         await HandleInboundRemoteUserMessageAsync(msg.FromName, text, source: "whatsapp").ConfigureAwait(true);
     }
 
-    private async Task HandleInboundRemoteUserMessageAsync(string remoteName, string payloadForAgent, string source)
+    private async Task HandleInboundRemoteUserMessageAsync(
+        string remoteName,
+        string payloadForAgent,
+        string source,
+        string? uiBubbleLine = null,
+        string? uiImagePath = null,
+        IReadOnlyList<ChatAttachment>? uiAttachments = null)
     {
         // Route replies back to remote tutor client without mentioning it in agent system prompts.
         if (string.Equals(remoteName, "EnglishTutorClient", StringComparison.OrdinalIgnoreCase))
@@ -4967,8 +6200,15 @@ public sealed class MainViewModel : BaseViewModel
             _logService.LogInfo("[supabase] Dynamic outbound recipient → EnglishTutorClient");
         }
 
-        var bubble = $"{remoteName}: {payloadForAgent}";
-        Chat.Messages.Add(new ChatMessage { Role = "User", Text = bubble });
+        var bubble = uiBubbleLine ?? $"{remoteName}: {payloadForAgent}";
+        Chat.Messages.Add(new ChatMessage
+        {
+            Role = "User",
+            Text = bubble,
+            ImagePath = uiImagePath,
+            Attachments = uiAttachments,
+            AttachmentPaths = uiAttachments?.Select(a => a.FilePath).ToList(),
+        });
         RequestChatScrollToBottom();
 
         if (Projects.SelectedProject is null)
@@ -4991,6 +6231,76 @@ public sealed class MainViewModel : BaseViewModel
         await ExecuteHermesUserTurnAsync(
             prependUserBubble: false,
             agentUserPayload: payloadForAgent).ConfigureAwait(true);
+    }
+
+    private async Task HandleInboundAndroidChatPhotoAsync(string remoteName, AndroidChatPhotoPayload photo)
+    {
+        if (!string.IsNullOrWhiteSpace(photo.Nonce)
+            && !_supabaseSeenPhotoNonces.Add(photo.Nonce))
+        {
+            _logService.LogInfo($"[supabase] Photo nonce already seen: {photo.Nonce}");
+            return;
+        }
+
+        if (_supabaseRelay is not { IsConnected: true })
+        {
+            _logService.LogError("[supabase] Photo skipped: relay not connected (JSON not sent to agent).");
+            return;
+        }
+
+        byte[]? bytes;
+        try
+        {
+            bytes = await _supabaseRelay
+                .DownloadStorageObjectAsync(photo.Bucket, photo.Path)
+                .ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _logService.LogError($"[supabase] Photo download failed: {ex.Message}");
+            AppendTerminal($"[supabase] Не удалось скачать фото {photo.Name}: {ex.Message}", isError: true);
+            return;
+        }
+
+        if (bytes is null || bytes.Length == 0)
+        {
+            _logService.LogError($"[supabase] Photo download empty: {photo.Name} path={photo.Path}");
+            AppendTerminal($"[supabase] Фото {photo.Name} не скачалось (Storage).", isError: true);
+            return;
+        }
+
+        var project = Projects.SelectedProject;
+        if (project is null)
+        {
+            _logService.LogWarn("[supabase] Photo downloaded but no project selected.");
+            return;
+        }
+
+        ChatAttachment attachment;
+        try
+        {
+            attachment = ChatAttachmentStore.ImportBytes(bytes, project.WindowsPath, photo.Name);
+        }
+        catch (Exception ex)
+        {
+            _logService.LogError($"[supabase] Photo save failed: {ex.Message}");
+            return;
+        }
+
+        var caption = $"photo from {remoteName}: {photo.Name}";
+        var agentPayload = BuildChatAttachmentAgentPayload(caption, [attachment], _projectService);
+        var bubble = $"{remoteName}: 📷 {photo.Name}";
+        _logService.LogInfo(
+            $"[supabase] Photo inbound {photo.Name} → {attachment.FilePath} ({attachment.SizeBytes} bytes)");
+
+        await HandleInboundRemoteUserMessageAsync(
+                remoteName,
+                agentPayload,
+                source: "supabase",
+                uiBubbleLine: bubble,
+                uiImagePath: attachment.IsImage ? attachment.FilePath : null,
+                uiAttachments: [attachment])
+            .ConfigureAwait(true);
     }
 
     private async Task StartWhatsAppWebCoreAsync()
@@ -5173,10 +6483,24 @@ public sealed class MainViewModel : BaseViewModel
 
     private async Task SaveHistoryAsync(string projectName)
     {
+        if (!string.IsNullOrWhiteSpace(_chatHistoryBoundProject)
+            && !string.Equals(_chatHistoryBoundProject, projectName, StringComparison.OrdinalIgnoreCase))
+        {
+            _logService.LogWarn(
+                $"[history] Skip save for «{projectName}»: chat UI is bound to «{_chatHistoryBoundProject}»");
+            return;
+        }
+
+        await SaveHistorySnapshotAsync(projectName, Chat.Messages.ToList()).ConfigureAwait(true);
+        _chatHistoryBoundProject = projectName;
+    }
+
+    private async Task SaveHistorySnapshotAsync(string projectName, List<ChatMessage> messages)
+    {
         var session = new SessionHistory
         {
             ProjectName = projectName,
-            Messages = Chat.Messages.ToList(),
+            Messages = messages,
             UpdatedAt = DateTime.Now
         };
 
@@ -5320,6 +6644,17 @@ public sealed class MainViewModel : BaseViewModel
         else
         {
             TerminalOutput += line;
+        }
+
+        try
+        {
+            var ws = Projects.SelectedProject?.Name ?? "(none)";
+            var kind = isError ? "error" : "terminal";
+            _activityBus.Publish(ws, kind, text, isError);
+        }
+        catch
+        {
+            // activity bus must not break chat
         }
 
         if (isError)

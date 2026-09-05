@@ -1,0 +1,56 @@
+<Window x:Class="Hermes.Wpf.Views.TaskDashboardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Hermes — Task Dashboard"
+        Width="920" Height="560"
+        MinWidth="720" MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        Background="#0B0E11"
+        Foreground="#EAECEF"
+        FontFamily="Segoe UI">
+  <DockPanel Margin="14">
+    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+      <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+        <Button Content="Refresh" Margin="0,0,8,0" Padding="12,6" Click="Refresh_Click"
+                Background="#2B3139" Foreground="#EAECEF" BorderBrush="#383f49" Cursor="Hand"/>
+        <Button Content="Open store" Padding="12,6" Click="OpenStore_Click"
+                Background="#2B3139" Foreground="#EAECEF" BorderBrush="#383f49" Cursor="Hand"/>
+      </StackPanel>
+      <StackPanel>
+        <TextBlock Text="Планировщик задач агентов" FontSize="18" FontWeight="SemiBold" Foreground="#F8D12F"/>
+        <TextBlock Text="Хранит напоминания. В срок отправляет команду агенту проекта — сам ничего не выполняет."
+                   Foreground="#848E9C" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
+      </StackPanel>
+    </DockPanel>
+
+    <TextBlock x:Name="PathLabel" DockPanel.Dock="Bottom" Foreground="#848E9C" FontSize="11" Margin="0,8,0,0"/>
+
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="12"/>
+        <ColumnDefinition Width="*"/>
+      </Grid.ColumnDefinitions>
+
+      <DockPanel Grid.Column="0">
+        <TextBlock DockPanel.Dock="Top" Text="Запланированные" FontWeight="SemiBold" Foreground="#F0B90B" Margin="0,0,0,8"/>
+        <ListBox x:Name="ScheduledList" Background="#181A20" BorderBrush="#2B3139"
+                 Foreground="#EAECEF" DisplayMemberPath="DisplayLine"/>
+      </DockPanel>
+
+      <DockPanel Grid.Column="2">
+        <TextBlock DockPanel.Dock="Top" Text="Текущие / сработавшие" FontWeight="SemiBold" Foreground="#22D3EE" Margin="0,0,0,8"/>
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+          <Button Content="Run Now" Margin="0,0,8,0" Padding="12,6" Click="RunNow_Click"
+                  Background="#2A2410" Foreground="#F8D12F" BorderBrush="#F0B90B" Cursor="Hand"/>
+          <Button Content="Complete" Margin="0,0,8,0" Padding="12,6" Click="Complete_Click"
+                  Background="#2B3139" Foreground="#EAECEF" BorderBrush="#383f49" Cursor="Hand"/>
+          <Button Content="Cancel" Padding="12,6" Click="Cancel_Click"
+                  Background="#2B3139" Foreground="#EAECEF" BorderBrush="#383f49" Cursor="Hand"/>
+        </StackPanel>
+        <ListBox x:Name="CurrentList" Background="#181A20" BorderBrush="#2B3139"
+                 Foreground="#EAECEF" DisplayMemberPath="DisplayLine"/>
+      </DockPanel>
+    </Grid>
+  </DockPanel>
+</Window>
