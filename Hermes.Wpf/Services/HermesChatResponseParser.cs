@@ -22,9 +22,9 @@ public static partial class HermesChatResponseParser
             var line = rawLine.TrimEnd('\r');
             var trimmed = line.Trim();
 
-            if (trimmed.StartsWith("[stderr]", StringComparison.Ordinal))
+            if (HermesCliStreamLabels.StartsWithSystemErrorMarker(trimmed))
             {
-                var stderrBody = trimmed["[stderr]".Length..].Trim();
+                var stderrBody = HermesCliStreamLabels.StripSystemErrorMarker(trimmed);
                 if (IsSessionMetadataLine(stderrBody))
                 {
                     var fromStderr = TryExtractSessionId(stderrBody);

@@ -9,38 +9,45 @@ using Newtonsoft.Json.Linq;
 namespace Hermes.EnglishLearning.Services;
 
 /// <summary>
-/// Supabase Realtime (Phoenix WebSocket) subscription to INSERT on public.messages.
-/// Falls back to a slow poll only if the socket cannot connect.
+/// Supabase Realtime WebSocket + REST poll fallback (when WSS cannot connect).
 /// </summary>
 public sealed class SupabaseRealtimeClient : IDisposable
 {
-    private readonly SupabaseLessonPoller _restHelper = new();
+    private readonly SupabaseLessonPoller _poller = new();
     private ClientWebSocket? _ws;
     private CancellationTokenSource? _cts;
     private string? _accessToken;
-    private AppSettings? _settings;
     private int _refCounter;
-    private Task? _loop;
+    private Task? _wsLoop;
+    private Task? _pollLoop;
+    private int _wsFailCount;
+    private volatile bool _wsConnected;
 
     public event Action<string, string>? LessonReceived;
+    public event Action<EnglishNavCommand>? NavReceived;
     public event Action<string>? StatusChanged;
 
-    public bool IsConfigured(AppSettings s) => _restHelper.IsConfigured(s);
+    public bool IsConfigured(AppSettings s) => _poller.IsConfigured(s);
 
     public async Task StartAsync(AppSettings settings, CancellationToken ct = default)
     {
         await StopAsync().ConfigureAwait(false);
-        _settings = settings;
         _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var token = _cts.Token;
+        _wsFailCount = 0;
+        _wsConnected = false;
 
-        await _restHelper.EnsureSessionAsync(settings, token).ConfigureAwait(false);
-        // Reuse poller's token via a light probe — EnsureSession stores privately.
-        // Call PollOnce once to establish baseline semantics, then open WS.
-        // We duplicate auth here:
+        _poller.LessonReceived += ForwardLesson;
+        _poller.NavReceived += ForwardNav;
+        _poller.StatusChanged += RaiseStatus;
+
+        await _poller.EnsureSessionAsync(settings, token).ConfigureAwait(false);
         _accessToken = await FetchAccessTokenAsync(settings, token).ConfigureAwait(false);
 
-        _loop = Task.Run(() => RunLoopAsync(settings, token), token);
+        // REST poll always runs — primary path when WSS is blocked (common on some Win10 nets).
+        _pollLoop = Task.Run(() => PollLoopAsync(settings, token), token);
+        _wsLoop = Task.Run(() => WsLoopAsync(settings, token), token);
+        RaiseStatus("Supabase: poll + Realtime starting…");
     }
 
     public async Task StopAsync()
@@ -53,42 +60,63 @@ public sealed class SupabaseRealtimeClient : IDisposable
         {
         }
 
-        if (_ws != null)
-        {
-            try
-            {
-                if (_ws.State == WebSocketState.Open)
-                {
-                    await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "stop", CancellationToken.None)
-                        .ConfigureAwait(false);
-                }
-            }
-            catch
-            {
-            }
+        await CloseWsAsync().ConfigureAwait(false);
 
-            _ws.Dispose();
-            _ws = null;
+        if (_pollLoop != null)
+        {
+            try { await _pollLoop.ConfigureAwait(false); } catch { /* ignore */ }
+            _pollLoop = null;
         }
 
-        if (_loop != null)
+        if (_wsLoop != null)
         {
-            try
-            {
-                await _loop.ConfigureAwait(false);
-            }
-            catch
-            {
-            }
-
-            _loop = null;
+            try { await _wsLoop.ConfigureAwait(false); } catch { /* ignore */ }
+            _wsLoop = null;
         }
+
+        _poller.LessonReceived -= ForwardLesson;
+        _poller.NavReceived -= ForwardNav;
+        _poller.StatusChanged -= RaiseStatus;
 
         _cts?.Dispose();
         _cts = null;
+        _wsConnected = false;
     }
 
-    private async Task RunLoopAsync(AppSettings settings, CancellationToken ct)
+    private async Task PollLoopAsync(AppSettings settings, CancellationToken ct)
+    {
+        // First poll establishes baseline quickly.
+        var delaySec = Math.Max(3, settings.PollSeconds);
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                await _poller.PollOnceAsync(settings, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                AppLog.Warn("REST poll: " + ex.Message);
+                RaiseStatus("Poll: " + Truncate(ex.Message, 80));
+            }
+
+            // While WS is healthy, poll slower; when WS is down, use configured interval.
+            var wait = _wsConnected ? Math.Max(delaySec, 20) : delaySec;
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(wait), ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+    }
+
+    private async Task WsLoopAsync(AppSettings settings, CancellationToken ct)
     {
         var backoff = 2;
         while (!ct.IsCancellationRequested)
@@ -97,6 +125,7 @@ public sealed class SupabaseRealtimeClient : IDisposable
             {
                 await ConnectAndListenAsync(settings, ct).ConfigureAwait(false);
                 backoff = 2;
+                _wsFailCount = 0;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -104,8 +133,12 @@ public sealed class SupabaseRealtimeClient : IDisposable
             }
             catch (Exception ex)
             {
-                AppLog.Warn("Realtime WS: " + ex.Message + " — reconnect in " + backoff + "s");
-                RaiseStatus("Realtime: reconnect…");
+                _wsConnected = false;
+                _wsFailCount++;
+                AppLog.Warn("Realtime WS: " + ex.Message + " — reconnect in " + backoff + "s (poll active)");
+                RaiseStatus(_wsFailCount <= 2
+                    ? "Realtime: reconnect… (REST poll active)"
+                    : "Realtime offline — REST poll every " + Math.Max(3, settings.PollSeconds) + "s");
                 try
                 {
                     await Task.Delay(TimeSpan.FromSeconds(backoff), ct).ConfigureAwait(false);
@@ -115,7 +148,24 @@ public sealed class SupabaseRealtimeClient : IDisposable
                     break;
                 }
 
-                backoff = Math.Min(60, backoff * 2);
+                // After a few failures, stop spamming every minute — poll already delivers lessons.
+                if (_wsFailCount >= 5)
+                    backoff = 900; // 15 min
+                else
+                    backoff = Math.Min(60, backoff * 2);
+
+                // Refresh token occasionally after failures.
+                if (_wsFailCount % 5 == 0)
+                {
+                    try
+                    {
+                        _accessToken = await FetchAccessTokenAsync(settings, ct).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        // ignore
+                    }
+                }
             }
         }
     }
@@ -124,37 +174,50 @@ public sealed class SupabaseRealtimeClient : IDisposable
     {
         var baseUrl = settings.SupabaseUrl.Trim().TrimEnd('/');
         var anon = settings.SupabaseAnonKey.Trim();
-        var token = string.IsNullOrWhiteSpace(_accessToken) ? anon : _accessToken;
-        string host;
+        var token = string.IsNullOrWhiteSpace(_accessToken) ? anon : _accessToken!;
+
+        // Build wss URL from https base (hostname — ClientWebSocket cannot override Host for raw IP).
+        string hostPath;
+        string originalHost;
         if (baseUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
-            host = "wss://" + baseUrl.Substring("https://".Length);
+            originalHost = baseUrl.Substring("https://".Length).Split('/')[0];
+            hostPath = "wss://" + baseUrl.Substring("https://".Length);
         }
         else if (baseUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
         {
-            host = "ws://" + baseUrl.Substring("http://".Length);
+            originalHost = baseUrl.Substring("http://".Length).Split('/')[0];
+            hostPath = "ws://" + baseUrl.Substring("http://".Length);
         }
         else
         {
-            host = "wss://" + baseUrl;
+            originalHost = baseUrl.Split('/')[0];
+            hostPath = "wss://" + baseUrl;
         }
 
-        var wsUrl = host + "/realtime/v1/websocket?apikey=" + Uri.EscapeDataString(anon) + "&vsn=1.0.0";
+        var wsUrl = hostPath.TrimEnd('/') + "/realtime/v1/websocket"
+                    + "?apikey=" + Uri.EscapeDataString(anon)
+                    + "&vsn=1.0.0"
+                    + "&access_token=" + Uri.EscapeDataString(token);
 
-        _ws?.Dispose();
+        await CloseWsAsync().ConfigureAwait(false);
         _ws = new ClientWebSocket();
-        _ws.Options.SetRequestHeader("apikey", anon);
-        if (!string.IsNullOrWhiteSpace(token))
+        try
         {
+            _ws.Options.SetRequestHeader("apikey", anon);
             _ws.Options.SetRequestHeader("Authorization", "Bearer " + token);
         }
+        catch (Exception ex)
+        {
+            AppLog.Warn("Realtime headers: " + ex.Message);
+        }
 
-        AppLog.Info("Realtime connecting " + host + "/realtime/v1/websocket");
+        AppLog.Info("Realtime connecting " + originalHost + "/realtime/v1/websocket");
         await _ws.ConnectAsync(new Uri(wsUrl), ct).ConfigureAwait(false);
+        _wsConnected = true;
         RaiseStatus("Realtime: connected");
         AppLog.Info("Realtime connected");
 
-        // Join postgres_changes channel
         var joinRef = NextRef();
         var topic = "realtime:english-learning-" + Guid.NewGuid().ToString("N").Substring(0, 8);
         var join = new JObject
@@ -184,7 +247,6 @@ public sealed class SupabaseRealtimeClient : IDisposable
 
         await SendJsonAsync(join, ct).ConfigureAwait(false);
 
-        // Heartbeat
         _ = Task.Run(async () =>
         {
             while (!ct.IsCancellationRequested && _ws?.State == WebSocketState.Open)
@@ -219,6 +281,7 @@ public sealed class SupabaseRealtimeClient : IDisposable
                 result = await _ws.ReceiveAsync(new ArraySegment<byte>(buffer), ct).ConfigureAwait(false);
                 if (result.MessageType == WebSocketMessageType.Close)
                 {
+                    _wsConnected = false;
                     throw new InvalidOperationException("Realtime closed by server");
                 }
 
@@ -228,14 +291,14 @@ public sealed class SupabaseRealtimeClient : IDisposable
 
             HandleMessage(sb.ToString(), settings);
         }
+
+        _wsConnected = false;
     }
 
     private void HandleMessage(string raw, AppSettings settings)
     {
         if (string.IsNullOrWhiteSpace(raw))
-        {
             return;
-        }
 
         try
         {
@@ -246,10 +309,7 @@ public sealed class SupabaseRealtimeClient : IDisposable
                 var status = msg["payload"]?["status"]?.ToString();
                 AppLog.Info("Realtime phx_reply status=" + status);
                 if (string.Equals(status, "ok", StringComparison.OrdinalIgnoreCase))
-                {
-                    RaiseStatus("Realtime: subscribed to messages INSERT");
-                }
-
+                    RaiseStatus("Realtime: subscribed (REST poll backup on)");
                 return;
             }
 
@@ -265,29 +325,35 @@ public sealed class SupabaseRealtimeClient : IDisposable
                          ?? payload?["record"] as JObject
                          ?? data;
 
-            // Some payloads nest under payload.data.record
             if (record == null && payload?["data"] is JObject d2)
-            {
                 record = d2["record"] as JObject ?? d2;
-            }
 
             if (record == null)
-            {
                 return;
-            }
+
+            Guid.TryParse(record["id"]?.ToString(), out var id);
+            if (id != Guid.Empty && !SeenMessageIds.TryMark(id))
+                return;
 
             var recipient = record["recipient_name"]?.ToString() ?? string.Empty;
             var content = record["content"]?.ToString() ?? string.Empty;
-            if (!SupabaseLessonPoller.TryExtractLessonMarkdown(content, out var markdown, out var title))
-            {
-                return;
-            }
 
             if (!string.IsNullOrWhiteSpace(settings.RecipientName)
                 && !string.Equals(recipient, settings.RecipientName, StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
+
+            if (EnglishNavParser.TryParse(content, out var nav) && nav != EnglishNavCommand.None)
+            {
+                AppLog.Info("Realtime nav: " + nav);
+                RaiseStatus("Nav (WS): " + nav);
+                NavReceived?.Invoke(nav);
+                return;
+            }
+
+            if (!SupabaseLessonPoller.TryExtractLessonMarkdown(content, out var markdown, out var title))
+                return;
 
             AppLog.Info("Realtime lesson received: " + (title ?? "english_lesson"));
             RaiseStatus("Урок (WS): " + (title ?? "english_lesson"));
@@ -302,20 +368,37 @@ public sealed class SupabaseRealtimeClient : IDisposable
     private async Task SendJsonAsync(JObject obj, CancellationToken ct)
     {
         if (_ws == null || _ws.State != WebSocketState.Open)
-        {
             return;
-        }
 
         var bytes = Encoding.UTF8.GetBytes(obj.ToString(Newtonsoft.Json.Formatting.None));
         await _ws.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, ct)
             .ConfigureAwait(false);
     }
 
+    private async Task CloseWsAsync()
+    {
+        _wsConnected = false;
+        if (_ws == null) return;
+        try
+        {
+            if (_ws.State == WebSocketState.Open)
+            {
+                await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "stop", CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+        }
+        catch
+        {
+        }
+
+        try { _ws.Dispose(); } catch { /* ignore */ }
+        _ws = null;
+    }
+
     private string NextRef() => Interlocked.Increment(ref _refCounter).ToString(CultureInfo.InvariantCulture);
 
     private async Task<string> FetchAccessTokenAsync(AppSettings settings, CancellationToken ct)
     {
-        // Prefer anonymous session; fall back to anon key.
         try
         {
             using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(20) };
@@ -337,16 +420,12 @@ public sealed class SupabaseRealtimeClient : IDisposable
                 using var resp = await http.SendAsync(req, ct).ConfigureAwait(false);
                 var text = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
                 if (!resp.IsSuccessStatusCode)
-                {
                     continue;
-                }
 
                 var json = JObject.Parse(text);
-                var token = json["access_token"]?.ToString();
-                if (!string.IsNullOrWhiteSpace(token))
-                {
-                    return token!;
-                }
+                var tok = json["access_token"]?.ToString();
+                if (!string.IsNullOrWhiteSpace(tok))
+                    return tok!;
             }
         }
         catch (Exception ex)
@@ -357,7 +436,12 @@ public sealed class SupabaseRealtimeClient : IDisposable
         return settings.SupabaseAnonKey.Trim();
     }
 
+    private void ForwardLesson(string md, string title) => LessonReceived?.Invoke(md, title);
+    private void ForwardNav(EnglishNavCommand nav) => NavReceived?.Invoke(nav);
     private void RaiseStatus(string s) => StatusChanged?.Invoke(s);
+
+    private static string Truncate(string s, int n) =>
+        string.IsNullOrEmpty(s) ? string.Empty : (s.Length <= n ? s : s.Substring(0, n) + "…");
 
     public void Dispose()
     {
@@ -369,6 +453,6 @@ public sealed class SupabaseRealtimeClient : IDisposable
         {
         }
 
-        _restHelper.Dispose();
+        _poller.Dispose();
     }
 }

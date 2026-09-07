@@ -1,0 +1,7 @@
+MainWindow: HandleMediaPlayPause, ToggleVoiceInput
+MediaFocusClaimer: OnSmtcButtonPressed, PauseSilentPlayerForMic
+HeadsetAudioClaimer: Claim Reclaim PauseHoldForCapture StartHoldPlayback StopHold
+VoiceInputService: Start Stop PickHandsFree OnRecognized OnHypothesized OnRecognizeCompleted
+HeadsetTestWindow: StartPlayTest StartMic StopMic StartSttFromPump OnCaptureData RefreshDevices OnPlayHit
+AudioPolicyConfig: TryClaimAllRoles TrySetDefaultEndpoint
+PcmPumpStream: WritePcm Read Length Position

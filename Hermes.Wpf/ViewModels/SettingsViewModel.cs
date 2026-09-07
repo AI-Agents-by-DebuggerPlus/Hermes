@@ -17,6 +17,7 @@ public sealed class SettingsViewModel : BaseViewModel
 
     private string _chatFontSizeEdit = string.Empty;
     private bool _autoReconnect;
+    private bool _notifyOnHermesReply;
     private bool _diagnosticLogHermesCommands;
     private bool _appendVisionScopeReminder;
     private string _visionScopeReminderNote;
@@ -27,6 +28,7 @@ public sealed class SettingsViewModel : BaseViewModel
     private string _supabaseUrl = string.Empty;
     private string _supabaseAnonKey = string.Empty;
     private bool _supabaseUseLocalCreatedAt;
+    private bool _enableSupabasePoll;
     private int _supabasePollIntervalSeconds;
     private bool _supabaseUseAnonymousAuth;
     private bool _supabaseImportFullHistoryOnConnect;
@@ -36,6 +38,11 @@ public sealed class SettingsViewModel : BaseViewModel
     private string _supabaseInboundRecipientName = "Hermes";
     private string _supabaseHermesOutboundRecipientName = "Android";
     private string _supabaseLocalOutboundRecipientName = "Hermes";
+    private bool _supabaseRemoteLogEnabled;
+    private string _supabaseRemoteLogRecipientName = "RemoteTerminal";
+    private string _supabaseRemoteLogSenderName = "Hermes";
+    private bool _supabaseRemoteLogIncludeInfo;
+    private bool _supabaseHwtStatusPublishEnabled = true;
     private bool _whatsAppWebEnabled = true;
     private string _whatsAppContactDisplayName = "My Fido";
     private bool _whatsAppTextMarkerEnabled = true;
@@ -82,6 +89,7 @@ public sealed class SettingsViewModel : BaseViewModel
         settings.ChatFontSize = _chatFontSizeCommitted;
         _chatFontSizeEdit = FormatChatFontEdit(_chatFontSizeCommitted);
         _autoReconnect = settings.AutoReconnect;
+        _notifyOnHermesReply = settings.NotifyOnHermesReply;
         _diagnosticLogHermesCommands = settings.DiagnosticLogHermesCommands;
         _appendVisionScopeReminder = settings.AppendVisionScopeReminder;
         _visionScopeReminderNote = settings.VisionScopeReminderNote ?? string.Empty;
@@ -92,6 +100,7 @@ public sealed class SettingsViewModel : BaseViewModel
         _supabaseUrl = settings.SupabaseUrl ?? string.Empty;
         _supabaseAnonKey = settings.SupabaseAnonKey ?? string.Empty;
         _supabaseUseLocalCreatedAt = settings.SupabaseUseLocalCreatedAt;
+        _enableSupabasePoll = settings.EnableSupabasePoll;
         _supabasePollIntervalSeconds = ClampPollInterval(settings.SupabasePollIntervalSeconds);
         _supabaseUseAnonymousAuth = settings.SupabaseUseAnonymousAuth;
         _supabaseImportFullHistoryOnConnect = settings.SupabaseImportFullHistoryOnConnect;
@@ -111,6 +120,15 @@ public sealed class SettingsViewModel : BaseViewModel
         _supabaseLocalOutboundRecipientName = string.IsNullOrWhiteSpace(settings.SupabaseLocalOutboundRecipientName)
             ? "Hermes"
             : settings.SupabaseLocalOutboundRecipientName.Trim();
+        _supabaseRemoteLogEnabled = settings.SupabaseRemoteLogEnabled;
+        _supabaseRemoteLogRecipientName = string.IsNullOrWhiteSpace(settings.SupabaseRemoteLogRecipientName)
+            ? "RemoteTerminal"
+            : settings.SupabaseRemoteLogRecipientName.Trim();
+        _supabaseRemoteLogSenderName = string.IsNullOrWhiteSpace(settings.SupabaseRemoteLogSenderName)
+            ? "Hermes"
+            : settings.SupabaseRemoteLogSenderName.Trim();
+        _supabaseRemoteLogIncludeInfo = settings.SupabaseRemoteLogIncludeInfo;
+        _supabaseHwtStatusPublishEnabled = settings.SupabaseHwtStatusPublishEnabled;
         _whatsAppWebEnabled = settings.WhatsAppWebEnabled;
         _whatsAppContactDisplayName = string.IsNullOrWhiteSpace(settings.WhatsAppContactDisplayName)
             ? "My Fido"
@@ -334,6 +352,16 @@ public sealed class SettingsViewModel : BaseViewModel
         }
     }
 
+    public bool NotifyOnHermesReply
+    {
+        get => _notifyOnHermesReply;
+        set
+        {
+            _settings.NotifyOnHermesReply = value;
+            SetProperty(ref _notifyOnHermesReply, value);
+        }
+    }
+
     public bool DiagnosticLogHermesCommands
     {
         get => _diagnosticLogHermesCommands;
@@ -504,6 +532,16 @@ public sealed class SettingsViewModel : BaseViewModel
         }
     }
 
+    public bool EnableSupabasePoll
+    {
+        get => _enableSupabasePoll;
+        set
+        {
+            _settings.EnableSupabasePoll = value;
+            SetProperty(ref _enableSupabasePoll, value);
+        }
+    }
+
     public int SupabasePollIntervalSeconds
     {
         get => _supabasePollIntervalSeconds;
@@ -597,6 +635,58 @@ public sealed class SettingsViewModel : BaseViewModel
             var v = string.IsNullOrWhiteSpace(value) ? "Hermes" : value.Trim();
             _settings.SupabaseLocalOutboundRecipientName = v;
             SetProperty(ref _supabaseLocalOutboundRecipientName, v);
+        }
+    }
+
+    public bool SupabaseRemoteLogEnabled
+    {
+        get => _supabaseRemoteLogEnabled;
+        set
+        {
+            _settings.SupabaseRemoteLogEnabled = value;
+            SetProperty(ref _supabaseRemoteLogEnabled, value);
+        }
+    }
+
+    public bool SupabaseRemoteLogIncludeInfo
+    {
+        get => _supabaseRemoteLogIncludeInfo;
+        set
+        {
+            _settings.SupabaseRemoteLogIncludeInfo = value;
+            SetProperty(ref _supabaseRemoteLogIncludeInfo, value);
+        }
+    }
+
+    public bool SupabaseHwtStatusPublishEnabled
+    {
+        get => _supabaseHwtStatusPublishEnabled;
+        set
+        {
+            _settings.SupabaseHwtStatusPublishEnabled = value;
+            SetProperty(ref _supabaseHwtStatusPublishEnabled, value);
+        }
+    }
+
+    public string SupabaseRemoteLogRecipientName
+    {
+        get => _supabaseRemoteLogRecipientName;
+        set
+        {
+            var v = string.IsNullOrWhiteSpace(value) ? "RemoteTerminal" : value.Trim();
+            _settings.SupabaseRemoteLogRecipientName = v;
+            SetProperty(ref _supabaseRemoteLogRecipientName, v);
+        }
+    }
+
+    public string SupabaseRemoteLogSenderName
+    {
+        get => _supabaseRemoteLogSenderName;
+        set
+        {
+            var v = string.IsNullOrWhiteSpace(value) ? "Hermes" : value.Trim();
+            _settings.SupabaseRemoteLogSenderName = v;
+            SetProperty(ref _supabaseRemoteLogSenderName, v);
         }
     }
 

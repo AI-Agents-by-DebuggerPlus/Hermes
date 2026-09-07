@@ -57,9 +57,7 @@ public partial class SettingsWindow : Window
         HotFullBox.Text = _settings.HotkeyFullscreen;
         HotStopBox.Text = _settings.HotkeyStop;
 
-        LessonsFolderBox.Text = string.IsNullOrWhiteSpace(_settings.LessonsFolder)
-            ? SettingsStore.ResolveLessonsFolder(_settings)
-            : _settings.LessonsFolder;
+        LessonsFolderBox.Text = SettingsStore.ResolveLessonsFolder(_settings);
 
         var useAzure = string.Equals(_settings.TtsProvider, "Azure", StringComparison.OrdinalIgnoreCase);
         ProviderAzureRadio.IsChecked = useAzure;
@@ -387,21 +385,15 @@ public partial class SettingsWindow : Window
                 Description = "Папка уроков по умолчанию",
                 ShowNewFolderButton = true,
             };
-            var current = (LessonsFolderBox.Text ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(current))
-            {
-                current = SettingsStore.ResolveLessonsFolder(_settings);
-            }
-
-            if (Directory.Exists(current))
-            {
+            var current = PathSafety.SafeInitialDirectory(
+                LessonsFolderBox.Text,
+                _settings.LessonsFolder,
+                SettingsStore.ResolveLessonsFolder(_settings));
+            if (!string.IsNullOrWhiteSpace(current) && Directory.Exists(current))
                 dlg.SelectedPath = current;
-            }
 
             if (dlg.ShowDialog() != System.Windows.Forms.DialogResult.OK)
-            {
                 return;
-            }
 
             LessonsFolderBox.Text = dlg.SelectedPath;
         }

@@ -19,6 +19,7 @@ public sealed class LogService
         SessionStamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
         Directory.CreateDirectory(HermesLogPaths.LogsRoot);
         _sessionLogFilePath = BuildSessionLogPath(HermesLogPaths.AppFolderName);
+        EnsureParentDirectory(_sessionLogFilePath);
         File.AppendAllText(
             _sessionLogFilePath,
             $"=== Session started {DateTime.Now:O} ==={Environment.NewLine}",
@@ -35,6 +36,9 @@ public sealed class LogService
     public string SessionStamp { get; }
 
     public ObservableCollection<string> Entries { get; } = [];
+
+    /// <summary>Raised after a line is written (UI thread when Dispatcher is available).</summary>
+    public event Action<string, string>? LineLogged;
 
     public string CurrentLogFilePath
     {
@@ -59,11 +63,40 @@ public sealed class LogService
 
             _activeProjectFolder = folder;
             _sessionLogFilePath = BuildSessionLogPath(folder);
+            EnsureParentDirectory(_sessionLogFilePath);
             File.AppendAllText(
                 _sessionLogFilePath,
                 $"=== Session log (project {folder}) {DateTime.Now:O} ==={Environment.NewLine}",
                 SessionFileEncoding);
             PruneOldSessionLogs(HermesLogPaths.GetProjectDirectory(folder));
+        }
+    }
+
+    /// <summary>
+    /// After project rename moves Logs/Hermes.Wpf/{old} → {new}, retarget the open session file
+    /// so subsequent Log* calls do not write into a deleted directory.
+    /// </summary>
+    public void RetargetAfterProjectRename(string oldName, string newName)
+    {
+        var oldFolder = HermesLogPaths.SanitizeProjectFolderName(oldName);
+        var newFolder = HermesLogPaths.SanitizeProjectFolderName(newName);
+        if (string.Equals(oldFolder, newFolder, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        lock (_sync)
+        {
+            if (!string.Equals(_activeProjectFolder, oldFolder, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            var fileName = Path.GetFileName(_sessionLogFilePath);
+            if (string.IsNullOrEmpty(fileName))
+                fileName = $"hermes_session_{SessionStamp}.log";
+
+            _activeProjectFolder = newFolder;
+            _sessionLogFilePath = Path.Combine(
+                HermesLogPaths.GetProjectDirectory(newFolder),
+                fileName);
+            EnsureParentDirectory(_sessionLogFilePath);
         }
     }
 
@@ -80,24 +113,38 @@ public sealed class LogService
         var line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [{level}] {message}";
         lock (_sync)
         {
+            EnsureParentDirectory(_sessionLogFilePath);
             File.AppendAllText(_sessionLogFilePath, line + Environment.NewLine, SessionFileEncoding);
+        }
+
+        void PublishUi()
+        {
+            Entries.Add(line);
+            LineLogged?.Invoke(level, line);
         }
 
         var app = System.Windows.Application.Current;
         if (app?.Dispatcher is null)
         {
-            Entries.Add(line);
+            PublishUi();
             return;
         }
 
         if (app.Dispatcher.CheckAccess())
         {
-            Entries.Add(line);
+            PublishUi();
         }
         else
         {
-            app.Dispatcher.Invoke(() => Entries.Add(line));
+            app.Dispatcher.Invoke(PublishUi);
         }
+    }
+
+    private static void EnsureParentDirectory(string filePath)
+    {
+        var dir = Path.GetDirectoryName(filePath);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
     }
 
     private string BuildSessionLogPath(string projectFolder) =>

@@ -15,7 +15,7 @@
         <Setter.Value>
           <ControlTemplate TargetType="ComboBoxItem">
             <Border x:Name="Bd" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
-              <ContentPresenter/>
+              <ContentPresenter TextElement.Foreground="{TemplateBinding Foreground}"/>
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsHighlighted" Value="True">
@@ -26,7 +26,90 @@
                 <Setter TargetName="Bd" Property="Background" Value="#383f49"/>
                 <Setter Property="Foreground" Value="#F8D12F"/>
               </Trigger>
+              <Trigger Property="IsSelected" Value="True">
+                <Setter TargetName="Bd" Property="Background" Value="#383f49"/>
+                <Setter Property="Foreground" Value="#F8D12F"/>
+              </Trigger>
             </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style TargetType="ComboBox">
+      <Setter Property="Background" Value="#2B3139"/>
+      <Setter Property="Foreground" Value="#EAECEF"/>
+      <Setter Property="BorderBrush" Value="#383f49"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Padding" Value="8,6"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ComboBox">
+            <Grid>
+              <ToggleButton x:Name="ToggleButton"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Focusable="False"
+                            IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                            ClickMode="Press">
+                <ToggleButton.Template>
+                  <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Chrome"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="4"
+                            SnapsToDevicePixels="True">
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*"/>
+                          <ColumnDefinition Width="22"/>
+                        </Grid.ColumnDefinitions>
+                        <Path Grid.Column="1"
+                              Width="8" Height="4"
+                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                              Data="M 0,0 L 4,4 L 8,0 Z"
+                              Fill="#848E9C"/>
+                      </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                      <Trigger Property="IsMouseOver" Value="True">
+                        <Setter TargetName="Chrome" Property="Background" Value="#383f49"/>
+                      </Trigger>
+                      <Trigger Property="IsPressed" Value="True">
+                        <Setter TargetName="Chrome" Property="Background" Value="#252C3B"/>
+                      </Trigger>
+                    </ControlTemplate.Triggers>
+                  </ControlTemplate>
+                </ToggleButton.Template>
+              </ToggleButton>
+              <ContentPresenter x:Name="ContentSite"
+                                Margin="8,6,28,6"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center"
+                                Content="{TemplateBinding SelectionBoxItem}"
+                                ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                IsHitTestVisible="False"
+                                TextElement.Foreground="#EAECEF"/>
+              <Popup x:Name="Popup"
+                     AllowsTransparency="True"
+                     Focusable="False"
+                     IsOpen="{TemplateBinding IsDropDownOpen}"
+                     Placement="Bottom"
+                     PopupAnimation="Slide">
+                <Border MinWidth="{TemplateBinding ActualWidth}"
+                        Background="#2B3139"
+                        BorderBrush="#383f49"
+                        BorderThickness="1"
+                        SnapsToDevicePixels="True">
+                  <ScrollViewer Margin="2" SnapsToDevicePixels="True">
+                    <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                  </ScrollViewer>
+                </Border>
+              </Popup>
+            </Grid>
           </ControlTemplate>
         </Setter.Value>
       </Setter>
@@ -71,10 +154,6 @@
             <TextBlock Text="Hermes.Wpf" Foreground="#848E9C" Margin="0,0,0,6"/>
             <ComboBox x:Name="ConfigCombo"
                       SelectedIndex="0"
-                      Background="#2B3139"
-                      Foreground="#EAECEF"
-                      BorderBrush="#383f49"
-                      Padding="8,6"
                       Margin="0,0,0,8">
               <ComboBoxItem Content="Debug"/>
               <ComboBoxItem Content="Release"/>
@@ -110,6 +189,10 @@
                     Style="{StaticResource PrimaryBtn}"
                     Content="Density Heatmap (WPF)"
                     Click="TestDensityUi_Click"/>
+            <Button x:Name="BtnTestStrategyViewer"
+                    Style="{StaticResource PrimaryBtn}"
+                    Content="Strategy Viewer (WPF)"
+                    Click="TestStrategyViewer_Click"/>
             <Button x:Name="BtnTestDensity"
                     Style="{StaticResource DarkBtn}"
                     Content="Density Screener console (Spot)"

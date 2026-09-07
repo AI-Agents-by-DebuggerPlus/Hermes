@@ -204,36 +204,36 @@ public static class SettingsStore
         {
             s.LessonsFolder = string.Empty;
         }
+
+        PathSafety.SanitizeLessonPaths(s);
     }
 
-    /// <summary>Configured lessons folder, or {EXE}/lessons. Creates the directory if missing.</summary>
+    /// <summary>Configured lessons folder, or {EXE}/lessons. Never returns a dead-drive path.</summary>
     public static string ResolveLessonsFolder(AppSettings settings)
     {
+        var fallback = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "lessons");
         var configured = settings?.LessonsFolder?.Trim() ?? string.Empty;
         string dir;
-        if (!string.IsNullOrWhiteSpace(configured))
+        if (!string.IsNullOrWhiteSpace(configured) && PathSafety.IsReadyPath(configured))
         {
-            try
-            {
-                dir = Path.GetFullPath(configured);
-            }
-            catch
-            {
-                dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "lessons");
-            }
+            try { dir = Path.GetFullPath(configured); }
+            catch { dir = fallback; }
         }
         else
         {
-            dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "lessons");
+            if (!string.IsNullOrWhiteSpace(configured) && settings != null)
+            {
+                settings.LessonsFolder = string.Empty;
+            }
+
+            dir = fallback;
         }
 
-        try
-        {
-            Directory.CreateDirectory(dir);
-        }
+        try { Directory.CreateDirectory(dir); }
         catch
         {
-            // ignore — caller may still list other folders
+            dir = fallback;
+            try { Directory.CreateDirectory(dir); } catch { /* ignore */ }
         }
 
         return dir;
@@ -244,7 +244,7 @@ public static class SettingsStore
     {
         var seen = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var user = ResolveLessonsFolder(settings);
-        if (seen.Add(user))
+        if (PathSafety.IsReadyPath(user) && seen.Add(user))
         {
             yield return user;
         }

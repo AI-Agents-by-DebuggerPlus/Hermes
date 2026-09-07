@@ -1,0 +1,159 @@
+{
+  "schema_version": "1.0",
+  "id": "gold_xauusd_2026-08-21",
+  "title": "STRATEGY: GOLD (XAU/USD)",
+  "symbol": "XAUUSD",
+  "timeframe": "D1",
+  "as_of": "2026-08-21T00:00:00Z",
+  "disclaimer": "ПРЕДУПРЕЖДЕНИЕ: Торговля золотом сопряжена с высоким риском. Данная стратегия не является финансовой рекомендацией.",
+  "price_snapshot": {
+    "last": 4602.99,
+    "change_abs": 84.03,
+    "change_pct": 1.86
+  },
+  "scenarios": [
+    {
+      "id": "A",
+      "title": "Сценарий A: ОТКАТ",
+      "subtitle": "Покупка на коррекции (Консервативный)",
+      "side": "buy",
+      "accent": "emerald",
+      "preferred": true,
+      "entry_low": 4430,
+      "entry_high": 4450,
+      "stop_loss": 4380,
+      "take_profit": [4600, 4700],
+      "conditions": [
+        {
+          "id": "A_entry_zone",
+          "kind": "price_in_range",
+          "label": "Вход: $4,430 – $4,450",
+          "value": 4430,
+          "value_high": 4450
+        },
+        {
+          "id": "A_ema10",
+          "kind": "manual",
+          "label": "Подтверждение: EMA 10 (Daily)",
+          "indicator": "ema_10",
+          "timeframe": "D1"
+        },
+        {
+          "id": "A_rsi_cool",
+          "kind": "indicator_cmp",
+          "label": "Риск: остывание RSI до 50",
+          "indicator": "rsi_14",
+          "op": "<=",
+          "value": 50,
+          "timeframe": "D1"
+        }
+      ]
+    },
+    {
+      "id": "B",
+      "title": "Сценарий B: ПРОБОЙ",
+      "subtitle": "Импульсная торговля (Агрессивный)",
+      "side": "buy",
+      "accent": "cyan",
+      "preferred": false,
+      "entry_trigger": 4615,
+      "stop_loss": 4580,
+      "take_profit": [4680, 4700],
+      "conditions": [
+        {
+          "id": "B_above",
+          "kind": "candle_close_above",
+          "label": "Вход: закрепление выше $4,615",
+          "value": 4615,
+          "timeframe": "H1"
+        },
+        {
+          "id": "B_h1_close",
+          "kind": "candle_close_above",
+          "label": "Условие: H1 свеча закрыта выше",
+          "value": 4615,
+          "timeframe": "H1"
+        },
+        {
+          "id": "B_target",
+          "kind": "price_above",
+          "label": "Цель: психологический уровень $4,700",
+          "value": 4700
+        }
+      ]
+    }
+  ],
+  "risk": {
+    "risk_per_trade_pct": 1,
+    "leverage": "1:10 – 1:20",
+    "notes": [
+      "Риск на сделку: 1% от эквити",
+      "Плечо: 1:10 – 1:20",
+      "Корреляция с DXY: обратная (−0.85)"
+    ],
+    "volatility_label": "Высокий"
+  },
+  "technical": {
+    "trend": "Strong Bullish",
+    "warning": "ВНИМАНИЕ: Зона перекупленности!",
+    "indicators": [
+      {
+        "id": "rsi_14",
+        "label": "RSI",
+        "value": 70.5,
+        "state": "Overbought",
+        "warn_above": 70
+      },
+      {
+        "id": "stoch_k",
+        "label": "Stoch",
+        "value": 96.8,
+        "state": "Extreme",
+        "warn_above": 80
+      }
+    ]
+  },
+  "alerts": [
+    {
+      "id": "alert_entry_A",
+      "kind": "price_zone",
+      "label": "Цена в зоне входа A ($4430–$4450)",
+      "enabled": true,
+      "channels": ["local", "telegram"],
+      "price_low": 4430,
+      "price_high": 4450,
+      "cooldown_sec": 120
+    },
+    {
+      "id": "alert_sl_A",
+      "kind": "price_level",
+      "label": "Цена у SL сценария A ($4380)",
+      "enabled": true,
+      "channels": ["local", "telegram"],
+      "price": 4380,
+      "op": "<=",
+      "cooldown_sec": 300
+    },
+    {
+      "id": "alert_rsi50",
+      "kind": "indicator",
+      "label": "RSI ≤ 50 (охлаждение)",
+      "enabled": true,
+      "channels": ["local", "telegram"],
+      "indicator": "rsi_14",
+      "op": "<=",
+      "value": 50,
+      "cooldown_sec": 600
+    },
+    {
+      "id": "alert_A_confirmed",
+      "kind": "scenario_status",
+      "label": "Сценарий A подтверждён",
+      "enabled": true,
+      "channels": ["local", "telegram"],
+      "scenario_id": "A",
+      "on_status": "confirmed",
+      "cooldown_sec": 600
+    }
+  ]
+}

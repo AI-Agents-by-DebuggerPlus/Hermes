@@ -170,31 +170,51 @@ public static partial class ReniWaterScheduleParser
             return false;
         }
 
-        if (!t.Contains("переда", StringComparison.Ordinal) && !t.Contains("показан", StringComparison.Ordinal))
+        if (!HasOnceSubmitIntent(t))
         {
             return false;
         }
 
-        if (!t.Contains(" в ", StringComparison.Ordinal) && !AtTimeRegex().IsMatch(t))
-        {
-            return false;
-        }
-
-        var (hour, minute) = ParseTimeFromText(t, defaultHour: -1);
+        var dayOffset = ResolveRelativeDayOffset(t);
+        var hasExplicitTime = t.Contains(" в ", StringComparison.Ordinal) || AtTimeRegex().IsMatch(t);
+        var defaultHour = dayOffset > 0 || hasExplicitTime
+            ? ReniWaterScheduleDefaults.DefaultHour
+            : -1;
+        var (hour, minute) = ParseTimeFromText(t, defaultHour);
         if (hour < 0)
         {
             return false;
         }
 
         var now = DateTime.Now;
-        var runAt = new DateTime(now.Year, now.Month, now.Day, hour, minute, 0);
-        if (runAt <= now)
+        var runAt = new DateTime(now.Year, now.Month, now.Day, hour, minute, 0).AddDays(dayOffset);
+        if (dayOffset == 0 && runAt <= now)
         {
             runAt = runAt.AddDays(1);
         }
 
         request = new ReniWaterScheduleRequest(ReniWaterScheduleAction.Once, runAt, 1, 5, hour, minute);
         return true;
+    }
+
+    private static bool HasOnceSubmitIntent(string t) =>
+        t.Contains("переда", StringComparison.Ordinal)
+        || t.Contains("отправ", StringComparison.Ordinal)
+        || t.Contains("показан", StringComparison.Ordinal);
+
+    private static int ResolveRelativeDayOffset(string t)
+    {
+        if (t.Contains("послезавтра", StringComparison.Ordinal))
+        {
+            return 2;
+        }
+
+        if (t.Contains("завтра", StringComparison.Ordinal))
+        {
+            return 1;
+        }
+
+        return 0;
     }
 
     private static (int Hour, int Minute) ParseTimeFromText(string t, int defaultHour)

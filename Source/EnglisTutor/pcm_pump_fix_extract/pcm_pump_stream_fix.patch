@@ -1,0 +1,38 @@
+--- a/Hermes.EnglishTutorClient/Services/PcmPumpStream.cs
++++ b/Hermes.EnglishTutorClient/Services/PcmPumpStream.cs
+@@ class PcmPumpStream : Stream
+-    public override long Length => throw new NotSupportedException();
++    private long _totalBytesWritten;
++    private long _totalBytesRead;
++
++    // SAPI's SpStreamWrapper constructor calls Stream.Length on init.
++    // We can't know the final length of a live capture stream, so we
++    // report a monotonically growing "virtual" length based on bytes
++    // written so far. This satisfies SpStreamWrapper's ctor check
++    // without breaking the live/streaming nature of the pump.
++    public override long Length => Interlocked.Read(ref _totalBytesWritten);
++
++    public override long Position
++    {
++        get => Interlocked.Read(ref _totalBytesRead);
++        set => throw new NotSupportedException();
++    }
+
+     public override bool CanSeek => false;
++    public override bool CanRead => true;
++    public override bool CanWrite => true;
+
+     public void WritePcm(byte[] buffer, int offset, int count)
+     {
+         // ... existing enqueue logic ...
++        Interlocked.Add(ref _totalBytesWritten, count);
+     }
+
+     public override int Read(byte[] buffer, int offset, int count)
+     {
+         // ... existing dequeue/block logic ...
++        // increment _totalBytesRead by the number of bytes actually read
++        // before returning, e.g.:
++        // Interlocked.Add(ref _totalBytesRead, bytesRead);
++        // return bytesRead;
+     }

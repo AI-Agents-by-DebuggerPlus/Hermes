@@ -47,13 +47,14 @@ EA (.mq5)
 | Agent IPC | `TerminalAgentIpc.cs` в UI; каталог `Mt5Terminal/hermes/ipc/` |
 | Router (WPF) | `Hermes.Wpf/Services/Mt5TerminalTradeRouter.cs`, `Mt5TerminalIpcClient.cs` |
 
-Актуальная версия UI и input EA — в `HermesProjects/Mt5Terminal/hermes/project.md` (сейчас **ui_v33** / `InpWpfUi33`).
+Актуальная версия UI и input EA — в `HermesProjects/Mt5Terminal/hermes/project.md` (сейчас **ui_v35** / `InpWpfUi35`).
 
 ---
 
 ## Возможности UI
 
 - Котировки Bid/Ask, лот, BUY/SELL (market / pending tabs)
+- **Screenshots** — вкладка + **полноэкранное окно** (`ChartScreenShot` из MT5, Esc/клик — закрыть)
 - **POSITIONS** — до 8 строк, **Close** / **Close all**
 - Settings: **Real trading**, **Auto-trade** (tooltips)
 - Статус рынка (сессии), лог WPF/MQL5
@@ -79,6 +80,7 @@ EA (.mq5)
 | `set_lot` | лот |
 | `buy_market` / `sell_market` | рыночные кнопки |
 | `close_all` / `close_slot` | закрытие позиций |
+| `screenshot` | скриншот графика MT5 → вкладка Screenshots |
 | `unsupported` | запрос не из списка — без исполнения |
 
 Hermes.Wpf:
@@ -99,13 +101,13 @@ cd Hermes.MT5\WpfGuiControllerTest\WpfGuiController
 dotnet build -c Release
 
 cd ..\WpfTestApp
-dotnet build -c Release -p:OutputPath=bin\Release\ui_v33\
+dotnet build -c Release -p:OutputPath=bin\Release\ui_v35\
 
 cd ..
 .\Deploy-To-MT5.ps1
 ```
 
-Затем MetaEditor: **F7** → снять EA → накинуть → **Reset** inputs (`InpWpfUi33`, `InpWpfWindow=HermesWpfTerminal`).
+Затем MetaEditor: **F7** → снять EA → накинуть → **Reset** inputs (`InpWpfUi35`, `InpWpfWindow=HermesWpfTerminal`).
 
 При смене UI: новый `ui_vN` + `AssemblyName` + input EA + `BuildInfo` (кэш `Assembly.LoadFrom` в MT5).
 

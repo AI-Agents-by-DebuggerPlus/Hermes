@@ -46,6 +46,7 @@ public sealed class SettingsService
         }
 
         settings.SavedProjectPaths ??= [];
+        settings.ProjectUiMetaByPath = NormalizeProjectUiMeta(settings.ProjectUiMetaByPath);
         settings.VisionScopeReminderNote ??= string.Empty;
         settings.WorkspaceRootWindowsPath ??= string.Empty;
         settings.LastWorkspaceBrowsePath ??= string.Empty;
@@ -390,5 +391,27 @@ public sealed class SettingsService
         }
 
         return changed;
+    }
+
+    private static Dictionary<string, ProjectUiMeta> NormalizeProjectUiMeta(
+        Dictionary<string, ProjectUiMeta>? source)
+    {
+        var result = new Dictionary<string, ProjectUiMeta>(StringComparer.OrdinalIgnoreCase);
+        if (source is null)
+        {
+            return result;
+        }
+
+        foreach (var (key, meta) in source)
+        {
+            if (string.IsNullOrWhiteSpace(key) || meta is null)
+            {
+                continue;
+            }
+
+            result[key.Trim()] = meta;
+        }
+
+        return result;
     }
 }

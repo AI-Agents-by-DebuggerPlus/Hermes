@@ -63,6 +63,11 @@ public static class ReniWaterSubmitTriggers
             return false;
         }
 
+        if (MatchesDeferredScheduleCue(t))
+        {
+            return false;
+        }
+
         var hasReniContext = t.Contains("водоканал", StringComparison.Ordinal)
                              || t.Contains("reni", StringComparison.Ordinal)
                              || t.Contains("рени", StringComparison.Ordinal)
@@ -84,6 +89,15 @@ public static class ReniWaterSubmitTriggers
 
         return false;
     }
+
+    /// <summary>Defer to schedule handler — e.g. «отправь завтра показания».</summary>
+    private static bool MatchesDeferredScheduleCue(string t) =>
+        t.Contains("завтра", StringComparison.Ordinal)
+        || t.Contains("послезавтра", StringComparison.Ordinal)
+        || t.Contains("каждый месяц", StringComparison.Ordinal)
+        || t.Contains("каждого месяца", StringComparison.Ordinal)
+        || t.Contains("ежемесяч", StringComparison.Ordinal)
+        || (t.Contains("расписан", StringComparison.Ordinal) && t.Contains("показан", StringComparison.Ordinal));
 
     /// <summary>User asked about electricity/gas only — do not hijack to Reni water.</summary>
     private static bool MatchesOtherUtilityOnly(string t) =>

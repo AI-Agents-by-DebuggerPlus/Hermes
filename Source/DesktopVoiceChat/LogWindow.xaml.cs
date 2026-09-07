@@ -2,12 +2,14 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using DesktopVoiceChat.Services;
+using DesktopVoiceChat.ViewModels;
 
 namespace DesktopVoiceChat;
 
 public partial class LogWindow : Window
 {
     private static LogWindow? _instance;
+    private MainViewModel? _vm;
 
     public LogWindow()
     {
@@ -36,6 +38,13 @@ public partial class LogWindow : Window
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        _vm = Owner?.DataContext as MainViewModel
+              ?? Application.Current.MainWindow?.DataContext as MainViewModel;
+        if (_vm is not null)
+        {
+            MirrorCheck.IsChecked = _vm.MirrorLogsToRemoteTerminal;
+        }
+
         AppLogService.MessageLogged -= OnMessageLogged;
         AppLogService.MessageLogged += OnMessageLogged;
 
@@ -77,6 +86,21 @@ public partial class LogWindow : Window
             LogTextBox.CaretIndex = LogTextBox.Text.Length;
             LogTextBox.ScrollToEnd();
         });
+
+        if (_vm?.MirrorLogsToRemoteTerminal == true)
+        {
+            _ = _vm.TryMirrorLogLineAsync(line);
+        }
+    }
+
+    private void OnMirrorChanged(object sender, RoutedEventArgs e)
+    {
+        if (_vm is null)
+        {
+            return;
+        }
+
+        _vm.MirrorLogsToRemoteTerminal = MirrorCheck.IsChecked == true;
     }
 
     private void OnClearViewClick(object sender, RoutedEventArgs e)

@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="Hermes Logs"
-        Height="520"
+        Height="560"
         Width="980"
         MinHeight="420"
         MinWidth="760"
@@ -15,14 +15,31 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="8" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="8" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0"
                    FontSize="14"
-                   Text="{Binding Header}" />
+                   Text="{Binding Header}"
+                   TextWrapping="Wrap" />
 
-        <ListBox Grid.Row="2"
+        <StackPanel Grid.Row="2" Orientation="Vertical">
+            <CheckBox Content="Передавать логи в Supabase → RemoteTerminal (резервный просмотр)"
+                      IsChecked="{Binding RemoteLogEnabled}"
+                      Margin="0,0,0,4" />
+            <CheckBox Content="Включая INFO (иначе только WARN / ERROR / TERM)"
+                      IsChecked="{Binding RemoteLogIncludeInfo}"
+                      IsEnabled="{Binding RemoteLogEnabled}"
+                      Margin="0,0,0,4" />
+            <TextBlock Foreground="{StaticResource MutedTextBrush}"
+                       FontSize="12"
+                       TextWrapping="Wrap"
+                       Text="Нужны Relay enabled + URL/key. RemoteTerminal.Xp читает recipient_name=RemoteTerminal. Формат: [LOG:HermesWpf] …" />
+        </StackPanel>
+
+        <ListBox Grid.Row="4"
                  x:Name="LogsListBox"
                  ItemsSource="{Binding Entries}"
                  FontFamily="Consolas"

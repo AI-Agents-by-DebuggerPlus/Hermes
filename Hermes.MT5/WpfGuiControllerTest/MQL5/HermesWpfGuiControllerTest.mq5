@@ -1,4 +1,4 @@
-﻿//+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
 //|                                HermesWpfGuiControllerTest.mq5    |
 //| MQL5 <=> HermesWpfGuiController.dll <=> HermesWpfTerminal        |
 //+------------------------------------------------------------------+
@@ -19,9 +19,10 @@ enum ENUM_GUI_EVENT
    GUI_SELECTION_CHANGE= 8
   };
 
-// Path: ui_vN folder and DLL name must match (ui_v33 + HermesWpfTerminalUi33.dll).
-input string InpWpfUi33       = "D:/Programming/AI_Agents/Hermes/Hermes.MT5/WpfGuiControllerTest/WpfTestApp/bin/Release/ui_v33/HermesWpfTerminalUi33.dll";
+// Path: ui_vN folder and DLL name must match (ui_v48 + HermesWpfTerminalUi48.dll).
+input string InpWpfUi48       = "D:/Programming/AI_Agents/Hermes/Hermes.MT5/WpfGuiControllerTest/WpfTestApp/bin/Release/ui_v48/HermesWpfTerminalUi48.dll";
 input string InpWpfWindow    = "HermesWpfTerminal";
+input string InpIpcDir       = "D:/Programming/AI_Agents/HermesProjects/Mt5Terminal/hermes/ipc";
 input int    InpTimerMs      = 200;
 input double InpDefaultLot   = 0.10;
 input ulong  InpMagic        = 260804;
@@ -38,6 +39,7 @@ double g_price         = 0.0;
 double g_sl            = 0.0;
 double g_tp            = 0.0;
 double g_stoplimit     = 0.0;
+string g_order_symbol  = "";
 CTrade g_trade;
 
 #define POS_SLOTS 8
@@ -55,21 +57,21 @@ int OnInit()
 
    SymbolSelect(_Symbol, true);
 
-   if(!FileIsExist(InpWpfUi33, 0) && !FileIsExist(InpWpfUi33, FILE_COMMON))
+   if(!FileIsExist(InpWpfUi48, 0) && !FileIsExist(InpWpfUi48, FILE_COMMON))
      {
-      // FileIsExist often false for absolute paths outside MQL5 sandbox —
+      // FileIsExist often false for absolute paths outside MQL5 sandbox �
       // print path and try LoadFrom anyway.
-      Print("WPF DLL path (must exist on disk): ", InpWpfUi33);
+      Print("WPF DLL path (must exist on disk): ", InpWpfUi48);
      }
    else
-      Print("WPF DLL path OK: ", InpWpfUi33);
+      Print("WPF DLL path OK: ", InpWpfUi48);
 
    ResetLastError();
-   bool ok = GuiController::ShowWindow(InpWpfUi33, InpWpfWindow);
+   bool ok = GuiController::ShowWindow(InpWpfUi48, InpWpfWindow);
    if(!ok || GetLastError() != 0)
      {
-      Print("ShowWindow FAILED path=", InpWpfUi33, " error=", GetLastError());
-      Alert("WPF ShowWindow failed. Check DLL path in EA inputs:\n", InpWpfUi33);
+      Print("ShowWindow FAILED path=", InpWpfUi48, " error=", GetLastError());
+      Alert("WPF ShowWindow failed. Check DLL path in EA inputs:\n", InpWpfUi48);
       return(INIT_FAILED);
      }
 
@@ -77,7 +79,7 @@ int OnInit()
    EventSetMillisecondTimer(InpTimerMs);
    PushGuiState();
    EchoToGui("panel started / " + InpWpfWindow);
-   Print("WPF panel started: ", InpWpfUi33, " / ", InpWpfWindow);
+   Print("WPF panel started: ", InpWpfUi48, " / ", InpWpfWindow);
    return(INIT_SUCCEEDED);
   }
 
@@ -86,7 +88,7 @@ void OnDeinit(const int reason)
   {
    EventKillTimer();
    if(g_window_ready)
-      GuiController::HideWindow(InpWpfUi33, InpWpfWindow);
+      GuiController::HideWindow(InpWpfUi48, InpWpfWindow);
   }
 
 //+------------------------------------------------------------------+
@@ -108,7 +110,7 @@ void OnTick()
 //+------------------------------------------------------------------+
 void DrainGuiEvents()
   {
-   int total = GuiController::EventsTotal(InpWpfUi33, InpWpfWindow);
+   int total = GuiController::EventsTotal(InpWpfUi48, InpWpfWindow);
    if(total <= 0)
       return;
 
@@ -119,10 +121,10 @@ void DrainGuiEvents()
       long   lparam  = 0;
       double dparam  = 0.0;
       string sparam  = "";
-      GuiController::GetEvent(InpWpfUi33, InpWpfWindow, i, el_name, id, lparam, dparam, sparam);
+      GuiController::GetEvent(InpWpfUi48, InpWpfWindow, i, el_name, id, lparam, dparam, sparam);
       HandleEvent(el_name, (ENUM_GUI_EVENT)id, lparam, dparam, sparam);
      }
-   GuiController::ClearEvents(InpWpfUi33, InpWpfWindow);
+   GuiController::ClearEvents(InpWpfUi48, InpWpfWindow);
   }
 
 //+------------------------------------------------------------------+
@@ -131,7 +133,7 @@ void EchoToGui(const string msg)
    if(!g_window_ready)
       return;
    string line = TimeToString(TimeLocal(), TIME_MINUTES) + "  [MQL5]  " + msg;
-   GuiController::SendEvent(InpWpfUi33, InpWpfWindow, "txtMqlLog",
+   GuiController::SendEvent(InpWpfUi48, InpWpfWindow, "txtMqlLog",
                             (int)GUI_TEXT_CHANGE, 0, 0, line);
    Print(line);
   }
@@ -172,6 +174,10 @@ void HandleEvent(const string el_name, const ENUM_GUI_EVENT id,
             g_tp = StringToDouble(sparam);
          else if(el_name == "txtComment")
             g_comment = sparam;
+         else if(el_name == "txtOrderSymbol")
+            g_order_symbol = sparam;
+         else if(el_name == "txtOrderTypeLabel")
+            g_order_type = NormalizeOrderType(sparam);
          break;
 
       case GUI_CHECKBOX_CHANGE:
@@ -192,9 +198,9 @@ void HandleEvent(const string el_name, const ENUM_GUI_EVENT id,
       case GUI_COMBOBOX_CHANGE:
          EchoToGui("recv COMBO " + el_name + " idx=" + IntegerToString((int)lparam) + " " + sparam);
          if(el_name == "cmbOrderType")
-            g_order_type = sparam;
+            g_order_type = NormalizeOrderType(sparam);
          else if(el_name == "cmbFill")
-            g_fill = sparam;
+            g_fill = NormalizeOrderType(sparam);
          break;
 
       default:
@@ -252,6 +258,122 @@ void HandleClick(const string el_name)
       EchoToGui("Settings closed on WPF side");
       return;
      }
+   if(el_name == "btnScreenshot" || el_name == "btnCaptureScreenshot")
+     {
+      CaptureChartScreenshot();
+      return;
+     }
+   if(el_name == "btnListSymbols")
+     {
+      ExportSymbolsList();
+      return;
+     }
+   if(el_name == "tabScreenshots")
+     {
+      EchoToGui("mode tab Screenshots (UI only ack)");
+      return;
+     }
+  }
+
+//+------------------------------------------------------------------+
+void CaptureChartScreenshot()
+  {
+   string fileName = "hermes_chart_" +
+                     IntegerToString(TimeLocal()) + "_" +
+                     IntegerToString((int)GetTickCount()) + ".png";
+   // ChartScreenShot writes into MQL5\Files\
+   if(!ChartScreenShot(0, fileName, 1280, 720, ALIGN_RIGHT))
+     {
+      EchoToGui("SCREENSHOT FAIL ChartScreenShot err=" + IntegerToString(GetLastError()));
+      GuiController::SendEvent(InpWpfUi48, InpWpfWindow, "txtScreenshotPath",
+                               GUI_TEXT_CHANGE, 0, 0.0, "");
+      return;
+     }
+
+   string absPath = TerminalInfoString(TERMINAL_DATA_PATH) + "\\MQL5\\Files\\" + fileName;
+   EchoToGui("SCREENSHOT OK " + absPath);
+   GuiController::SendEvent(InpWpfUi48, InpWpfWindow, "txtScreenshotPath",
+                            GUI_TEXT_CHANGE, 0, 0.0, absPath);
+  }
+
+//+------------------------------------------------------------------+
+bool IsTradeableSymbol(const string sym)
+  {
+   if(StringLen(sym) == 0)
+      return false;
+   long mode = SymbolInfoInteger(sym, SYMBOL_TRADE_MODE);
+   if(mode == SYMBOL_TRADE_MODE_DISABLED || mode == SYMBOL_TRADE_MODE_CLOSEONLY)
+      return false;
+   return true;
+  }
+
+//+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
+string NormalizeOrderType(const string raw)
+  {
+   string t = raw;
+   // GuiController may send "System.Windows.Controls.ComboBoxItem: Buy Limit"
+   int p = StringFind(t, ": ");
+   if(p >= 0)
+      t = StringSubstr(t, p + 2);
+   StringTrimLeft(t);
+   StringTrimRight(t);
+   return t;
+  }
+
+//+------------------------------------------------------------------+
+void ExportSymbolsList()
+  {
+   // MT5 FileOpen cannot write outside sandbox (err 5002). Write under MQL5\Files\,
+   // then HWT copies into hermes/ipc/symbols.json.
+   string relName = "hermes_symbols.json";
+
+   string syms[];
+   int total = SymbolsTotal(false);
+   int added = 0;
+   ArrayResize(syms, 0);
+
+   for(int i = 0; i < total && added < 4000; i++)
+     {
+      string sym = SymbolName(i, false);
+      if(!IsTradeableSymbol(sym))
+         continue;
+      ArrayResize(syms, added + 1);
+      syms[added] = sym;
+      added++;
+     }
+
+   int h = FileOpen(relName, FILE_WRITE|FILE_TXT|FILE_ANSI);
+   if(h == INVALID_HANDLE)
+     {
+      EchoToGui("SYMBOLS FAIL FileOpen err=" + IntegerToString(GetLastError()) + " name=" + relName);
+      GuiController::SendEvent(InpWpfUi48, InpWpfWindow, "txtSymbolsPath",
+                               GUI_TEXT_CHANGE, 0, 0.0, "");
+      return;
+     }
+
+   FileWriteString(h, "{\r\n\"source\":\"Mt5Terminal\",\r\n\"utc\":\"");
+   FileWriteString(h, TimeToString(TimeGMT(), TIME_DATE|TIME_SECONDS) + "Z");
+   FileWriteString(h, "\",\r\n\"chart_symbol\":\"");
+   FileWriteString(h, _Symbol);
+   FileWriteString(h, "\",\r\n\"count\":");
+   FileWriteString(h, IntegerToString(added));
+   FileWriteString(h, ",\r\n\"symbols\":[");
+
+   for(int j = 0; j < added; j++)
+     {
+      if(j > 0)
+         FileWriteString(h, ",");
+      FileWriteString(h, "\"" + syms[j] + "\"");
+     }
+
+   FileWriteString(h, "]\r\n}");
+   FileClose(h);
+
+   string absPath = TerminalInfoString(TERMINAL_DATA_PATH) + "\\MQL5\\Files\\" + relName;
+   EchoToGui("SYMBOLS OK count=" + IntegerToString(added) + " path=" + absPath);
+   GuiController::SendEvent(InpWpfUi48, InpWpfWindow, "txtSymbolsPath",
+                            GUI_TEXT_CHANGE, 0, 0.0, absPath);
   }
 
 //+------------------------------------------------------------------+
@@ -272,7 +394,54 @@ void RequestSideTrade(const bool buy)
   }
 
 //+------------------------------------------------------------------+
+string ResolveTradeSymbol()
+  {
+   string sym = (StringLen(g_order_symbol) > 0) ? g_order_symbol : _Symbol;
+   if(SymbolSelect(sym, true))
+      return sym;
+
+   // Broker aliases (NAS100 often USTEC / NAS100m)
+   string alts[];
+   ArrayResize(alts, 0);
+   if(StringFind(sym, "NAS") == 0 || sym == "USTEC")
+     {
+      ArrayResize(alts, 4);
+      alts[0] = "NAS100";
+      alts[1] = "USTEC";
+      alts[2] = "NAS100m";
+      alts[3] = "NASDAQ";
+     }
+   else if(StringFind(sym, "XAU") == 0 || sym == "GOLD")
+     {
+      ArrayResize(alts, 3);
+      alts[0] = "XAUUSD";
+      alts[1] = "XAUUSDm";
+      alts[2] = "GOLD";
+     }
+
+   for(int i = 0; i < ArraySize(alts); i++)
+     {
+      if(alts[i] == sym)
+         continue;
+      if(SymbolSelect(alts[i], true))
+        {
+         EchoToGui("SymbolSelect alias " + sym + " → " + alts[i]);
+         return alts[i];
+        }
+     }
+
+   EchoToGui("WARN SymbolSelect failed for " + sym + ", fallback _Symbol=" + _Symbol);
+   return _Symbol;
+  }
+
+//+------------------------------------------------------------------+
 bool TradeAllowedNow(string &reason)
+  {
+   return TradeAllowedForSymbol(_Symbol, reason);
+  }
+
+//+------------------------------------------------------------------+
+bool TradeAllowedForSymbol(const string sym, string &reason)
   {
    if(!TerminalInfoInteger(TERMINAL_TRADE_ALLOWED))
      {
@@ -289,10 +458,10 @@ bool TradeAllowedNow(string &reason)
       reason = "account trade not allowed";
       return false;
      }
-   long mode = SymbolInfoInteger(_Symbol, SYMBOL_TRADE_MODE);
+   long mode = SymbolInfoInteger(sym, SYMBOL_TRADE_MODE);
    if(mode == SYMBOL_TRADE_MODE_DISABLED)
      {
-      reason = "symbol trade mode disabled";
+      reason = "symbol trade mode disabled for " + sym;
       return false;
      }
    return true;
@@ -301,9 +470,15 @@ bool TradeAllowedNow(string &reason)
 //+------------------------------------------------------------------+
 double NormalizeVolume(double vol)
   {
-   double vmin = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
-   double vmax = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MAX);
-   double step = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP);
+   return NormalizeVolumeFor(_Symbol, vol);
+  }
+
+//+------------------------------------------------------------------+
+double NormalizeVolumeFor(const string sym, double vol)
+  {
+   double vmin = SymbolInfoDouble(sym, SYMBOL_VOLUME_MIN);
+   double vmax = SymbolInfoDouble(sym, SYMBOL_VOLUME_MAX);
+   double step = SymbolInfoDouble(sym, SYMBOL_VOLUME_STEP);
    if(step <= 0)
       step = 0.01;
    if(vol < vmin)
@@ -324,7 +499,13 @@ double NormalizeVolume(double vol)
 //+------------------------------------------------------------------+
 double NormalizePricePx(double price)
   {
-   int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+   return NormalizePriceFor(_Symbol, price);
+  }
+
+//+------------------------------------------------------------------+
+double NormalizePriceFor(const string sym, double price)
+  {
+   int digits = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
    return NormalizeDouble(price, digits);
   }
 
@@ -399,14 +580,14 @@ void DoTradeStub(ENUM_ORDER_TYPE type, const string kind)
   }
 
 //+------------------------------------------------------------------+
-void DoPendingStub()
+void DoPendingStub(const string sym)
   {
    string msg = StringFormat(
       "ACK stub PENDING type=%s %s vol=%.2f price=%s SL=%s TP=%s auto=%s (enable Real trading for OrderSend)",
-      g_order_type, _Symbol, g_volume,
-      DoubleToString(g_price, (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS)),
-      DoubleToString(g_sl, (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS)),
-      DoubleToString(g_tp, (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS)),
+      g_order_type, sym, g_volume,
+      DoubleToString(g_price, (int)SymbolInfoInteger(sym, SYMBOL_DIGITS)),
+      DoubleToString(g_sl, (int)SymbolInfoInteger(sym, SYMBOL_DIGITS)),
+      DoubleToString(g_tp, (int)SymbolInfoInteger(sym, SYMBOL_DIGITS)),
       (string)g_autotrade);
    EchoToGui(msg);
   }
@@ -452,24 +633,27 @@ void DoMarketTrade(ENUM_ORDER_TYPE type)
 //+------------------------------------------------------------------+
 void RequestPendingTrade()
   {
+   string sym = ResolveTradeSymbol();
    if(!g_real_trade)
      {
-      DoPendingStub();
+      DoPendingStub(sym);
+      g_order_symbol = "";
       return;
      }
 
    string reason;
-   if(!TradeAllowedNow(reason))
+   if(!TradeAllowedForSymbol(sym, reason))
      {
       EchoToGui("ERR Pending blocked: " + reason);
+      g_order_symbol = "";
       return;
      }
 
-   double vol = NormalizeVolume(g_volume);
-   double price = NormalizePricePx(g_price);
-   double sl = (g_sl > 0.0) ? NormalizePricePx(g_sl) : 0.0;
-   double tp = (g_tp > 0.0) ? NormalizePricePx(g_tp) : 0.0;
-   double stoplimit = (g_stoplimit > 0.0) ? NormalizePricePx(g_stoplimit) : 0.0;
+   double vol = NormalizeVolumeFor(sym, g_volume);
+   double price = NormalizePriceFor(sym, g_price);
+   double sl = (g_sl > 0.0) ? NormalizePriceFor(sym, g_sl) : 0.0;
+   double tp = (g_tp > 0.0) ? NormalizePriceFor(sym, g_tp) : 0.0;
+   double stoplimit = (g_stoplimit > 0.0) ? NormalizePriceFor(sym, g_stoplimit) : 0.0;
    ConfigureTrade();
 
    string cmt = (g_comment == "") ? (g_autotrade ? "Hermes auto" : "Hermes UI") : g_comment;
@@ -477,31 +661,32 @@ void RequestPendingTrade()
    string action = g_order_type;
 
    EchoToGui(StringFormat("SEND PENDING %s %s vol=%.2f price=%s SL=%s TP=%s",
-      g_order_type, _Symbol, vol,
-      DoubleToString(price, (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS)),
-      DoubleToString(sl, (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS)),
-      DoubleToString(tp, (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS))));
+      g_order_type, sym, vol,
+      DoubleToString(price, (int)SymbolInfoInteger(sym, SYMBOL_DIGITS)),
+      DoubleToString(sl, (int)SymbolInfoInteger(sym, SYMBOL_DIGITS)),
+      DoubleToString(tp, (int)SymbolInfoInteger(sym, SYMBOL_DIGITS))));
 
    if(g_order_type == "Buy Limit")
-      ok = g_trade.BuyLimit(vol, price, _Symbol, sl, tp, ORDER_TIME_GTC, 0, cmt);
+      ok = g_trade.BuyLimit(vol, price, sym, sl, tp, ORDER_TIME_GTC, 0, cmt);
    else if(g_order_type == "Sell Limit")
-      ok = g_trade.SellLimit(vol, price, _Symbol, sl, tp, ORDER_TIME_GTC, 0, cmt);
+      ok = g_trade.SellLimit(vol, price, sym, sl, tp, ORDER_TIME_GTC, 0, cmt);
    else if(g_order_type == "Buy Stop")
-      ok = g_trade.BuyStop(vol, price, _Symbol, sl, tp, ORDER_TIME_GTC, 0, cmt);
+      ok = g_trade.BuyStop(vol, price, sym, sl, tp, ORDER_TIME_GTC, 0, cmt);
    else if(g_order_type == "Sell Stop")
-      ok = g_trade.SellStop(vol, price, _Symbol, sl, tp, ORDER_TIME_GTC, 0, cmt);
+      ok = g_trade.SellStop(vol, price, sym, sl, tp, ORDER_TIME_GTC, 0, cmt);
    else if(g_order_type == "Buy Stop Limit")
-      // CTrade has no BuyStopLimit helper — OrderOpen(limit_price=stoplimit, price=stop).
-      ok = g_trade.OrderOpen(_Symbol, ORDER_TYPE_BUY_STOP_LIMIT, vol, stoplimit, price, sl, tp, ORDER_TIME_GTC, 0, cmt);
+      ok = g_trade.OrderOpen(sym, ORDER_TYPE_BUY_STOP_LIMIT, vol, stoplimit, price, sl, tp, ORDER_TIME_GTC, 0, cmt);
    else if(g_order_type == "Sell Stop Limit")
-      ok = g_trade.OrderOpen(_Symbol, ORDER_TYPE_SELL_STOP_LIMIT, vol, stoplimit, price, sl, tp, ORDER_TIME_GTC, 0, cmt);
+      ok = g_trade.OrderOpen(sym, ORDER_TYPE_SELL_STOP_LIMIT, vol, stoplimit, price, sl, tp, ORDER_TIME_GTC, 0, cmt);
    else
      {
       EchoToGui("ERR unknown pending type: " + g_order_type);
+      g_order_symbol = "";
       return;
      }
 
    EchoTradeResult(ok, action);
+   g_order_symbol = "";
   }
 
 //+------------------------------------------------------------------+
@@ -516,22 +701,22 @@ void PushGuiState()
    datetime tickTime = (datetime)SymbolInfoInteger(_Symbol, SYMBOL_TIME);
    int tickAge = (tickTime > 0) ? (int)(TimeCurrent() - tickTime) : -1;
 
-   GuiController::SendEvent(InpWpfUi33, InpWpfWindow, "txtSymbol",
+   GuiController::SendEvent(InpWpfUi48, InpWpfWindow, "txtSymbol",
                             (int)GUI_TEXT_CHANGE, 0, 0, _Symbol);
-   GuiController::SendEvent(InpWpfUi33, InpWpfWindow, "txtBid",
+   GuiController::SendEvent(InpWpfUi48, InpWpfWindow, "txtBid",
                             (int)GUI_TEXT_CHANGE, 0, 0, DoubleToString(bid, digits));
-   GuiController::SendEvent(InpWpfUi33, InpWpfWindow, "txtAsk",
+   GuiController::SendEvent(InpWpfUi48, InpWpfWindow, "txtAsk",
                             (int)GUI_TEXT_CHANGE, 0, 0, DoubleToString(ask, digits));
 
    // Mini-panel button captions with live prices
-   GuiController::SendEvent(InpWpfUi33, InpWpfWindow, "btnQuickSell",
+   GuiController::SendEvent(InpWpfUi48, InpWpfWindow, "btnQuickSell",
                             (int)GUI_TEXT_CHANGE, 0, 0, "SELL  " + DoubleToString(bid, digits));
-   GuiController::SendEvent(InpWpfUi33, InpWpfWindow, "btnQuickBuy",
+   GuiController::SendEvent(InpWpfUi48, InpWpfWindow, "btnQuickBuy",
                             (int)GUI_TEXT_CHANGE, 0, 0, "BUY  " + DoubleToString(ask, digits));
 
-   GuiController::SendEvent(InpWpfUi33, InpWpfWindow, "txtAccount",
+   GuiController::SendEvent(InpWpfUi48, InpWpfWindow, "txtAccount",
                             (int)GUI_TEXT_CHANGE, 0, 0, BuildAccountLine());
-   GuiController::SendEvent(InpWpfUi33, InpWpfWindow, "txtMarketStatus",
+   GuiController::SendEvent(InpWpfUi48, InpWpfWindow, "txtMarketStatus",
                             (int)GUI_TEXT_CHANGE, 0, 0, BuildMarketStatusLine(tickAge, tickTime));
    PushPositions();
   }
@@ -579,9 +764,9 @@ void PushPositions()
          pl,
          IntegerToString(ticket));
 
-      GuiController::SendEvent(InpWpfUi33, InpWpfWindow, PosSlotName("txtPos", slot),
+      GuiController::SendEvent(InpWpfUi48, InpWpfWindow, PosSlotName("txtPos", slot),
                                (int)GUI_TEXT_CHANGE, 0, 0, line);
-      GuiController::SendEvent(InpWpfUi33, InpWpfWindow, PosSlotName("rowPos", slot),
+      GuiController::SendEvent(InpWpfUi48, InpWpfWindow, PosSlotName("rowPos", slot),
                                (int)GUI_ELEMENT_HIDE, 0, 0, "");
       slot++;
      }
@@ -589,16 +774,16 @@ void PushPositions()
    g_pos_shown = slot;
    for(int j = slot; j < POS_SLOTS; j++)
      {
-      GuiController::SendEvent(InpWpfUi33, InpWpfWindow, PosSlotName("txtPos", j),
+      GuiController::SendEvent(InpWpfUi48, InpWpfWindow, PosSlotName("txtPos", j),
                                (int)GUI_TEXT_CHANGE, 0, 0, "");
-      GuiController::SendEvent(InpWpfUi33, InpWpfWindow, PosSlotName("rowPos", j),
+      GuiController::SendEvent(InpWpfUi48, InpWpfWindow, PosSlotName("rowPos", j),
                                (int)GUI_ELEMENT_HIDE, 1, 0, "");
      }
 
-   GuiController::SendEvent(InpWpfUi33, InpWpfWindow, "txtPositionsHeader",
+   GuiController::SendEvent(InpWpfUi48, InpWpfWindow, "txtPositionsHeader",
                             (int)GUI_TEXT_CHANGE, 0, 0,
                             IntegerToString(total) + " open" + (total > POS_SLOTS ? " (showing " + IntegerToString(POS_SLOTS) + ")" : ""));
-   GuiController::SendEvent(InpWpfUi33, InpWpfWindow, "txtPositionsEmpty",
+   GuiController::SendEvent(InpWpfUi48, InpWpfWindow, "txtPositionsEmpty",
                             (int)GUI_ELEMENT_HIDE, (total > 0 ? 1 : 0), 0, "");
   }
 
@@ -714,7 +899,7 @@ datetime ServerToUtc(const datetime serverDt)
   }
 
 //+------------------------------------------------------------------+
-// US Pacific DST: 2nd Sunday March 02:00 PST в†’ UTC-7; 1st Sunday Nov 02:00 PDT в†’ UTC-8.
+// US Pacific DST: 2nd Sunday March 02:00 PST → UTC-7; 1st Sunday Nov 02:00 PDT → UTC-8.
 datetime NthWeekdayOfMonth(const int year, const int month, const int weekday, const int nth)
   {
    MqlDateTime dt;
@@ -831,7 +1016,7 @@ string OpeningSessionNameUtc(const datetime utcOpen)
    MqlDateTime dt;
    TimeToStruct(utcOpen, dt);
    int mins = dt.hour * 60 + dt.min;
-   // РџРѕСЂСЏРґРѕРє СЃС‚Р°СЂС‚Р° РїРѕ UTC: Sydney(21), Tokyo(0), London(7), New York(12)
+   // Порядок старта по UTC: Sydney(21), Tokyo(0), London(7), New York(12)
    if(mins >= 21 * 60 || mins < 0)
       return "Sydney";
    if(mins < 7 * 60)

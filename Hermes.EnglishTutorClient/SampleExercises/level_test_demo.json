@@ -1,0 +1,37 @@
+{
+  "Title": "Первичный тест уровня (demo)",
+  "Exercises": [
+    {
+      "Id": "q1",
+      "Question": "Прочитайте слова вслух (или напишите перевод на русский):",
+      "Words": [ "apple", "water", "friend" ],
+      "ExpectedAnswer": "яблоко вода друг",
+      "QuestionLang": "ru",
+      "WordsLang": "en"
+    },
+    {
+      "Id": "q2",
+      "Question": "Переведите на английский:",
+      "Words": [ "доброе утро" ],
+      "ExpectedAnswer": "good morning",
+      "QuestionLang": "ru",
+      "WordsLang": "ru"
+    },
+    {
+      "Id": "q3",
+      "Question": "Выберите правильную форму: I ___ to school every day.",
+      "Words": [ "go", "goes", "going" ],
+      "ExpectedAnswer": "go",
+      "QuestionLang": "en",
+      "WordsLang": "en"
+    },
+    {
+      "Id": "q4",
+      "Question": "Составьте предложение со словами:",
+      "Words": [ "I", "like", "coffee" ],
+      "ExpectedAnswer": "I like coffee",
+      "QuestionLang": "ru",
+      "WordsLang": "en"
+    }
+  ]
+}

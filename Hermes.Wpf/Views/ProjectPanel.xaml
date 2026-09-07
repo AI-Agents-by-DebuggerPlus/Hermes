@@ -56,7 +56,7 @@
                            FontSize="11"
                            Foreground="#848E9C"
                            TextWrapping="Wrap"
-                           Text="Путь Windows, например D:\Work\HermesAgent" />
+                           Text="Имя (создаст папку в HermesProjects) или полный путь" />
             </StackPanel>
 
             <WrapPanel Grid.Row="4" Orientation="Horizontal">

@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hermes.local/schemas/strategy-viewer.schema.json",
+  "title": "Hermes.StrategyViewer strategy document",
+  "type": "object",
+  "required": ["schema_version", "symbol", "title", "scenarios"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "id": { "type": "string" },
+    "title": { "type": "string" },
+    "symbol": { "type": "string", "description": "Display / MT5 symbol, e.g. XAUUSD or XAUUSDm" },
+    "timeframe": { "type": "string", "default": "D1" },
+    "as_of": { "type": "string", "format": "date-time" },
+    "disclaimer": { "type": "string" },
+    "price_snapshot": {
+      "type": "object",
+      "properties": {
+        "last": { "type": "number" },
+        "change_abs": { "type": "number" },
+        "change_pct": { "type": "number" }
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/scenario" }
+    },
+    "risk": {
+      "type": "object",
+      "properties": {
+        "risk_per_trade_pct": { "type": "number" },
+        "leverage": { "type": "string" },
+        "notes": { "type": "array", "items": { "type": "string" } },
+        "volatility_label": { "type": "string" }
+      }
+    },
+    "technical": {
+      "type": "object",
+      "properties": {
+        "trend": { "type": "string" },
+        "indicators": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/indicator" }
+        },
+        "warning": { "type": "string" }
+      }
+    },
+    "alerts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/alert" }
+    }
+  },
+  "$defs": {
+    "scenario": {
+      "type": "object",
+      "required": ["id", "title", "side"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "side": { "enum": ["buy", "sell", "neutral"] },
+        "accent": { "enum": ["emerald", "cyan", "gold", "rose"] },
+        "preferred": { "type": "boolean" },
+        "entry_low": { "type": "number" },
+        "entry_high": { "type": "number" },
+        "entry_trigger": { "type": "number", "description": "Single level (stop/limit)" },
+        "stop_loss": { "type": "number" },
+        "take_profit": { "type": "array", "items": { "type": "number" } },
+        "conditions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/condition" }
+        }
+      }
+    },
+    "condition": {
+      "type": "object",
+      "required": ["id", "kind", "label"],
+      "properties": {
+        "id": { "type": "string" },
+        "kind": {
+          "enum": [
+            "price_in_range",
+            "price_above",
+            "price_below",
+            "indicator_cmp",
+            "candle_close_above",
+            "candle_close_below",
+            "manual"
+          ]
+        },
+        "label": { "type": "string" },
+        "op": { "enum": ["<", "<=", ">", ">=", "cross_up", "cross_down"] },
+        "value": { "type": "number" },
+        "value_high": { "type": "number" },
+        "indicator": { "type": "string", "description": "rsi_14, stoch_k, ema_10, ..." },
+        "timeframe": { "type": "string" }
+      }
+    },
+    "indicator": {
+      "type": "object",
+      "required": ["id", "label"],
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "value": { "type": "number" },
+        "unit": { "type": "string" },
+        "state": { "type": "string", "description": "Overbought / Extreme / ..." },
+        "warn_above": { "type": "number" },
+        "warn_below": { "type": "number" }
+      }
+    },
+    "alert": {
+      "type": "object",
+      "required": ["id", "kind", "label"],
+      "properties": {
+        "id": { "type": "string" },
+        "kind": {
+          "enum": ["price_level", "price_zone", "indicator", "scenario_status"]
+        },
+        "label": { "type": "string" },
+        "enabled": { "type": "boolean", "default": true },
+        "channels": {
+          "type": "array",
+          "items": { "enum": ["local", "telegram"] },
+          "default": ["local", "telegram"]
+        },
+        "price": { "type": "number" },
+        "price_low": { "type": "number" },
+        "price_high": { "type": "number" },
+        "indicator": { "type": "string" },
+        "op": { "type": "string" },
+        "value": { "type": "number" },
+        "scenario_id": { "type": "string" },
+        "on_status": { "enum": ["confirmed", "rejected"] },
+        "cooldown_sec": { "type": "integer", "default": 60 }
+      }
+    }
+  }
+}

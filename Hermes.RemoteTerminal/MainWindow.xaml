@@ -1,0 +1,190 @@
+<Window x:Class="Hermes.RemoteTerminal.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Hermes Remote Terminal"
+        Width="1100" Height="760"
+        MinWidth="800" MinHeight="560"
+        Background="#0B0E11"
+        Foreground="#EAECEF"
+        Loaded="Window_OnLoaded"
+        Closed="Window_OnClosed">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="*" MinHeight="160"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="0.55*" MinHeight="120"/>
+            <RowDefinition Height="8"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Toolbar -->
+        <DockPanel Grid.Row="0" LastChildFill="False">
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                <Button Content="Настройки" Click="Settings_OnClick"/>
+                <Button Content="Лог" Click="Log_OnClick"/>
+                <Button Content="Очистить ленту" Click="Clear_OnClick"/>
+                <Button Content="Reconnect" Click="Reconnect_OnClick"/>
+                <Button Content="Poll (F5)" Click="Poll_OnClick" ToolTip="Разовый SELECT — только по запросу"/>
+            </StackPanel>
+            <TextBlock x:Name="HintText"
+                       DockPanel.Dock="Right"
+                       VerticalAlignment="Center"
+                       FontSize="12"
+                       Text="HWT via Supabase · WebSocket · REST backup (XP) · Poll/F5 · settings.json рядом с EXE"/>
+        </DockPanel>
+
+        <!-- Account + Ticker -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.1*"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="1.4*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border x:Name="AccountPanel"
+                    Grid.Column="0"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="14">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="8"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock x:Name="AccountTitle" Text="СЧЁТ" FontWeight="Bold"/>
+                    <TextBox x:Name="AccountText"
+                             Grid.Row="2"
+                             IsReadOnly="True"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             MinHeight="88"
+                             VerticalScrollBarVisibility="Auto"
+                             FontFamily="Consolas"
+                             BorderThickness="0"
+                             Text="—"/>
+                </Grid>
+            </Border>
+
+            <Border x:Name="TickerPanel"
+                    Grid.Column="2"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="14">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="6"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="10"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="6"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="6"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock x:Name="TickerTitle" Text="ТИКЕР / ЦЕНА" FontWeight="Bold"/>
+                    <TextBlock x:Name="SymbolText"
+                               Grid.Row="2"
+                               FontWeight="Bold"
+                               FontFamily="Segoe UI"
+                               Text="—"/>
+                    <Grid Grid.Row="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock x:Name="BidLabel" Text="BID"/>
+                            <TextBlock x:Name="BidText" FontWeight="Bold" FontFamily="Consolas" Text="—"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock x:Name="AskLabel" Text="ASK"/>
+                            <TextBlock x:Name="AskText" FontWeight="Bold" FontFamily="Consolas" Text="—"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="4" VerticalAlignment="Bottom">
+                            <TextBlock x:Name="LotLabel" Text="LOT"/>
+                            <TextBlock x:Name="LotText" FontWeight="SemiBold" FontFamily="Consolas" Text="—"/>
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock x:Name="MarketText" Grid.Row="6" TextWrapping="Wrap" Text=""/>
+                    <DockPanel Grid.Row="8">
+                        <TextBlock x:Name="FlagsText" DockPanel.Dock="Left"/>
+                        <TextBlock x:Name="SourceText" HorizontalAlignment="Right"/>
+                    </DockPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Positions + Pending -->
+        <Border x:Name="PositionsPanel"
+                Grid.Row="4"
+                BorderThickness="1"
+                CornerRadius="4"
+                Padding="14">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="8"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock x:Name="PositionsTitle" Grid.Column="0" Text="ОТКРЫТЫЕ ПОЗИЦИИ" FontWeight="Bold"/>
+                <TextBlock x:Name="PendingTitle" Grid.Column="2" Text="ОТЛОЖЕННЫЕ ОРДЕРА" FontWeight="Bold"/>
+
+                <TextBox x:Name="PositionsList"
+                         Grid.Row="2" Grid.Column="0"
+                         IsReadOnly="True"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         FontFamily="Consolas"
+                         BorderThickness="0"
+                         Text="(нет)"/>
+                <TextBox x:Name="PendingList"
+                         Grid.Row="2" Grid.Column="2"
+                         IsReadOnly="True"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         FontFamily="Consolas"
+                         BorderThickness="0"
+                         Text="(нет данных из HWT)"/>
+            </Grid>
+        </Border>
+
+        <!-- Feed -->
+        <TextBox x:Name="TerminalBox"
+                 Grid.Row="6"
+                 IsReadOnly="True"
+                 AcceptsReturn="True"
+                 VerticalScrollBarVisibility="Auto"
+                 HorizontalScrollBarVisibility="Auto"
+                 TextWrapping="Wrap"
+                 FontFamily="Consolas"/>
+
+        <DockPanel Grid.Row="8">
+            <CheckBox x:Name="MirrorLogsCheck"
+                      DockPanel.Dock="Right"
+                      VerticalAlignment="Center"
+                      Content="Логи → Supabase (авто)"
+                      Checked="Mirror_OnChanged"
+                      Unchecked="Mirror_OnChanged"/>
+            <TextBlock x:Name="StatusText"
+                       VerticalAlignment="Center"
+                       Text="Starting…"/>
+        </DockPanel>
+    </Grid>
+</Window>

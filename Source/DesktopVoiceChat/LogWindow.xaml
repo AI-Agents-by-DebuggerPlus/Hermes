@@ -9,18 +9,23 @@
         WindowStartupLocation="Manual">
     <DockPanel Margin="8">
         <StackPanel DockPanel.Dock="Top"
-                    Margin="0,0,0,8"
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Right">
-            <Button x:Name="ButtonOpenFolder"
-                    Margin="0,0,8,0"
-                    Padding="12,6"
-                    Content="Папка логов"
-                    Click="OnOpenFolderClick" />
-            <Button x:Name="ButtonClearView"
-                    Padding="12,6"
-                    Content="Очистить экран"
-                    Click="OnClearViewClick" />
+                    Margin="0,0,0,8">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="ButtonOpenFolder"
+                        Margin="0,0,8,0"
+                        Padding="12,6"
+                        Content="Папка логов"
+                        Click="OnOpenFolderClick" />
+                <Button x:Name="ButtonClearView"
+                        Padding="12,6"
+                        Content="Очистить экран"
+                        Click="OnClearViewClick" />
+            </StackPanel>
+            <CheckBox x:Name="MirrorCheck"
+                      Margin="0,8,0,0"
+                      Content="Передавать логи в Supabase → RemoteTerminal"
+                      Checked="OnMirrorChanged"
+                      Unchecked="OnMirrorChanged" />
         </StackPanel>
         <TextBox x:Name="LogTextBox"
                  AcceptsReturn="True"

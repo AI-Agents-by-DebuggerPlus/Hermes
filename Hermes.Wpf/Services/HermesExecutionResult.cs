@@ -8,7 +8,7 @@ public sealed class HermesExecutionResult
     /// <summary>Merged stdout and stderr as captured for the terminal buffer.</summary>
     public string CombinedText { get; init; } = string.Empty;
 
-    /// <summary>Last raw stderr line (before the <c>[stderr]</c> terminal prefix).</summary>
+    /// <summary>Last raw stderr line (before the <c>[System error]</c> / legacy <c>[stderr]</c> prefix).</summary>
     public string? LastStderrLine { get; init; }
 
     /// <summary>Hermes CLI session id from <c>session_id:</c> line (quiet chat mode).</summary>

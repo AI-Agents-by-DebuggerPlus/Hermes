@@ -1,0 +1,168 @@
+<Window x:Class="Hermes.RemoteTerminal.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Настройки — Remote Terminal"
+        Width="680" Height="640"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource Bg}"
+        Foreground="{StaticResource Text}">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Text="Подключение" FontWeight="Bold" Margin="0,0,0,8" Foreground="{StaticResource Muted}"/>
+                <Grid Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="150"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="Supabase URL" VerticalAlignment="Center" Foreground="{StaticResource Muted}"/>
+                    <TextBox x:Name="UrlBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="1" Text="Anon key" VerticalAlignment="Center" Foreground="{StaticResource Muted}"/>
+                    <TextBox x:Name="KeyBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="2" Text="Recipient filter" VerticalAlignment="Center" Foreground="{StaticResource Muted}"/>
+                    <TextBox x:Name="RecipientBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,8"/>
+
+                    <CheckBox x:Name="AllRecipientsCheck"
+                              Grid.Row="3" Grid.Column="1"
+                              Content="Показывать все recipient (отладка)"
+                              Margin="0,0,0,8"/>
+
+                    <CheckBox x:Name="MirrorCheck"
+                              Grid.Row="4" Grid.Column="1"
+                              Content="Зеркалировать локальные логи в Supabase (авто)"
+                              Margin="0,0,0,8"/>
+                </Grid>
+
+                <TextBlock Text="Резервный мост" FontWeight="Bold" Margin="0,8,0,8" Foreground="{StaticResource Muted}"/>
+                <Grid Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="150"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <CheckBox x:Name="RestBackupCheck"
+                              Grid.Row="0" Grid.Column="1"
+                              Content="REST резерв (XP-канал) — только когда WebSocket offline"
+                              Margin="0,0,0,8"/>
+                    <TextBlock Grid.Row="1" Text="Poll interval (с)" VerticalAlignment="Center" Foreground="{StaticResource Muted}"/>
+                    <TextBox x:Name="RestPollBox" Grid.Row="1" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,0,0,8"/>
+                </Grid>
+                <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8"
+                           Foreground="{StaticResource Muted}"
+                           Text="Live-лента — WebSocket Realtime. REST poll: F5 (разово) или резервный мост (явно включить)."/>
+
+                <TextBlock Text="Оформление" FontWeight="Bold" Margin="0,12,0,8" Foreground="{StaticResource Muted}"/>
+                <TextBlock Text="settings.json рядом с EXE" FontSize="11" Margin="0,0,0,8" Foreground="{StaticResource Muted}"/>
+
+                <Grid Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="150"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="Цветовая схема" VerticalAlignment="Center" Foreground="{StaticResource Muted}"/>
+                    <ComboBox x:Name="SchemeBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,8"
+                              SelectionChanged="Scheme_OnChanged">
+                        <ComboBoxItem Content="DarkBinance"/>
+                        <ComboBoxItem Content="DarkBlue"/>
+                        <ComboBoxItem Content="Light"/>
+                        <ComboBoxItem Content="HighContrast"/>
+                        <ComboBoxItem Content="Custom"/>
+                    </ComboBox>
+
+                    <TextBlock Grid.Row="1" Text="Шрифт: счёт" VerticalAlignment="Center" Foreground="{StaticResource Muted}"/>
+                    <TextBox x:Name="FontAccountBox" Grid.Row="1" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,0,0,6"/>
+
+                    <TextBlock Grid.Row="2" Text="Шрифт: тикер" VerticalAlignment="Center" Foreground="{StaticResource Muted}"/>
+                    <TextBox x:Name="FontTickerBox" Grid.Row="2" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,0,0,6"/>
+
+                    <TextBlock Grid.Row="3" Text="Шрифт: цена" VerticalAlignment="Center" Foreground="{StaticResource Muted}"/>
+                    <TextBox x:Name="FontPriceBox" Grid.Row="3" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,0,0,6"/>
+
+                    <TextBlock Grid.Row="4" Text="Шрифт: позиции" VerticalAlignment="Center" Foreground="{StaticResource Muted}"/>
+                    <TextBox x:Name="FontPositionsBox" Grid.Row="4" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,0,0,6"/>
+
+                    <TextBlock Grid.Row="5" Text="Шрифт: подписи" VerticalAlignment="Center" Foreground="{StaticResource Muted}"/>
+                    <TextBox x:Name="FontLabelsBox" Grid.Row="5" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,0,0,6"/>
+
+                    <TextBlock Grid.Row="6" Text="Шрифт: лента" VerticalAlignment="Center" Foreground="{StaticResource Muted}"/>
+                    <TextBox x:Name="FontFeedBox" Grid.Row="6" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,0,0,10"/>
+
+                    <TextBlock Grid.Row="7" Text="Фон окна" VerticalAlignment="Center" Foreground="{StaticResource Muted}"/>
+                    <TextBox x:Name="WindowBgBox" Grid.Row="7" Grid.Column="1" Margin="0,0,0,6"/>
+
+                    <TextBlock Grid.Row="8" Text="Фон панелей" VerticalAlignment="Center" Foreground="{StaticResource Muted}"/>
+                    <TextBox x:Name="PanelBgBox" Grid.Row="8" Grid.Column="1" Margin="0,0,0,6"/>
+
+                    <TextBlock Grid.Row="9" Text="Фон полей" VerticalAlignment="Center" Foreground="{StaticResource Muted}"/>
+                    <TextBox x:Name="InputBgBox" Grid.Row="9" Grid.Column="1" Margin="0,0,0,6"/>
+
+                    <TextBlock Grid.Row="10" Text="Текст" VerticalAlignment="Center" Foreground="{StaticResource Muted}"/>
+                    <TextBox x:Name="TextPrimaryBox" Grid.Row="10" Grid.Column="1" Margin="0,0,0,6"/>
+
+                    <TextBlock Grid.Row="11" Text="Текст приглуш." VerticalAlignment="Center" Foreground="{StaticResource Muted}"/>
+                    <TextBox x:Name="TextMutedBox" Grid.Row="11" Grid.Column="1" Margin="0,0,0,6"/>
+
+                    <TextBlock Grid.Row="12" Text="Акцент / тикер" VerticalAlignment="Center" Foreground="{StaticResource Muted}"/>
+                    <TextBox x:Name="TextAccentBox" Grid.Row="12" Grid.Column="1" Margin="0,0,0,6"/>
+
+                    <TextBlock Grid.Row="13" Text="Bid" VerticalAlignment="Center" Foreground="{StaticResource Muted}"/>
+                    <TextBox x:Name="TextBidBox" Grid.Row="13" Grid.Column="1" Margin="0,0,0,6"/>
+
+                    <TextBlock Grid.Row="14" Text="Ask" VerticalAlignment="Center" Foreground="{StaticResource Muted}"/>
+                    <TextBox x:Name="TextAskBox" Grid.Row="14" Grid.Column="1" Margin="0,0,0,6"/>
+
+                    <TextBlock Grid.Row="15" Text="Рамка" VerticalAlignment="Center" Foreground="{StaticResource Muted}"/>
+                    <TextBox x:Name="BorderBox" Grid.Row="15" Grid.Column="1" Margin="0,0,0,6"/>
+
+                    <TextBlock Grid.Row="16" Grid.Column="1" TextWrapping="Wrap" FontSize="11"
+                               Foreground="{StaticResource Muted}"
+                               Text="Цвета — #RRGGBB. Схема Custom сохраняет ваши цвета; другие схемы подставляют пресет."/>
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="OK" Width="90" IsDefault="True" Click="Ok_OnClick"/>
+            <Button Content="Отмена" Width="90" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>

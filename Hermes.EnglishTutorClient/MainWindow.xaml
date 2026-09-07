@@ -1,0 +1,141 @@
+<Window x:Class="Hermes.EnglishTutorClient.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Hermes English Tutor Client"
+        Width="920" Height="680"
+        MinWidth="640" MinHeight="480"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource BgBrush}"
+        Foreground="{StaticResource TextBrush}"
+        PreviewKeyDown="Window_OnPreviewKeyDown"
+        Loaded="Window_OnLoaded"
+        Closed="Window_OnClosed">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="{StaticResource PanelBrush}" Padding="12,10"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+            <DockPanel LastChildFill="True">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Style="{StaticResource DarkBtn}" Content="Старт теста" Click="StartButton_OnClick"
+                            ToolTip="Локальный демо-тест (если нет Supabase) / запрос к Hermes"/>
+                    <Button Style="{StaticResource DarkBtn}" Content="Озвучить" Click="SpeakButton_OnClick"/>
+                    <Button Style="{StaticResource DarkBtn}" Content="Гарнитура" Click="HeadsetTest_OnClick"
+                            ToolTip="Тест динамика / микрофона / STT"/>
+                    <Button Style="{StaticResource DarkBtn}" Content="Лог" Click="LogButton_OnClick"/>
+                    <Button Style="{StaticResource DarkBtn}" Content="Настройки" Click="SettingsButton_OnClick" Margin="0"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse x:Name="SupabaseDot" Width="10" Height="10" Fill="#848E9C" Margin="0,0,8,0"/>
+                    <TextBlock x:Name="SupabaseStatusText" Foreground="{StaticResource MutedBrush}"
+                               VerticalAlignment="Center" Text="Supabase: …" Margin="0,0,16,0"/>
+                    <TextBlock x:Name="ModeText" Foreground="{StaticResource MutedBrush}"
+                               VerticalAlignment="Center" Text="Режим: …"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Chat -->
+        <Border Grid.Row="1" Background="{StaticResource BgBrush}" Padding="20,12">
+            <ScrollViewer x:Name="ChatScroll" VerticalScrollBarVisibility="Auto">
+                <ItemsControl x:Name="ChatList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Margin="0,0,0,14" Padding="0">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Question}"
+                                               TextWrapping="Wrap"
+                                               Visibility="{Binding QuestionVisibility}"
+                                               FontSize="{Binding QuestionFontSize}"
+                                               Foreground="{Binding QuestionBrush}"
+                                               Margin="0,0,0,6"/>
+                                    <TextBlock Text="{Binding Words}"
+                                               TextWrapping="Wrap"
+                                               Visibility="{Binding WordsVisibility}"
+                                               FontSize="{Binding WordsFontSize}"
+                                               Foreground="{Binding WordsBrush}"
+                                               FontWeight="SemiBold"
+                                               Margin="0,0,0,6"/>
+                                    <TextBlock Text="{Binding Text}"
+                                               TextWrapping="Wrap"
+                                               Visibility="{Binding TextVisibility}"
+                                               FontSize="{Binding FontSize}"
+                                               Foreground="{Binding Brush}"
+                                               HorizontalAlignment="{Binding Align}"/>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+
+        <!-- Input -->
+        <Border Grid.Row="2" Background="{StaticResource PanelBrush}" Padding="16,10"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <TextBox x:Name="AnswerBox" Grid.Row="0" Grid.Column="0"
+                         MinHeight="56" MaxHeight="140"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         FontSize="16"
+                         Padding="10"
+                         Background="#161B22"
+                         Foreground="{StaticResource TextBrush}"
+                         BorderBrush="{StaticResource BorderBrush}"
+                         CaretBrush="{StaticResource TextBrush}"
+                         VerticalScrollBarVisibility="Auto"
+                         PreviewKeyDown="AnswerBox_OnPreviewKeyDown"/>
+                <StackPanel Grid.Row="0" Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Bottom">
+                    <Button Style="{StaticResource DarkBtn}" Content="Отправить" Click="SendButton_OnClick" Margin="0,0,0,8"/>
+                    <Button x:Name="VoiceBtn" Style="{StaticResource DarkBtn}" Content="🎤" Width="48"
+                            Click="VoiceButton_OnClick" ToolTip="Голосовой ввод (или Play на гарнитуре)" Margin="0"/>
+                </StackPanel>
+                <!-- Mic equalizer -->
+                <StackPanel x:Name="EqPanel" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                            Orientation="Horizontal" Height="28" Margin="0,8,0,0"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="MIC" Foreground="{StaticResource MutedBrush}" FontSize="11"
+                               VerticalAlignment="Bottom" Margin="0,0,8,2"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="3" Background="{StaticResource PanelBrush}" Padding="12,6"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <DockPanel Grid.Row="0">
+                    <TextBlock x:Name="HeadsetText" DockPanel.Dock="Right"
+                               Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"
+                               Text="BT: —"/>
+                    <TextBlock x:Name="StatusText" Foreground="{StaticResource MutedBrush}"
+                               VerticalAlignment="Center" Text=""/>
+                </DockPanel>
+                <TextBlock x:Name="VoiceLogText" Grid.Row="1"
+                           Margin="0,4,0,0"
+                           Foreground="{StaticResource AccentBrightBrush}"
+                           FontSize="13"
+                           TextWrapping="NoWrap"
+                           TextTrimming="CharacterEllipsis"
+                           Text="STT: —"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

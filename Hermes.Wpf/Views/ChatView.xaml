@@ -22,6 +22,8 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="8" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="8" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <StackPanel Grid.Row="0">
@@ -36,10 +38,8 @@
                                 Command="{Binding OpenProjectManagerDashboardCommand}"
                                 ToolTip="ProjectManager Dashboard — инициативы (только для workspace ProjectManager)">
                             <Button.Style>
-                                <Style TargetType="Button">
+                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                     <Setter Property="Visibility" Value="Collapsed"/>
-                                    <Setter Property="Padding" Value="8,4"/>
-                                    <Setter Property="Margin" Value="0"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsProjectManagerWorkspace}" Value="True">
                                             <Setter Property="Visibility" Value="Visible"/>
@@ -345,7 +345,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Grid.Row="7"
+            <Border Grid.Row="14"
                     Padding="8,6"
                     Background="#161B22"
                     BorderBrush="#30343D"

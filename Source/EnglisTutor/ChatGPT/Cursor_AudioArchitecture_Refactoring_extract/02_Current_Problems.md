@@ -1,0 +1,4 @@
+- PcmPumpStream Length issue
+- SMTC instability
+- Reclaim conflicts
+- HFP/A2DP switching.

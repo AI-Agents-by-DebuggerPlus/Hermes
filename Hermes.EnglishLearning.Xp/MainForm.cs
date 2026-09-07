@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
-using System.Reflection;
 using System.Text;
 using System.Windows.Forms;
 
@@ -173,18 +172,7 @@ internal sealed class MainForm : Form
 
     private static string BuildWindowTitle()
     {
-        try
-        {
-            var v = Assembly.GetExecutingAssembly().GetName().Version;
-            if (v != null)
-                return "Hermes English Learning XP  v" + v.Major + "." + v.Minor + "." + v.Build;
-        }
-        catch
-        {
-            // ignore
-        }
-
-        return "Hermes English Learning XP";
+        return "Hermes English Learning XP  v" + AppVersion.Display;
     }
 
     private Button MakeBtn(string text, int slot)
@@ -307,14 +295,29 @@ internal sealed class MainForm : Form
 
     private void OpenLocal()
     {
-        using (var dlg = new OpenFileDialog
+        try
         {
-            Filter = "Markdown (*.md)|*.md|All|*.*",
-            InitialDirectory = SettingsStore.ResolveLessonsFolder(_settings),
-        })
+            using (var dlg = new OpenFileDialog
+            {
+                Filter = "Markdown (*.md)|*.md|All|*.*",
+            })
+            {
+                var initial = PathSafety.SafeInitialDirectory(
+                    _settings.LessonsFolder,
+                    SettingsStore.ResolveLessonsFolder(_settings));
+                if (!string.IsNullOrWhiteSpace(initial))
+                    dlg.InitialDirectory = initial;
+
+                if (dlg.ShowDialog(this) != DialogResult.OK) return;
+                LoadLesson(File.ReadAllText(dlg.FileName, Encoding.UTF8), Path.GetFileNameWithoutExtension(dlg.FileName));
+            }
+        }
+        catch (Exception ex)
         {
-            if (dlg.ShowDialog(this) != DialogResult.OK) return;
-            LoadLesson(File.ReadAllText(dlg.FileName, Encoding.UTF8), Path.GetFileNameWithoutExtension(dlg.FileName));
+            AppLog.Error("Open MD failed: " + ex.Message);
+            MessageBox.Show(this,
+                "Не удалось открыть диалог.\nПроверьте букву диска в папке уроков.\n\n" + ex.Message,
+                "Open MD", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 
@@ -387,7 +390,39 @@ internal sealed class MainForm : Form
         _titleLabel.Text = title ?? "Lesson";
         RenderCurrent();
         _statusLabel.Text = "  Lesson loaded: " + _titleLabel.Text;
+        PublishLessonMeta();
         PublishCurrentPageTts();
+    }
+
+    private static int CountCards(IList<LessonScreen> screens)
+    {
+        if (screens == null) return 0;
+        var n = 0;
+        for (var i = 0; i < screens.Count; i++)
+        {
+            if (screens[i] != null && screens[i].Cards != null)
+                n += screens[i].Cards.Count;
+        }
+
+        return n;
+    }
+
+    private void PublishLessonMeta()
+    {
+        if (_screens == null || _screens.Count == 0) return;
+        if (!_poller.IsConfigured)
+        {
+            AppLog.Warn("Lesson meta skipped — Supabase not configured");
+            return;
+        }
+
+        var totalCards = CountCards(_screens);
+        _poller.PublishLessonMetaAsync(totalCards, _screens.Count, _titleLabel.Text, status =>
+            BeginInvokeIfNeeded(() =>
+            {
+                var stamp = DateTime.Now.ToString("HH:mm:ss");
+                _statusLabel.Text = "  [" + stamp + "] " + status;
+            }));
     }
 
     private void GoNext()

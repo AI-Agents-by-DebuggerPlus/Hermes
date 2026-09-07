@@ -63,7 +63,7 @@ public sealed class AzureSpeechTtsClient
         var ssml = BuildSsml(text, voice, locale);
         using var req = new HttpRequestMessage(HttpMethod.Post, url);
         req.Headers.Add("Ocp-Apim-Subscription-Key", settings.AzureSpeechKey.Trim());
-        req.Headers.Add("X-Microsoft-OutputFormat", "audio-16khz-128kbitrate-mono-mp3");
+        req.Headers.Add("X-Microsoft-OutputFormat", "riff-16khz-16bit-mono-pcm");
         req.Headers.Add("User-Agent", "Hermes.EnglishLearning");
         req.Content = new StringContent(ssml, Encoding.UTF8, "application/ssml+xml");
 

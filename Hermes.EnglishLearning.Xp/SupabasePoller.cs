@@ -68,12 +68,26 @@ internal sealed class SupabasePoller : IDisposable
     private void Loop()
     {
         RaiseStatus("Supabase: connecting…");
+        var tlsBlocked = false;
         while (!_stop)
         {
             try
             {
-                EnsureToken();
-                PollOnce();
+                if (!TlsBootstrap.Tls12Enabled && !CurlHttp.IsAvailable)
+                {
+                    if (!tlsBlocked)
+                    {
+                        tlsBlocked = true;
+                        AppLog.Error("HTTPS blocked: no TLS 1.2 and no tools\\curl.exe — copy OpenSSL curl into tools\\");
+                        RaiseStatus("HTTPS blocked — нужен tools\\curl.exe (OpenSSL)");
+                    }
+                }
+                else
+                {
+                    EnsureToken();
+                    PollOnce();
+                    tlsBlocked = false;
+                }
             }
             catch (Exception ex)
             {
@@ -81,9 +95,12 @@ internal sealed class SupabasePoller : IDisposable
                 AppLog.Warn("Poll: " + ex.Message);
                 _accessToken = null;
                 _userId = null;
+                if (TlsBootstrap.LooksLikeTlsFailure(ex) && !CurlHttp.IsAvailable)
+                    tlsBlocked = true;
             }
 
-            var wait = Math.Max(3, _settings.PollSeconds) * 1000;
+            var waitSec = tlsBlocked ? 60 : Math.Max(3, _settings.PollSeconds);
+            var wait = waitSec * 1000;
             var stepped = 0;
             while (!_stop && stepped < wait)
             {
@@ -268,12 +285,42 @@ internal sealed class SupabasePoller : IDisposable
     }
 
     /// <summary>
+    /// Notify AndroidChat of lesson size (total cards / screens). Not TTS.
+    /// </summary>
+    public void PublishLessonMetaAsync(int totalCards, int totalScreens, string title, Action<string> onUiStatus)
+    {
+        if (!IsConfigured) return;
+        if (totalCards <= 0 && totalScreens <= 0) return;
+
+        var content = PageTtsFormatter.FormatLessonMeta(totalCards, totalScreens, title);
+        ThreadPool.QueueUserWorkItem(_ =>
+        {
+            try
+            {
+                InsertMessage(content);
+                AppLog.Info("Lesson meta → total_cards=" + totalCards + " total_screens=" + totalScreens
+                    + " title=" + Truncate(title ?? string.Empty, 40));
+                if (onUiStatus != null)
+                    onUiStatus("Meta → cards=" + totalCards + " screens=" + totalScreens);
+            }
+            catch (Exception ex)
+            {
+                AppLog.Error("Lesson meta FAIL: " + ex.Message);
+                if (onUiStatus != null)
+                    onUiStatus("Lesson meta FAIL: " + Truncate(ex.Message, 80));
+            }
+        });
+    }
+
+    /// <summary>
     /// Publish current lesson page as bilingual TTS for AndroidChat (background).
+    /// Last card of the last screen includes <c>"last":true</c>.
     /// </summary>
     public void PublishPageTtsAsync(LessonScreen screen, int screenIndex, int screenCount, Action<string> onUiStatus)
     {
         if (!IsConfigured || screen == null) return;
-        var content = PageTtsFormatter.FormatScreen(screen);
+        var isLastScreen = screenCount > 0 && screenIndex >= screenCount - 1;
+        var content = PageTtsFormatter.FormatScreen(screen, isLastScreen);
         if (string.IsNullOrWhiteSpace(content))
         {
             AppLog.Warn("TTS publish skipped — empty page");
@@ -294,46 +341,17 @@ internal sealed class SupabasePoller : IDisposable
         {
             try
             {
-                EnsureToken();
-                if (string.IsNullOrWhiteSpace(_userId) || string.Equals(_accessToken, _settings.SupabaseAnonKey.Trim(), StringComparison.Ordinal))
-                {
-                    throw new InvalidOperationException(
-                        "Нужна anonymous-сессия Supabase (Authentication → Anonymous = ON). sender_id обязателен.");
-                }
-
-                var recipient = string.IsNullOrWhiteSpace(_settings.TtsRecipientName)
-                    ? "AndroidChat"
-                    : _settings.TtsRecipientName.Trim();
-                var sender = string.IsNullOrWhiteSpace(_settings.TtsSenderName)
-                    ? "EnglishLearning"
-                    : _settings.TtsSenderName.Trim();
-
-                var payload = new JObject
-                {
-                    ["sender_id"] = _userId,
-                    ["sender_name"] = sender,
-                    ["recipient_name"] = recipient,
-                    ["content"] = content,
-                    ["created_at"] = DateTime.UtcNow.ToString("o"),
-                };
-                var baseUrl = _settings.SupabaseUrl.Trim().TrimEnd('/');
-                var anon = _settings.SupabaseAnonKey.Trim();
-                var url = baseUrl + "/rest/v1/messages";
-                try
-                {
-                    HttpPostJson(url, payload.ToString(Newtonsoft.Json.Formatting.None), anon, _accessToken, preferMinimal: true);
-                }
-                catch (WebException wex)
-                {
-                    var detail = ReadWebException(wex);
-                    throw new InvalidOperationException(detail, wex);
-                }
-
+                InsertMessage(content);
                 var preview = Truncate(content.Replace('\n', ' '), 80);
-                AppLog.Info("TTS → " + recipient + " page=" + (screenIndex + 1) + "/" + screenCount
+                AppLog.Info("TTS → page=" + (screenIndex + 1) + "/" + screenCount
+                    + (isLastScreen ? " last=true" : string.Empty)
                     + " chars=" + content.Length + " " + preview);
                 if (onUiStatus != null)
-                    onUiStatus("TTS → " + recipient + " экран " + (screenIndex + 1) + "/" + screenCount);
+                {
+                    var label = "TTS → экран " + (screenIndex + 1) + "/" + screenCount;
+                    if (isLastScreen) label += " (last)";
+                    onUiStatus(label);
+                }
             }
             catch (Exception ex)
             {
@@ -344,6 +362,43 @@ internal sealed class SupabasePoller : IDisposable
                 _lastPublishedContent = string.Empty;
             }
         });
+    }
+
+    private void InsertMessage(string content)
+    {
+        EnsureToken();
+        if (string.IsNullOrWhiteSpace(_userId) || string.Equals(_accessToken, _settings.SupabaseAnonKey.Trim(), StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "Нужна anonymous-сессия Supabase (Authentication → Anonymous = ON). sender_id обязателен.");
+        }
+
+        var recipient = string.IsNullOrWhiteSpace(_settings.TtsRecipientName)
+            ? "AndroidChat"
+            : _settings.TtsRecipientName.Trim();
+        var sender = string.IsNullOrWhiteSpace(_settings.TtsSenderName)
+            ? "EnglishLearning"
+            : _settings.TtsSenderName.Trim();
+
+        var payload = new JObject
+        {
+            ["sender_id"] = _userId,
+            ["sender_name"] = sender,
+            ["recipient_name"] = recipient,
+            ["content"] = content,
+            ["created_at"] = DateTime.UtcNow.ToString("o"),
+        };
+        var baseUrl = _settings.SupabaseUrl.Trim().TrimEnd('/');
+        var anon = _settings.SupabaseAnonKey.Trim();
+        var url = baseUrl + "/rest/v1/messages";
+        try
+        {
+            HttpPostJson(url, payload.ToString(Newtonsoft.Json.Formatting.None), anon, _accessToken, preferMinimal: true);
+        }
+        catch (WebException wex)
+        {
+            throw new InvalidOperationException(ReadWebException(wex), wex);
+        }
     }
 
     private static string ReadWebException(WebException wex)
@@ -375,46 +430,14 @@ internal sealed class SupabasePoller : IDisposable
         return t == null ? string.Empty : (t.ToString() ?? string.Empty);
     }
 
-    private static string HttpGet(string url, string apikey, string bearer)
-    {
-        var req = (HttpWebRequest)WebRequest.Create(url);
-        req.Method = "GET";
-        req.Timeout = 25000;
-        req.ReadWriteTimeout = 25000;
-        req.Accept = "application/json";
-        req.Headers["apikey"] = apikey;
-        req.Headers[HttpRequestHeader.Authorization] = "Bearer " + bearer;
-        using (var resp = (HttpWebResponse)req.GetResponse())
-        using (var stream = resp.GetResponseStream())
-        using (var reader = new StreamReader(stream, Encoding.UTF8))
-            return reader.ReadToEnd();
-    }
+    private static string HttpGet(string url, string apikey, string bearer) =>
+        XpHttp.Get(url, apikey, bearer);
 
     private static string HttpPost(string url, string body, string apikey, string bearer) =>
-        HttpPostJson(url, body, apikey, bearer, preferMinimal: false);
+        XpHttp.PostJson(url, body, apikey, bearer, preferMinimal: false);
 
-    private static string HttpPostJson(string url, string body, string apikey, string bearer, bool preferMinimal)
-    {
-        var bytes = Encoding.UTF8.GetBytes(body ?? "{}");
-        var req = (HttpWebRequest)WebRequest.Create(url);
-        req.Method = "POST";
-        req.Timeout = 25000;
-        req.ContentType = "application/json";
-        req.ContentLength = bytes.Length;
-        req.Headers["apikey"] = apikey;
-        req.Headers[HttpRequestHeader.Authorization] = "Bearer " + bearer;
-        if (preferMinimal)
-            req.Headers["Prefer"] = "return=minimal";
-        using (var s = req.GetRequestStream())
-            s.Write(bytes, 0, bytes.Length);
-        using (var resp = (HttpWebResponse)req.GetResponse())
-        using (var stream = resp.GetResponseStream())
-        {
-            if (stream == null) return string.Empty;
-            using (var reader = new StreamReader(stream, Encoding.UTF8))
-                return reader.ReadToEnd();
-        }
-    }
+    private static string HttpPostJson(string url, string body, string apikey, string bearer, bool preferMinimal) =>
+        XpHttp.PostJson(url, body, apikey, bearer, preferMinimal);
 
     private void RaiseStatus(string s)
     {

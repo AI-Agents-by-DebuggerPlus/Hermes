@@ -14,8 +14,7 @@ internal static class NetworkDiagnostics
     public static void Run(AppSettings settings)
     {
         AppLog.Info("=== Network diagnostics START ===");
-        AppLog.Info("OS=" + Environment.OSVersion + " CLR=" + Environment.Version
-            + " 64bit=" + Environment.Is64BitProcess);
+        AppLog.Info("OS=" + SystemInfo.Describe());
         try
         {
             AppLog.Info("SecurityProtocol=" + ServicePointManager.SecurityProtocol);
@@ -66,7 +65,7 @@ internal static class NetworkDiagnostics
             if (Uri.TryCreate(baseUrl, UriKind.Absolute, out uri))
             {
                 ProbeDns(uri.Host);
-                ProbeHttp(baseUrl + "/rest/v1/", "Supabase REST root");
+                // Skip empty REST root — it often returns 401 without proving anything.
                 if (!string.IsNullOrWhiteSpace(settings.SupabaseAnonKey))
                 {
                     ProbeSupabaseMessages(settings);
@@ -149,52 +148,18 @@ internal static class NetworkDiagnostics
         try
         {
             var sw = Stopwatch.StartNew();
-            var req = (HttpWebRequest)WebRequest.Create(url);
-            req.Method = "GET";
-            req.Timeout = 15000;
-            req.Accept = "application/json";
-            req.Headers["apikey"] = anon;
-            req.Headers[HttpRequestHeader.Authorization] = "Bearer " + anon;
-            using (var resp = (HttpWebResponse)req.GetResponse())
-            using (var stream = resp.GetResponseStream())
-            using (var reader = new StreamReader(stream ?? Stream.Null, Encoding.UTF8))
-            {
-                var body = reader.ReadToEnd();
-                sw.Stop();
-                AppLog.Info("Supabase messages OK HTTP " + (int)resp.StatusCode
-                    + " " + sw.ElapsedMilliseconds + "ms bodyLen=" + (body != null ? body.Length : 0));
-            }
-        }
-        catch (WebException wex)
-        {
-            var detail = wex.Message;
-            try
-            {
-                var r = wex.Response as HttpWebResponse;
-                if (r != null)
-                {
-                    detail = "HTTP " + (int)r.StatusCode + " " + wex.Status + ": " + wex.Message;
-                    using (var stream = r.GetResponseStream())
-                    using (var reader = new StreamReader(stream ?? Stream.Null, Encoding.UTF8))
-                    {
-                        var errBody = reader.ReadToEnd();
-                        if (!string.IsNullOrEmpty(errBody) && errBody.Length < 200)
-                            detail += " body=" + errBody;
-                    }
-                }
-            }
-            catch { /* ignore */ }
-            AppLog.Error("Supabase messages FAIL: " + detail);
-            if (detail.IndexOf("SSL", StringComparison.OrdinalIgnoreCase) >= 0
-                || detail.IndexOf("TLS", StringComparison.OrdinalIgnoreCase) >= 0
-                || detail.IndexOf("secure channel", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                AppLog.Warn("Hint: TLS 1.2 may be missing on this OS (XP needs Easy Fix / KB3140245).");
-            }
+            var body = XpHttp.Get(url, anon, anon, 15000);
+            sw.Stop();
+            AppLog.Info("Supabase messages OK " + sw.ElapsedMilliseconds + "ms bodyLen="
+                + (body != null ? body.Length : 0));
         }
         catch (Exception ex)
         {
             AppLog.Error("Supabase messages FAIL: " + ex.Message);
+            if (TlsBootstrap.LooksLikeTlsFailure(ex))
+            {
+                AppLog.Warn("Hint: need TLS 1.2 (POSReady/Easy Fix) or tools\\curl.exe (OpenSSL) beside the app.");
+            }
         }
     }
 

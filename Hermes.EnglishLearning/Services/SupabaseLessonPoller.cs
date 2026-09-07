@@ -21,6 +21,7 @@ public sealed class SupabaseLessonPoller : IDisposable
     private bool _baselineDone;
 
     public event Action<string, string>? LessonReceived;
+    public event Action<EnglishNavCommand>? NavReceived;
     public event Action<string>? StatusChanged;
 
     public bool IsConfigured(AppSettings s) =>
@@ -163,21 +164,28 @@ public sealed class SupabaseLessonPoller : IDisposable
         fresh.Reverse();
         foreach (var row in fresh)
         {
+            Guid.TryParse(row["id"]?.ToString(), out var id);
+            if (id != Guid.Empty && !SeenMessageIds.TryMark(id))
+                continue;
+
             var recipient = row["recipient_name"]?.ToString() ?? string.Empty;
             var content = row["content"]?.ToString() ?? string.Empty;
 
-            if (!TryExtractLessonMarkdown(content, out var markdown, out var title))
-            {
-                continue;
-            }
-
             var recipientOk = string.IsNullOrWhiteSpace(settings.RecipientName)
                               || string.Equals(recipient, settings.RecipientName, StringComparison.OrdinalIgnoreCase);
-
             if (!recipientOk)
+                continue;
+
+            if (EnglishNavParser.TryParse(content, out var nav) && nav != EnglishNavCommand.None)
             {
+                AppLog.Info("Poll nav: " + nav);
+                RaiseStatus("Nav: " + nav);
+                NavReceived?.Invoke(nav);
                 continue;
             }
+
+            if (!TryExtractLessonMarkdown(content, out var markdown, out var title))
+                continue;
 
             RaiseStatus("Урок: " + (title ?? "english_lesson"));
             LessonReceived?.Invoke(markdown, title ?? "lesson");
@@ -195,6 +203,11 @@ public sealed class SupabaseLessonPoller : IDisposable
 
         var t = content.Trim();
         if (t.StartsWith("[LOG:", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (EnglishNavParser.TryParse(t, out _))
         {
             return false;
         }

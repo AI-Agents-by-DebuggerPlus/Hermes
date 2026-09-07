@@ -1,0 +1,88 @@
+Task: Hermes.EnglishTutorClient — Fix Pass #4: culture/recognizer selection + confidence
+threshold, and SMTC Play diagnostics/reclaim.
+
+Reference files alongside this prompt:
+  - 00_STEP_BY_STEP.md                    — overview, read first
+  - 01_Culture_And_Confidence_Fix.md      — fix cultureReq being ignored (ru-RU requested but
+                                             en-US engine used) + add a confidence threshold
+                                             so low-confidence garbage text isn't forwarded
+  - 02_SMTC_Reclaim_Diagnostics.md        — logging + re-claim SMTC Playing status/button
+                                             subscription after any audio endpoint reclaim
+
+Context: this is the fourth fix pass on this project. Passes 1–3 (already applied in earlier
+sessions) fixed a PcmPumpStream crash, a UI hang, and switched the headset test window from
+live SAPI streaming to offline/segmented recognition (see EnglishTutorClient_STT_Garbage_PlayDead_2026-07-20.md
+for the full diagnostic report this pass is based on, if it's present in the repo — if not,
+proceed from the reference files alone). Those are working correctly now. This pass addresses
+two NEW, INDEPENDENT problems found after pass #3:
+
+  A. Both the live path (VoiceInputService) and the offline path (OfflineSttRecognizer, added
+     in pass #3) produce garbage text — logs show cultureReq=ru-RU being requested but an
+     en-US recognizer actually being used, and no confidence filtering, so low-confidence
+     nonsense results get forwarded to the UI/Supabase.
+  B. Pressing Play on the Bluetooth headset produces zero log lines (no SMTC button, no media
+     hotkey) during test sessions, even though it worked in some earlier sessions — likely a
+     focus/subscription issue after HeadsetAudioClaimer reclaims the Stereo audio endpoint.
+
+As with prior passes, the reference markdown files describe the TARGET design, not a literal
+diff — locate and read the actual current files first:
+  - Hermes.EnglishTutorClient/Services/VoiceInputService.cs
+  - Hermes.EnglishTutorClient/HeadsetTestWindow.xaml.cs (for the OfflineSttRecognizer usage
+    added in the previous pass)
+  - wherever OfflineSttRecognizer now lives (added in pass #3 — find it, don't recreate it)
+  - Hermes.EnglishTutorClient/Services/MediaFocusClaimer.cs
+  - Hermes.EnglishTutorClient/Services/HeadsetAudioClaimer.cs
+  - Hermes.EnglishTutorClient/Services/MediaPlayHotkey.cs
+Adapt the reference guidance to whatever the real current method/field names and control flow
+are. Treat 01 and 02 as two fully independent workstreams — a failure or blocker in one should
+not stop you from completing the other.
+
+STEP 1 — Culture selection + confidence threshold (see 01_Culture_And_Confidence_Fix.md)
+  - In VoiceInputService.cs, make recognizer selection actually respect cultureReq: enumerate
+    SpeechRecognitionEngine.InstalledRecognizers(), pick an exact culture match, and log loudly
+    (AppLog.Error) if no exact match is installed instead of silently falling back.
+  - Apply the same real-culture-selection logic to OfflineSttRecognizer (from pass #3) — it
+    currently hardcodes "en-US"; make it accept and use the requested culture the same way.
+  - Add a confidence threshold (default 0.5, as a named constant/parameter, not a magic
+    number) in both the live SpeechRecognized handler and the offline RecognizeSegment path.
+    Below-threshold results must NOT be forwarded to UI/Supabase — log them as rejected with
+    their confidence value instead.
+  - At startup, log the full list of InstalledRecognizers and their cultures once, so future
+    diagnostics can immediately tell whether ru-RU is even installed on the machine.
+
+STEP 2 — SMTC diagnostics + reclaim (see 02_SMTC_Reclaim_Diagnostics.md)
+  - Add logging around SMTC session claim, button subscription, and every ButtonPressed event
+    (even ones that get filtered/ignored later) in MediaFocusClaimer.cs.
+  - Add a ReassertPlayingStatus() method to MediaFocusClaimer.cs that sets PlaybackStatus back
+    to Playing and defensively re-subscribes ButtonPressed. Call it from HeadsetAudioClaimer
+    immediately after any successful reclaim of the audio endpoint (the point in the code that
+    already logs "hold resumed" or equivalent from prior sessions).
+  - Add a one-time diagnostic log at startup (and optionally on reclaim) listing the current
+    system media session via GlobalSystemMediaTransportControlsSessionManager, to help
+    determine whether another app is holding system media focus — this is diagnostic only,
+    do not try to forcibly steal focus from other apps in this pass.
+
+STEP 3 — Build and self-test
+  - Build the whole solution; fix any compile errors from these changes.
+  - Do NOT modify PcmPumpStream.cs or the offline-recognize architecture from pass #3 beyond
+    adding the culture parameter and confidence check described above.
+  - Do NOT modify AudioPolicyConfig.cs.
+  - Do NOT change HeadsetAudioClaimer's actual claim/hold logic — only add the
+    ReassertPlayingStatus() call at the reclaim point.
+  - If you cannot actually run the app with a live Bluetooth headset in this environment, do
+    as much static verification as possible: confirm InstalledRecognizers enumeration compiles
+    and is logged, confirm confidence checks are present on both paths, confirm
+    ReassertPlayingStatus is defined and called from the right place, confirm no leftover
+    hardcoded "en-US" remains in OfflineSttRecognizer's call site.
+
+STEP 4 — Self-report
+  - Summarize file-by-file changes in your final message if everything went cleanly.
+  - If ANYTHING is ambiguous, fails to build, or you have to make a judgment call because the
+    real code diverges from the reference files, write a markdown report to
+    `EnglishTutorClient_Fix4_Report.md` at the repo root, in Russian, following the same
+    structure as the four prior diagnostic reports (Вердикт / Факты / Карта методов /
+    Рекомендации). Explicitly call out in the report if the SMTC fix (Step 2) does NOT resolve
+    the missing Play events after your changes — that would indicate the P1 hypothesis
+    (another app holding system media focus) is correct, which is a platform-level issue, not
+    something fixable purely inside this app, and should be flagged as such rather than
+    treated as an unresolved bug in your own code.

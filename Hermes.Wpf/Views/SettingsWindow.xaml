@@ -60,7 +60,12 @@
                      Text="{Binding ChatFontSizeEdit, UpdateSourceTrigger=PropertyChanged}" />
 
             <TextBlock Grid.Row="10" Grid.Column="0" VerticalAlignment="Center" Text="Auto Reconnect" />
-            <CheckBox Grid.Row="10" Grid.Column="1" IsChecked="{Binding AutoReconnect}" />
+            <StackPanel Grid.Row="10" Grid.Column="1" VerticalAlignment="Center">
+                <CheckBox IsChecked="{Binding AutoReconnect}" />
+                <CheckBox Margin="0,8,0,0"
+                          Content="Оповещение (звук + окно) при ответе Hermes"
+                          IsChecked="{Binding NotifyOnHermesReply}" />
+            </StackPanel>
 
             <TextBlock Grid.Row="12"
                        Grid.Column="0"
@@ -148,6 +153,8 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="8" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="8" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="200" />
@@ -200,26 +207,37 @@
                     <TextBlock Grid.Row="10"
                                Grid.Column="0"
                                VerticalAlignment="Center"
+                               Text="Poll (fallback)"
+                               TextWrapping="Wrap" />
+                    <CheckBox Grid.Row="10"
+                              Grid.Column="1"
+                              VerticalAlignment="Center"
+                              Content="Enable REST poll (off by default — Realtime WebSocket is primary)"
+                              IsChecked="{Binding EnableSupabasePoll}" />
+
+                    <TextBlock Grid.Row="12"
+                               Grid.Column="0"
+                               VerticalAlignment="Center"
                                Text="Poll interval (sec)"
                                TextWrapping="Wrap" />
-                    <TextBox Grid.Row="10"
+                    <TextBox Grid.Row="12"
                              Grid.Column="1"
                              Width="80"
                              HorizontalAlignment="Left"
                              Text="{Binding SupabasePollIntervalSeconds, UpdateSourceTrigger=PropertyChanged}" />
 
-                    <TextBlock Grid.Row="12"
+                    <TextBlock Grid.Row="14"
                                Grid.Column="0"
                                VerticalAlignment="Center"
                                Text="Anonymous auth"
                                TextWrapping="Wrap" />
-                    <CheckBox Grid.Row="12"
+                    <CheckBox Grid.Row="14"
                               Grid.Column="1"
                               VerticalAlignment="Center"
                               Content="Sign in anonymously (Dashboard → Anonymous provider)"
                               IsChecked="{Binding SupabaseUseAnonymousAuth}" />
 
-                    <StackPanel Grid.Row="14" Grid.ColumnSpan="2" Margin="0,8,0,0">
+                    <StackPanel Grid.Row="16" Grid.ColumnSpan="2" Margin="0,8,0,0">
                         <Grid Margin="0,0,0,14">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="200" />
@@ -298,7 +316,7 @@
                                 <TextBlock Margin="0,6,0,0"
                                            Opacity="0.72"
                                            TextWrapping="Wrap"
-                                           Text="По умолчанию Hermes — в чат попадают только строки, адресованные этому получателю (например Android → Hermes)." />
+                                           Text="По умолчанию Hermes. Также принимается Hermes.&lt;Проект&gt; (например Hermes.Utilities) — WPF откроет чат этого проекта в Project Manager и обработает сообщение там." />
                             </StackPanel>
                         </Grid>
 
@@ -344,6 +362,46 @@
                                            Opacity="0.72"
                                            TextWrapping="Wrap"
                                            Text="По умолчанию ответы агента адресуются Android; сообщения с этого ПК — Hermes." />
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="200" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       VerticalAlignment="Top"
+                                       Text="RemoteTerminal logs"
+                                       TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Top">
+                                <CheckBox Content="Зеркалировать логи Hermes.Wpf в Supabase (резервный RemoteTerminal.Xp)"
+                                          IsChecked="{Binding SupabaseRemoteLogEnabled}" />
+                                <CheckBox Margin="0,6,0,0"
+                                          Content="Включая INFO (иначе WARN/ERROR/TERM)"
+                                          IsChecked="{Binding SupabaseRemoteLogIncludeInfo}"
+                                          IsEnabled="{Binding SupabaseRemoteLogEnabled}" />
+                                <CheckBox Margin="0,6,0,0"
+                                          Content="Разрешить публикацию HWT → RemoteTerminal (только по команде refresh)"
+                                          IsChecked="{Binding SupabaseHwtStatusPublishEnabled}" />
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,12,0"
+                                               Text="recipient →" />
+                                    <TextBox Grid.Column="1"
+                                             Width="160"
+                                             HorizontalAlignment="Left"
+                                             Text="{Binding SupabaseRemoteLogRecipientName, UpdateSourceTrigger=PropertyChanged}" />
+                                </Grid>
+                                <TextBlock Margin="0,6,0,0"
+                                           Opacity="0.72"
+                                           TextWrapping="Wrap"
+                                           Text="content: [LOG:HermesWpf] …. Docs/Reports/RemoteTerminal/README.md" />
                             </StackPanel>
                         </Grid>
 

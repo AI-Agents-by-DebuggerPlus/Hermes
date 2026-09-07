@@ -1,0 +1,57 @@
+Task: fix two issues in Hermes.EnglishTutorClient found after the PcmPumpStream.Length fix
+(previous pass already fixed the NotSupportedException on Length/Position — do not revert that).
+
+Context files:
+- Hermes.EnglishTutorClient/Services/PcmPumpStream.cs
+- Hermes.EnglishTutorClient/HeadsetTestWindow.xaml.cs (methods StartMicAsync, StopMicAsync, StartSttFromPump, StopStt)
+- Hermes.EnglishTutorClient/Services/VoiceInputService.cs (for reference only, do not modify in this pass)
+
+Evidence from the log (session 20:23–20:25):
+- Real audio signal reaches the pump (peak up to 0.522), SetInputToAudioStream succeeds, STT starts.
+- But SAPI never fires SpeechHypothesized/SpeechRecognized/SpeechRecognitionRejected — total silence
+  from the recognizer even while peak > 0.
+- After ~2 seconds the WASAPI capture peak drops back to ~0, but bytes= keeps incrementing at a steady
+  rate — meaning PcmPumpStream.Read/WritePcm is producing continuous PCM buffers even when there's no
+  real signal, i.e. silence is being padded into the stream instead of only forwarding real captured audio.
+- Separately, the UI hangs: no "StopMicAsync begin" line appears in the log when the user tries to stop,
+  while peak= log lines keep appearing from the background capture thread — meaning the UI thread is
+  blocked (deadlock) and never even enters the stop handler.
+
+Do this:
+
+1. In PcmPumpStream.cs:
+   - Remove any logic that pads the read buffer with synthetic silence (zeros) when the internal queue
+     is empty. Read() should only ever return bytes that were actually written via WritePcm from real
+     WASAPI capture callbacks.
+   - When the queue is empty, Read() should wait (with a short timeout, e.g. via a
+     ManualResetEventSlim/SemaphoreSlim signaled by WritePcm) rather than immediately returning zero-filled
+     buffers.
+   - Add/confirm a SignalEnd() method that sets an "ended" flag and immediately signals the wait handle,
+     so any blocked Read() call returns 0 (clean EOF) right away rather than continuing to block.
+   - Keep the existing Length/Position virtual-counter behavor from the previous fix — do not reintroduce
+     the NotSupportedException.
+
+2. In HeadsetTestWindow.xaml.cs, StopStt():
+   - Remove any blocking Wait(...) call on the UI thread (e.g. Task.Wait(800)) that waits for the
+     recognizer or pump teardown to complete.
+   - StopStt should: call _pcmPump.SignalEnd() (which now unblocks Read() immediately per the pump fix
+     above), flip whatever UI-bound "is listening" flag/state is used to update the Stop/Start button,
+     and then do the actual SpeechRecognitionEngine.RecognizeAsyncStop()/Dispose() work inside a
+     Task.Run(...) so the UI thread returns immediately without waiting on it.
+   - Add a log line at the very start of StopStt (e.g. "StopMicAsync begin") so future log captures can
+     confirm the handler is actually being entered when the user clicks Stop, even under load.
+   - Wrap the background cleanup in try/catch and log any exception instead of letting it crash the
+     background task silently.
+
+3. Do NOT modify VoiceInputService.cs, AudioPolicyConfig.cs, HeadsetAudioClaimer.cs, or MediaFocusClaimer.cs
+   in this pass — scope is limited to PcmPumpStream.cs and the StartSttFromPump/StopStt path in
+   HeadsetTestWindow.xaml.cs.
+
+4. After the change, build and run a manual test: start mic+STT, speak briefly, then click Stop
+   immediately while peak= log lines are still being written. Confirm:
+   - "StopMicAsync begin" appears in the log right away (no hang).
+   - No deadlock/UI freeze.
+   - peak= log lines stop shortly after Stop is clicked (capture thread actually tears down).
+
+Leave a TODO comment near the recognizer culture setup (en-US vs ru-RU) — do not change it in this pass,
+that's a separate follow-up item.

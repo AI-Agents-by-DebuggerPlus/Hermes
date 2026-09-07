@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Media;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -9,12 +10,18 @@ using Hermes.EnglishLearning.Models;
 
 namespace Hermes.EnglishLearning.Services;
 
-/// <summary>Azure Neural TTS with local mp3 cache and MediaPlayer playlist.</summary>
+/// <summary>
+/// Azure Neural TTS with local WAV cache.
+/// Win7: System.Media.SoundPlayer (WPF MediaPlayer+MP3 often native-crashes).
+/// Win8+: WPF MediaPlayer.
+/// </summary>
 public sealed class AzureCachedTtsPlayer : IDisposable
 {
     private readonly AzureSpeechTtsClient _client = new();
-    private readonly MediaPlayer _player = new();
     private readonly object _sync = new();
+    private readonly bool _useSoundPlayer = OsInfo.IsWindows7OrOlder;
+    private MediaPlayer? _player;
+    private SoundPlayer? _sound;
     private AppSettings _settings = new();
     private readonly Queue<string> _queue = new();
     private bool _paused;
@@ -23,6 +30,7 @@ public sealed class AzureCachedTtsPlayer : IDisposable
     private bool _endedWhilePaused;
     private bool _disposed;
     private CancellationTokenSource? _speakCts;
+    private CancellationTokenSource? _clipCts;
     private double _volume = 0.8;
     private string? _currentPath;
     private DispatcherTimer? _watchdog;
@@ -33,6 +41,16 @@ public sealed class AzureCachedTtsPlayer : IDisposable
 
     public AzureCachedTtsPlayer()
     {
+        AppLog.Info("Azure TTS player mode: " + (_useSoundPlayer ? "SoundPlayer (Win7-safe WAV)" : "MediaPlayer")
+            + " · OS " + OsInfo.Version);
+
+        if (_useSoundPlayer)
+        {
+            _sound = new SoundPlayer();
+            return;
+        }
+
+        _player = new MediaPlayer();
         _player.MediaEnded += (_, __) => Application.Current?.Dispatcher.BeginInvoke(new Action(OnMediaEnded));
         _player.MediaFailed += (_, e) =>
         {
@@ -70,7 +88,7 @@ public sealed class AzureCachedTtsPlayer : IDisposable
 
     private void WatchdogTick()
     {
-        if (_disposed)
+        if (_disposed || _player == null)
         {
             return;
         }
@@ -162,7 +180,10 @@ public sealed class AzureCachedTtsPlayer : IDisposable
     {
         var p = Math.Max(0, Math.Min(100, percent));
         _volume = p / 100.0;
-        _player.Volume = _volume;
+        if (_player != null)
+        {
+            _player.Volume = _volume;
+        }
     }
 
     public async void SpeakScreen(LessonScreen screen)
@@ -251,7 +272,7 @@ public sealed class AzureCachedTtsPlayer : IDisposable
             _paused = false;
         }
 
-        AppLog.Info("Azure TTS playlist ready: " + paths.Count + " clips (cache used where available)");
+        AppLog.Info("Azure TTS playlist ready: " + paths.Count + " WAV clips");
         PlayNextOrComplete();
     }
 
@@ -311,6 +332,21 @@ public sealed class AzureCachedTtsPlayer : IDisposable
             if (_paused)
             {
                 _paused = false;
+                if (_useSoundPlayer)
+                {
+                    // SoundPlayer cannot resume mid-clip — replay current or advance.
+                    if (!string.IsNullOrEmpty(_currentPath))
+                    {
+                        var path = _currentPath;
+                        AppLog.Info("Azure TTS resume (SoundPlayer): replay current clip");
+                        Application.Current?.Dispatcher.BeginInvoke(new Action(() => StartSoundClip(path!)));
+                        return true;
+                    }
+
+                    Application.Current?.Dispatcher.BeginInvoke(new Action(PlayNextOrComplete));
+                    return true;
+                }
+
                 if (_endedWhilePaused || IsCurrentClipFinishedUnlocked())
                 {
                     _endedWhilePaused = false;
@@ -321,10 +357,12 @@ public sealed class AzureCachedTtsPlayer : IDisposable
 
                 try
                 {
-                    _player.Volume = _volume;
-                    _player.Play();
-                    AppLog.Info("Azure TTS resumed (from cache/playlist) pos="
-                        + _player.Position.TotalSeconds.ToString("0.0") + "s");
+                    if (_player != null)
+                    {
+                        _player.Volume = _volume;
+                        _player.Play();
+                        AppLog.Info("Azure TTS resumed pos=" + _player.Position.TotalSeconds.ToString("0.0") + "s");
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -337,7 +375,21 @@ public sealed class AzureCachedTtsPlayer : IDisposable
 
             try
             {
-                _player.Pause();
+                if (_useSoundPlayer)
+                {
+                    CancelClip();
+                    try
+                    {
+                        _sound?.Stop();
+                    }
+                    catch
+                    {
+                    }
+                }
+                else
+                {
+                    _player?.Pause();
+                }
             }
             catch (Exception ex)
             {
@@ -354,7 +406,7 @@ public sealed class AzureCachedTtsPlayer : IDisposable
     {
         try
         {
-            if (!_player.NaturalDuration.HasTimeSpan)
+            if (_player == null || !_player.NaturalDuration.HasTimeSpan)
             {
                 return false;
             }
@@ -387,7 +439,7 @@ public sealed class AzureCachedTtsPlayer : IDisposable
             return path;
         }
 
-        AppLog.Info("TTS cache MISS — Azure synthesize: voice=" + voice + " | " + Truncate(u.Text, 50));
+        AppLog.Info("TTS cache MISS — Azure synthesize WAV: voice=" + voice + " | " + Truncate(u.Text, 50));
         var audio = await _client.SynthesizeAsync(_settings, u.Text, voice, locale, ct).ConfigureAwait(false);
         path = TtsAudioCache.GetPath(voice, locale, u.Text);
         TtsAudioCache.Save(path, audio);
@@ -422,26 +474,110 @@ public sealed class AzureCachedTtsPlayer : IDisposable
 
         if (next == null)
         {
-            AppLog.Info("Azure TTS playlist finished (all clips from cache or freshly cached)");
+            AppLog.Info("Azure TTS playlist finished");
             RaiseCompleted();
+            return;
+        }
+
+        if (_useSoundPlayer)
+        {
+            StartSoundClip(next);
             return;
         }
 
         try
         {
-            AppLog.Info("TTS play from cache file: " + System.IO.Path.GetFileName(next));
+            AppLog.Info("TTS play MediaPlayer: " + System.IO.Path.GetFileName(next));
             _currentPath = next;
             _endedWhilePaused = false;
             _stuckTicks = 0;
             _lastWatchPos = TimeSpan.Zero;
-            _player.Volume = _volume;
-            _player.Open(new Uri(next, UriKind.Absolute));
-            _player.Play();
+            if (_player != null)
+            {
+                _player.Volume = _volume;
+                _player.Open(new Uri(next, UriKind.Absolute));
+                _player.Play();
+            }
         }
         catch (Exception ex)
         {
             AppLog.Error("Failed to play cached clip", ex);
             PlayNextOrComplete();
+        }
+    }
+
+    private void StartSoundClip(string path)
+    {
+        CancelClip();
+        _clipCts = new CancellationTokenSource();
+        var token = _clipCts.Token;
+        _currentPath = path;
+        AppLog.Info("TTS play SoundPlayer: " + System.IO.Path.GetFileName(path));
+
+        Task.Run(() =>
+        {
+            try
+            {
+                token.ThrowIfCancellationRequested();
+                using var player = new SoundPlayer(path);
+                player.Load();
+                token.ThrowIfCancellationRequested();
+                player.PlaySync();
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                AppLog.Error("SoundPlayer failed: " + ex.Message);
+            }
+
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
+            Application.Current?.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                lock (_sync)
+                {
+                    if (_paused || _disposed)
+                    {
+                        return;
+                    }
+                }
+
+                PlayNextOrComplete();
+            }));
+        }, token);
+    }
+
+    private void CancelClip()
+    {
+        try
+        {
+            _clipCts?.Cancel();
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            _clipCts?.Dispose();
+        }
+        catch
+        {
+        }
+
+        _clipCts = null;
+        try
+        {
+            _sound?.Stop();
+        }
+        catch
+        {
         }
     }
 
@@ -461,6 +597,8 @@ public sealed class AzureCachedTtsPlayer : IDisposable
             _speakCts = null;
         }
 
+        CancelClip();
+
         lock (_sync)
         {
             _queue.Clear();
@@ -473,8 +611,8 @@ public sealed class AzureCachedTtsPlayer : IDisposable
 
         try
         {
-            _player.Stop();
-            _player.Close();
+            _player?.Stop();
+            _player?.Close();
         }
         catch
         {
@@ -508,7 +646,15 @@ public sealed class AzureCachedTtsPlayer : IDisposable
         StopInternal(cancelSpeak: true);
         try
         {
-            _player.Close();
+            _player?.Close();
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            _sound?.Dispose();
         }
         catch
         {

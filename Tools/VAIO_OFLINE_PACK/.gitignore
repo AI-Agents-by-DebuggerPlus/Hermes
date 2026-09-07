@@ -1,0 +1,3 @@
+# Local outputs (large binaries — do not commit)
+_pack_test/
+READY_FOR_USB/

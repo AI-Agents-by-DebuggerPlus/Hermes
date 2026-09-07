@@ -12,9 +12,9 @@
     <ApplicationIcon />
     <StartupObject>Hermes.EnglishLearning.App</StartupObject>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
-    <Version>1.1.4</Version>
-    <AssemblyVersion>1.1.4.0</AssemblyVersion>
-    <FileVersion>1.1.4.0</FileVersion>
+    <Version>1.1.7</Version>
+    <AssemblyVersion>1.1.7.0</AssemblyVersion>
+    <FileVersion>1.1.7.0</FileVersion>
     <Product>Hermes English Learning</Product>
     <Company>DebuggerPlus</Company>
     <DefaultItemExcludes>$(DefaultItemExcludes);Installer/**</DefaultItemExcludes>

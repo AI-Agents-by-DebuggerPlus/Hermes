@@ -63,13 +63,29 @@ public sealed class LessonTtsService : IDisposable
 
     public void SpeakScreen(LessonScreen screen)
     {
-        if (_useAzure)
+        try
         {
-            _azure.SpeakScreen(screen);
+            if (_useAzure)
+            {
+                _azure.SpeakScreen(screen);
+            }
+            else
+            {
+                _sapi.SpeakScreen(screen);
+            }
         }
-        else
+        catch (Exception ex)
         {
-            _sapi.SpeakScreen(screen);
+            AppLog.Error("SpeakScreen failed, fallback SAPI", ex);
+            try
+            {
+                _useAzure = false;
+                _sapi.SpeakScreen(screen);
+            }
+            catch (Exception ex2)
+            {
+                AppLog.Error("SAPI fallback also failed", ex2);
+            }
         }
     }
 

@@ -1,34 +1,45 @@
 ---
-description: Dark UI — light text on dark backgrounds including hover and ComboBox (Hermes)
+description: Dark UI — light text on dark backgrounds (buttons, hover, tooltips, ComboBox)
 alwaysApply: true
 ---
 
-# Dark UI: Text and Hover (Hermes)
+# Dark UI: Light text on dark background (Hermes)
 
 Hermes terminals and WPF panels use a dark theme.
 
 ## Hard rule
 
-**Light text → dark background** for default, hover, focus, pressed, selected, and **dropdown popups**.
+**Light text on dark background** for **every** visual state:
 
-Never light/white backgrounds under light text (including stock WPF Button/ComboBox chrome).
+- default, hover, focus, pressed, selected, disabled
+- **ToolTip** popups
+- ComboBox / dropdown popups
+- buttons that override `Style` for Visibility / layout only
+
+Never light/white backgrounds under light (or pale gray) text — including stock WPF Button/ToolTip chrome.
 
 ## WPF specifics
 
-- Custom `Button` templates for trade buttons (Sell/Buy): hover = **darker** red/green, text stays white.
-- Custom `ComboBox` + `ComboBoxItem` templates: popup `#2B3139`, text `#EAECEF`, highlight `#383f49` + `#F8D12F`.
-- Shared styles: `DarkBtn`, `SellBtn`, `BuyBtn`, dark ComboBox in `HermesWpfTerminal`.
+- Global styles live in `Hermes.Wpf/Resources/Styles.xaml` (`Button`, `ToolTip`).
+- If a control needs an extra `Style` (e.g. hide unless ProjectManager): **always** `BasedOn="{StaticResource {x:Type Button}}"` so dark hover template is kept.
+- Hover = **darker** shade of the same family (`#2B79EF`, `#383f49`, darker red/green) — text stays `#FFFFFF` / `#EAECEF`.
+- ToolTip: background `#2B3139`, text `#EAECEF`, border `#383f49` — never system white tooltip.
 
 ```xml
+<!-- ✅ GOOD: keep dark Button chrome -->
+<Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+  <Setter Property="Visibility" Value="Collapsed"/>
+</Style>
+
+<!-- ❌ BAD: replaces template → stock light hover, invisible white text -->
+<Style TargetType="Button">
+  <Setter Property="Visibility" Value="Collapsed"/>
+</Style>
+
 <!-- ✅ GOOD: dark hover, light text -->
 <Trigger Property="IsMouseOver" Value="True">
-  <Setter TargetName="Bd" Property="Background" Value="#8E0000"/>
+  <Setter TargetName="Bd" Property="Background" Value="#383f49"/>
   <Setter TargetName="Cp" Property="TextElement.Foreground" Value="#FFFFFF"/>
-</Trigger>
-
-<!-- ❌ BAD: default light hover -->
-<Trigger Property="IsMouseOver" Value="True">
-  <Setter Property="Background" Value="#F0F0F0"/>
 </Trigger>
 ```
 
@@ -37,7 +48,8 @@ Never light/white backgrounds under light text (including stock WPF Button/Combo
 | Role | Color |
 |------|-------|
 | Background | `#0B0E11`, `#181A20`, `#2B3139` |
-| Hover | `#383f49`, `#252C3B` (or darker brand red/green) |
+| Hover | `#383f49`, `#252C3B`, `#2B79EF` (or darker brand) |
 | Text | `#EAECEF`, `#FFFFFF` |
 | Muted | `#848E9C` |
 | Accent | `#F0B90B` → `#F8D12F` |
+| ToolTip | bg `#2B3139`, text `#EAECEF` |

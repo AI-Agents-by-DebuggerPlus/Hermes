@@ -28,6 +28,7 @@ public partial class ProjectManagerDashboardWindow : Window
         IdeaList.ItemsSource = all.Where(i => i.Category == PortfolioCategory.Idea).Select(Wrap).ToList();
         DevList.ItemsSource = all.Where(i => i.Category == PortfolioCategory.InDevelopment).Select(Wrap).ToList();
         CurrentList.ItemsSource = all.Where(i => i.Category == PortfolioCategory.Current).Select(Wrap).ToList();
+        ArchiveList.ItemsSource = all.Where(i => i.Category == PortfolioCategory.Archive).Select(Wrap).ToList();
     }
 
     private static Row Wrap(PortfolioInitiative i) => new(i);

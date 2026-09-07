@@ -20,6 +20,8 @@ public sealed class HermesService
 
     public event Action<string>? OutputReceived;
 
+    private DateTime _lastWslReadyUtc = DateTime.MinValue;
+
     public async Task<HermesExecutionResult> SendMessageAsync(
         string message,
         string wslWorkDir,
@@ -39,10 +41,12 @@ public sealed class HermesService
         var script = ComposeScript(
             settings,
             wslWorkDir,
-            $"{tmpPrelude}{ActivationLine(settings)} && {settings.HermesCommand} chat{resume} -q '{sq}' -Q --source wpf");
+            $"{BuildSystemdUserWaitPrelude()}{tmpPrelude}{ActivationLine(settings)} && {settings.HermesCommand} chat{resume} -q '{sq}' -Q --source wpf");
 
         MaybeLogDiagnosticScript(settings, script, "chat");
+        await EnsureWslReadyAsync(settings).ConfigureAwait(false);
         var raw = await ExecuteWslArgvAsync(BuildWslArgv(settings, script), timeoutSeconds).ConfigureAwait(false);
+        raw = await RetryIfTransientWslBootFailureAsync(settings, script, timeoutSeconds, raw).ConfigureAwait(false);
         var (sessionId, displayText) = HermesChatResponseParser.Parse(raw.CombinedText);
         return new HermesExecutionResult
         {
@@ -63,10 +67,15 @@ public sealed class HermesService
     {
         command = (command ?? string.Empty).ReplaceLineEndings("\n").Replace('`', '\uFF40');
         var script =
-            ComposeScript(settings, wslWorkDir, $"{ActivationLine(settings)} && {settings.HermesCommand} {command}");
+            ComposeScript(
+                settings,
+                wslWorkDir,
+                $"{BuildSystemdUserWaitPrelude()}{ActivationLine(settings)} && {settings.HermesCommand} {command}");
 
         MaybeLogDiagnosticScript(settings, script, $"quick:{command.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "?"}");
-        return await ExecuteWslArgvAsync(BuildWslArgv(settings, script), timeoutSeconds).ConfigureAwait(false);
+        await EnsureWslReadyAsync(settings).ConfigureAwait(false);
+        var raw = await ExecuteWslArgvAsync(BuildWslArgv(settings, script), timeoutSeconds).ConfigureAwait(false);
+        return await RetryIfTransientWslBootFailureAsync(settings, script, timeoutSeconds, raw).ConfigureAwait(false);
     }
 
     private void MaybeLogDiagnosticScript(HermesSettings settings, string script, string kind)
@@ -185,8 +194,78 @@ public sealed class HermesService
     /// <summary>Caches WSL home after connection preflight (optional; chat no longer depends on this).</summary>
     public async Task WarmUpWslHomeAsync(HermesSettings settings, CancellationToken cancellationToken = default)
     {
+        await EnsureWslReadyAsync(settings, cancellationToken, force: true).ConfigureAwait(false);
         _ = await ResolveWslHomeDirAsync(settings, cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// Cold-start WSL often prints "Failed to start the systemd user session" and exits 1.
+    /// Wait until <c>systemctl --user</c> is up (or time out) before running hermes.
+    /// </summary>
+    public async Task EnsureWslReadyAsync(
+        HermesSettings settings,
+        CancellationToken cancellationToken = default,
+        bool force = false)
+    {
+        if (!force && DateTime.UtcNow - _lastWslReadyUtc < TimeSpan.FromMinutes(2))
+            return;
+
+        // Wake distro + brief settle. No $vars / $(…) / 2>&1 — they break under wsl.exe -lc on this host.
+        var waitScript = "systemctl --user is-system-running || sleep 2; true";
+
+        var result = await ExecuteWslArgvAsync(BuildWslArgv(settings, waitScript), 30, cancellationToken)
+            .ConfigureAwait(false);
+        // Always mark ready after wake attempt — chat must not block on systemd probe quirks.
+        _lastWslReadyUtc = DateTime.UtcNow;
+        if (result.ExitCode == 0)
+        {
+            _log.LogInfo("[hermes] WSL ready");
+            return;
+        }
+
+        _log.LogWarn(
+            $"[hermes] WSL wake probe exit {result.ExitCode}; continuing. "
+            + TruncateForLog(result.LastStderrLine ?? result.CombinedText, 160));
+    }
+
+    private async Task<HermesExecutionResult> RetryIfTransientWslBootFailureAsync(
+        HermesSettings settings,
+        string script,
+        int timeoutSeconds,
+        HermesExecutionResult first)
+    {
+        if (!LooksLikeTransientWslBootFailure(first))
+            return first;
+
+        for (var attempt = 2; attempt <= 3; attempt++)
+        {
+            _log.LogWarn(
+                $"[hermes] Transient WSL boot failure (attempt {attempt - 1}) — warming systemd and retrying…");
+            await EnsureWslReadyAsync(settings, force: true).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromSeconds(attempt)).ConfigureAwait(false);
+            var again = await ExecuteWslArgvAsync(BuildWslArgv(settings, script), timeoutSeconds)
+                .ConfigureAwait(false);
+            if (!LooksLikeTransientWslBootFailure(again))
+                return again;
+            first = again;
+        }
+
+        return first;
+    }
+
+    private static bool LooksLikeTransientWslBootFailure(HermesExecutionResult result)
+    {
+        if (result.ExitCode == 0)
+            return false;
+
+        var blob = ((result.LastStderrLine ?? string.Empty) + "\n" + (result.CombinedText ?? string.Empty));
+        return blob.Contains("Failed to start the systemd user session", StringComparison.OrdinalIgnoreCase)
+               || blob.Contains("systemd user session", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Short wait inside the same bash -lc so hermes does not race user systemd.</summary>
+    private static string BuildSystemdUserWaitPrelude() =>
+        "systemctl --user is-system-running >/dev/null || sleep 2; ";
 
     private async Task<string?> ResolveWslHomeDirAsync(HermesSettings settings, CancellationToken cancellationToken = default)
     {
@@ -348,8 +427,16 @@ public sealed class HermesService
                 return;
             }
 
-            lastStderrRaw = e.Data;
-            var line = $"[stderr] {e.Data}";
+            // Prefer actionable API/system errors over trailing metadata like "session_id: …".
+            if (IsPreferredStderrErrorLine(e.Data)
+                || lastStderrRaw is null
+                || LooksLikeLowValueStderrLine(lastStderrRaw))
+            {
+                lastStderrRaw = e.Data;
+            }
+
+            // Hermes CLI often prints the assistant reply on stderr; only label real failures.
+            var line = HermesCliStderrClassifier.FormatForUi(e.Data);
             sb.AppendLine(line);
             OutputReceived?.Invoke(line);
         };
@@ -394,5 +481,31 @@ public sealed class HermesService
             CombinedText = combined,
             LastStderrLine = lastStderrRaw
         };
+    }
+
+    private static bool IsPreferredStderrErrorLine(string line)
+    {
+        if (string.IsNullOrWhiteSpace(line))
+            return false;
+
+        return line.Contains("Key limit exceeded", StringComparison.OrdinalIgnoreCase)
+               || line.Contains("API call failed", StringComparison.OrdinalIgnoreCase)
+               || line.Contains("HTTP 403", StringComparison.OrdinalIgnoreCase)
+               || line.Contains("HTTP 401", StringComparison.OrdinalIgnoreCase)
+               || line.Contains("HTTP 429", StringComparison.OrdinalIgnoreCase)
+               || line.Contains("rate limit", StringComparison.OrdinalIgnoreCase)
+               || line.Contains("Failed to start the systemd", StringComparison.OrdinalIgnoreCase)
+               || HermesCliStderrClassifier.LooksLikeSystemError(line);
+    }
+
+    private static bool LooksLikeLowValueStderrLine(string line)
+    {
+        if (string.IsNullOrWhiteSpace(line))
+            return true;
+
+        var t = line.Trim();
+        return t.StartsWith("session_id:", StringComparison.OrdinalIgnoreCase)
+               || t.StartsWith("Resumed session", StringComparison.OrdinalIgnoreCase)
+               || t.Contains("No auxiliary LLM provider", StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -23,6 +23,8 @@ public class MainViewModel : INotifyPropertyChanged
     private string _openAiModel = "gpt-4o-mini";
     private string _openAiBotSenderName = "Assistant";
     private bool _enableOpenAiReplies;
+    private bool _mirrorLogsToRemoteTerminal;
+    private string _remoteTerminalRecipientName = "RemoteTerminal";
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -41,6 +43,10 @@ public class MainViewModel : INotifyPropertyChanged
             ? "Assistant"
             : loaded.OpenAiBotSenderName.Trim();
         EnableOpenAiReplies = loaded.EnableOpenAiReplies;
+        MirrorLogsToRemoteTerminal = loaded.MirrorLogsToRemoteTerminal;
+        RemoteTerminalRecipientName = string.IsNullOrWhiteSpace(loaded.RemoteTerminalRecipientName)
+            ? "RemoteTerminal"
+            : loaded.RemoteTerminalRecipientName.Trim();
         if (File.Exists(AppSettingsStore.FilePath))
         {
             AppLogService.Log("Настройки загружены из локального файла.", "Settings");
@@ -112,6 +118,70 @@ public class MainViewModel : INotifyPropertyChanged
     {
         get => _enableOpenAiReplies;
         set => SetField(ref _enableOpenAiReplies, value);
+    }
+
+    public bool MirrorLogsToRemoteTerminal
+    {
+        get => _mirrorLogsToRemoteTerminal;
+        set
+        {
+            if (_mirrorLogsToRemoteTerminal == value)
+            {
+                return;
+            }
+
+            SetField(ref _mirrorLogsToRemoteTerminal, value);
+            PersistMirrorSettings();
+        }
+    }
+
+    public string RemoteTerminalRecipientName
+    {
+        get => _remoteTerminalRecipientName;
+        set => SetField(ref _remoteTerminalRecipientName, string.IsNullOrWhiteSpace(value) ? "RemoteTerminal" : value.Trim());
+    }
+
+    /// <summary>Best-effort log mirror for RemoteTerminal.Xp.</summary>
+    public async Task TryMirrorLogLineAsync(string line)
+    {
+        if (!MirrorLogsToRemoteTerminal || !_chatService.IsConnected)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(line)
+            || line.Contains("[LOG:DesktopVoiceChat]", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        try
+        {
+            await _chatService.SendMessageAsync(
+                "WpfChat",
+                "[LOG:DesktopVoiceChat] " + line,
+                DateTimeOffset.Now,
+                RemoteTerminalRecipientName).ConfigureAwait(false);
+        }
+        catch
+        {
+            // best-effort
+        }
+    }
+
+    private void PersistMirrorSettings()
+    {
+        try
+        {
+            var s = AppSettingsStore.Load();
+            s.MirrorLogsToRemoteTerminal = MirrorLogsToRemoteTerminal;
+            s.RemoteTerminalRecipientName = RemoteTerminalRecipientName;
+            AppSettingsStore.Save(s);
+        }
+        catch
+        {
+            // ignore
+        }
     }
 
     /// <summary>

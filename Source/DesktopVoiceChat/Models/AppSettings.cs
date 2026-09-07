@@ -24,4 +24,10 @@ public sealed class AppSettings
 
     /// <summary>После вашей отправки запросить ответ OpenAI и записать её в чат через Supabase.</summary>
     public bool EnableOpenAiReplies { get; set; }
+
+    /// <summary>Зеркалировать журнал в Supabase для RemoteTerminal.Xp.</summary>
+    public bool MirrorLogsToRemoteTerminal { get; set; }
+
+    /// <summary>recipient_name для зеркала логов.</summary>
+    public string RemoteTerminalRecipientName { get; set; } = "RemoteTerminal";
 }

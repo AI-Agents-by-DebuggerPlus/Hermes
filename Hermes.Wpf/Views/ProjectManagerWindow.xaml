@@ -55,7 +55,7 @@
         <TextBox Grid.Row="2"
                  Height="30"
                  Text="{Binding NewProjectPath, UpdateSourceTrigger=PropertyChanged}"
-                 ToolTip="Путь к папке проекта" />
+                 ToolTip="Имя → создаст папку в HermesProjects, или полный путь" />
 
         <ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto">
             <ItemsControl ItemsSource="{Binding Tiles}">

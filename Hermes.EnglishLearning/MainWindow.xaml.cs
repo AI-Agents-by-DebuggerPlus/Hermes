@@ -46,14 +46,17 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        AppLog.Info("App start");
+        Title = "Hermes English Learning  v" + AppVersion.Display;
+        AppLog.Info("App start v" + AppVersion.Display);
         _settings = SettingsStore.Load();
+        PathSafety.SanitizeLessonPaths(_settings);
         ApplyAppearanceFromSettings();
         _tts.ApplySettings(_settings);
         _tts.SpeakCompleted += (_, __) => Dispatcher.BeginInvoke(new Action(OnSpeakCompleted));
         SyncVolumeUi(_settings.VolumePercent);
 
         _realtime.LessonReceived += OnLessonReceived;
+        _realtime.NavReceived += OnNavReceived;
         _realtime.StatusChanged += s => Dispatcher.BeginInvoke(new Action(() =>
         {
             StatusText.Text = s;
@@ -431,33 +434,37 @@ public partial class MainWindow : Window
 
     private void OpenButton_OnClick(object sender, RoutedEventArgs e)
     {
-        var dlg = new OpenFileDialog
+        try
         {
-            Filter = "Markdown (*.md)|*.md|All files (*.*)|*.*",
-            Title = "Открыть урок (MD)",
-        };
-        var initialDir = SettingsStore.ResolveLessonsFolder(_settings);
-        if (!string.IsNullOrWhiteSpace(_settings.LastLocalLessonPath))
-        {
-            var lastDir = Path.GetDirectoryName(_settings.LastLocalLessonPath);
-            if (!string.IsNullOrWhiteSpace(lastDir) && Directory.Exists(lastDir))
+            var dlg = new OpenFileDialog
             {
-                initialDir = lastDir;
-            }
-        }
+                Filter = "Markdown (*.md)|*.md|All files (*.*)|*.*",
+                Title = "Открыть урок (MD)",
+            };
+            var initial = PathSafety.SafeInitialDirectory(
+                _settings.LastLocalLessonPath,
+                _settings.LessonsFolder,
+                SettingsStore.ResolveLessonsFolder(_settings));
+            if (!string.IsNullOrWhiteSpace(initial))
+                dlg.InitialDirectory = initial;
 
-        if (Directory.Exists(initialDir))
+            if (dlg.ShowDialog(this) != true)
+                return;
+
+            RememberLessonPath(dlg.FileName);
+            LoadLessonFromMarkdown(File.ReadAllText(dlg.FileName), Path.GetFileNameWithoutExtension(dlg.FileName));
+        }
+        catch (Exception ex)
         {
-            dlg.InitialDirectory = initialDir;
+            AppLog.Error("Open MD failed", ex);
+            MessageBox.Show(this,
+                "Не удалось открыть диалог выбора файла.\n"
+                + "Проверьте папку уроков в настройках (буква диска могла смениться).\n\n"
+                + ex.Message,
+                "Открыть MD",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
         }
-
-        if (dlg.ShowDialog(this) != true)
-        {
-            return;
-        }
-
-        RememberLessonPath(dlg.FileName);
-        LoadLessonFromMarkdown(File.ReadAllText(dlg.FileName), Path.GetFileNameWithoutExtension(dlg.FileName));
     }
 
     private void SettingsButton_OnClick(object sender, RoutedEventArgs e)
@@ -814,6 +821,30 @@ public partial class MainWindow : Window
             AppLog.Info("Auto-open lesson from server: " + path);
             LoadLessonFromMarkdown(markdown, title);
             Activate();
+        }));
+    }
+
+    private void OnNavReceived(EnglishNavCommand cmd)
+    {
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            AppLog.Info("Apply nav: " + cmd);
+            StatusText.Text = "Nav: " + cmd;
+            switch (cmd)
+            {
+                case EnglishNavCommand.FullScreen:
+                    ToggleFullscreen();
+                    break;
+                case EnglishNavCommand.Next:
+                    GoNext();
+                    break;
+                case EnglishNavCommand.Previous:
+                    GoPrev();
+                    break;
+                case EnglishNavCommand.Exit:
+                    Close();
+                    break;
+            }
         }));
     }
 

@@ -81,7 +81,7 @@ public partial class MainWindow : Window
         foreach (var btn in new[]
                  {
                      BtnRebuild, BtnRelaunch, BtnPull, BtnBuildOnly, BtnClose,
-                     BtnTestDensityUi, BtnTestDensity, BtnTestDensityFutures, BtnTestBounce,
+                     BtnTestDensityUi, BtnTestStrategyViewer, BtnTestDensity, BtnTestDensityFutures, BtnTestBounce,
                      BtnTestFutures, BtnTestSpot, BtnTestAll, BtnTestQa, BtnTestChecklist
                  })
         {
@@ -209,6 +209,52 @@ public partial class MainWindow : Window
         Process.Start(new ProcessStartInfo { FileName = exe, UseShellExecute = true });
         AppendLog($"STARTED Density Heatmap: {exe}");
         SetOkStatus("Heatmap started");
+    }
+
+    private void TestStrategyViewer_Click(object sender, RoutedEventArgs e)
+    {
+        if (_repoRoot is null)
+        {
+            AppendLog("ERROR: repo root unknown.");
+            return;
+        }
+
+        var cfg = SelectedConfiguration();
+        var exe = Path.Combine(
+            _repoRoot, "Hermes.StrategyViewer", "bin", cfg, "net8.0-windows", "Hermes.StrategyViewer.exe");
+        if (!File.Exists(exe))
+        {
+            AppendLog($"Building Strategy Viewer ({cfg})...");
+            var csproj = Path.Combine(_repoRoot, "Hermes.StrategyViewer", "Hermes.StrategyViewer.csproj");
+            var p = Process.Start(new ProcessStartInfo
+            {
+                FileName = "dotnet",
+                Arguments = $"build \"{csproj}\" -c {cfg} --nologo",
+                WorkingDirectory = _repoRoot,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+            });
+            p?.WaitForExit(120_000);
+            if (!File.Exists(exe))
+            {
+                AppendLog($"SKIP Strategy Viewer: missing {exe}");
+                SetFailStatus("Strategy Viewer missing");
+                return;
+            }
+        }
+
+        var json = Path.Combine(_repoRoot, "Docs", "TradingAnalytics", "examples", "gold_xauusd.strategy.json");
+        var args = File.Exists(json) ? $"\"{json}\"" : "";
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = exe,
+            Arguments = args,
+            UseShellExecute = true,
+        });
+        AppendLog($"STARTED Strategy Viewer: {exe} {args}".Trim());
+        SetOkStatus("Strategy Viewer started");
     }
 
     private void TestBounce_Click(object sender, RoutedEventArgs e)

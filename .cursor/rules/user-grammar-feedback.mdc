@@ -1,0 +1,18 @@
+---
+description: Point out grammar mistakes in user messages (Russian/English)
+alwaysApply: true
+---
+
+# Grammar feedback for the user
+
+When the user writes in Russian or English and the message has clear grammar, spelling, or typo issues that could confuse meaning:
+
+1. **Briefly point them out** (1–3 corrections) near the start or end of the reply.
+2. Do **not** lecture; keep it short and friendly.
+3. Prefer: wrong → suggested form.
+4. Skip nitpicks that do not affect understanding (style-only preferences).
+5. Still answer the request fully — grammar notes are an add-on, not a refusal.
+
+Example:
+
+> Замечание по тексту: «пониал» → «понял», «назначеие» → «назначение».

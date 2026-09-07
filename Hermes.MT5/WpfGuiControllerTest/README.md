@@ -23,7 +23,7 @@ cd Hermes.MT5\WpfGuiControllerTest\WpfGuiController
 dotnet build -c Release
 
 cd ..\WpfTestApp
-dotnet build -c Release -p:OutputPath=bin\Release\ui_v33\
+dotnet build -c Release -p:OutputPath=bin\Release\ui_v34\
 ```
 
 Актуальный `ui_vN` / `InpWpfUiN` — в `HermesProjects/Mt5Terminal/hermes/project.md`.
@@ -42,7 +42,7 @@ cd Hermes.MT5\WpfGuiControllerTest
 ```
 
 Затем: MetaEditor → F7 → снять EA → накинуть → **Reset** inputs  
-(`InpWpfWindow = HermesWpfTerminal`, `InpWpfUi33` = путь к UI DLL).
+(`InpWpfWindow = HermesWpfTerminal`, `InpWpfUi34` = путь к UI DLL).
 
 ## Торговля
 

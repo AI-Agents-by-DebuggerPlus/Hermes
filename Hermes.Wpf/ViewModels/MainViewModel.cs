@@ -3150,22 +3150,59 @@ public sealed class MainViewModel : BaseViewModel
         }
     }
 
+    private const string HermesProjectsRoot = @"D:\Programming\AI_Agents\HermesProjects";
+
     private void AddProject()
     {
         var raw = Projects.NewProjectPath?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(raw))
         {
-            AppendTerminal("[project] Укажите путь к папке или нажмите «Обзор…».", isError: true);
+            AppendTerminal("[project] Укажите имя проекта или путь к папке (или «Обзор…»).", isError: true);
             return;
         }
 
-        if (!Directory.Exists(raw))
+        // Bare name → auto-create under HermesProjects; missing path → create folder.
+        string path;
+        var hasDirSep = raw.Contains(Path.DirectorySeparatorChar) || raw.Contains(Path.AltDirectorySeparatorChar);
+        if (!hasDirSep && !Path.IsPathRooted(raw))
         {
-            AppendTerminal($"[project] Папка не найдена: {raw}", isError: true);
-            return;
+            var name = ProjectRenameService.SanitizeFolderName(raw);
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                AppendTerminal("[project] Недопустимое имя проекта.", isError: true);
+                return;
+            }
+
+            path = Path.Combine(HermesProjectsRoot, name);
+        }
+        else
+        {
+            try
+            {
+                path = Path.GetFullPath(raw);
+            }
+            catch (Exception ex)
+            {
+                AppendTerminal($"[project] Некорректный путь: {ex.Message}", isError: true);
+                return;
+            }
         }
 
-        var project = _projectService.BuildProject(raw);
+        if (!Directory.Exists(path))
+        {
+            try
+            {
+                Directory.CreateDirectory(path);
+                AppendTerminal($"[project] Создана папка: {path}");
+            }
+            catch (Exception ex)
+            {
+                AppendTerminal($"[project] Не удалось создать папку: {ex.Message}", isError: true);
+                return;
+            }
+        }
+
+        var project = _projectService.BuildProject(path);
         if (Projects.Projects.Any(p => string.Equals(p.WindowsPath, project.WindowsPath, StringComparison.OrdinalIgnoreCase)))
         {
             AppendTerminal($"Project already added: {project.WindowsPath}");
@@ -4433,6 +4470,32 @@ public sealed class MainViewModel : BaseViewModel
         string triggerSource)
     {
         AppendTerminal($"[wpf-local] action={intent.Action} source={triggerSource}");
+        if (intent.Action.StartsWith("portfolio_", StringComparison.OrdinalIgnoreCase))
+        {
+            SetAgentActivityStatus(
+                intent.Action switch
+                {
+                    "portfolio_add" => "добавляет задачу в PM Dashboard…",
+                    "portfolio_list" => "читает PM Dashboard…",
+                    "portfolio_set_status" => "меняет статус в PM Dashboard…",
+                    "portfolio_remove" => "удаляет задачу из PM Dashboard…",
+                    _ => "обновляет PM Dashboard…",
+                });
+            _agentActivityAssumeExecuting = true;
+        }
+        else if (intent.Action.StartsWith("scheduler_", StringComparison.OrdinalIgnoreCase))
+        {
+            SetAgentActivityStatus(
+                intent.Action switch
+                {
+                    "scheduler_add" => "добавляет задачу в планировщик…",
+                    "scheduler_list" => "читает планировщик…",
+                    "scheduler_complete" => "закрывает задачу планировщика…",
+                    _ => "обновляет планировщик…",
+                });
+            _agentActivityAssumeExecuting = true;
+        }
+
         if (intent.Action.StartsWith("reni_water", StringComparison.Ordinal))
         {
             _reniWaterBusy = true;
@@ -4589,8 +4652,7 @@ public sealed class MainViewModel : BaseViewModel
 
         _isBusy = true;
         CommandManager.InvalidateRequerySuggested();
-        AgentChatStatusLine = "Hermes готовит описание экрана…";
-        IsAgentChatStatusBarVisible = true;
+        SetAgentActivityStatus("готовит описание экрана…");
 
         try
         {
@@ -4670,8 +4732,7 @@ public sealed class MainViewModel : BaseViewModel
         {
             if (showVisionStatus)
             {
-                AgentChatStatusLine = "Снимок экрана…";
-                IsAgentChatStatusBarVisible = true;
+                SetAgentActivityStatus("снимок экрана…");
             }
 
             var capture = await Task.Run(() => _desktopScreenCapture.CapturePrimaryMonitor()).ConfigureAwait(true);
@@ -4705,10 +4766,10 @@ public sealed class MainViewModel : BaseViewModel
             {
                 if (showVisionStatus)
                 {
-                    AgentChatStatusLine = intent == DesktopVisionIntent.FocusWindow
-                        ? "Hermes размечает окно…"
-                        : "Hermes анализирует скриншот (vision_analyze)…";
-                    IsAgentChatStatusBarVisible = true;
+                    SetAgentActivityStatus(
+                        intent == DesktopVisionIntent.FocusWindow
+                            ? "размечает окно…"
+                            : "анализирует скриншот…");
                 }
 
                 var projectPath = Projects.SelectedProject?.WindowsPath
@@ -6531,7 +6592,11 @@ public sealed class MainViewModel : BaseViewModel
             return;
         }
 
-        DispatchToUi(UpgradeAgentHermesActivityToExecuting);
+        DispatchToUi(() =>
+        {
+            ApplyStreamActivityStatusHint(line);
+            UpgradeAgentHermesActivityToExecuting();
+        });
     }
 
     private void DispatchToUi(Action action)
@@ -6598,20 +6663,38 @@ public sealed class MainViewModel : BaseViewModel
         }
     }
 
+    private string CurrentAgentDisplayName =>
+        string.IsNullOrWhiteSpace(Projects.SelectedProject?.Name)
+            ? "Hermes"
+            : Projects.SelectedProject!.Name.Trim();
+
+    private void SetAgentActivityStatus(string detail)
+    {
+        _agentActivityTracking = true;
+        AgentChatStatusLine = $"{CurrentAgentDisplayName}: {detail}";
+        IsAgentChatStatusBarVisible = true;
+        try
+        {
+            _activityBus.Publish(CurrentAgentDisplayName, "status", detail);
+        }
+        catch
+        {
+            // ignore
+        }
+    }
+
     private void PushHermesThinkingStatus()
     {
         _agentActivityTracking = true;
         _agentActivityAssumeExecuting = false;
-        AgentChatStatusLine = "Hermes думает (формирует ответ)…";
-        IsAgentChatStatusBarVisible = true;
+        SetAgentActivityStatus("думает…");
     }
 
     private void PushHermesQuickCommandStatus()
     {
         _agentActivityTracking = true;
         _agentActivityAssumeExecuting = true;
-        AgentChatStatusLine = "Hermes выполняет команду CLI…";
-        IsAgentChatStatusBarVisible = true;
+        SetAgentActivityStatus("выполняет команду CLI…");
     }
 
     private void UpgradeAgentHermesActivityToExecuting()
@@ -6621,7 +6704,53 @@ public sealed class MainViewModel : BaseViewModel
             return;
         }
 
-        AgentChatStatusLine = "Hermes выполняет действие (инструмент или команда)…";
+        _agentActivityAssumeExecuting = true;
+        SetAgentActivityStatus("выполняет действие…");
+    }
+
+    private void ApplyStreamActivityStatusHint(string line)
+    {
+        var agent = CurrentAgentDisplayName;
+        if (Regex.IsMatch(line, @"portfolio_add|scheduler_add", RegexOptions.IgnoreCase))
+        {
+            SetAgentActivityStatus(
+                agent.Equals("ProjectManager", StringComparison.OrdinalIgnoreCase)
+                    ? "добавляет задачу в PM Dashboard…"
+                    : "добавляет задачу в планировщик…");
+            _agentActivityAssumeExecuting = true;
+            return;
+        }
+
+        if (Regex.IsMatch(line, @"portfolio_set_status|portfolio_list|portfolio_remove", RegexOptions.IgnoreCase))
+        {
+            SetAgentActivityStatus("обновляет PM Dashboard…");
+            _agentActivityAssumeExecuting = true;
+            return;
+        }
+
+        var fileMatch = Regex.Match(
+            line,
+            @"(?:Writing file|Created file|Edited file|write_file|create_file)[:\s]+(?<f>\S+)",
+            RegexOptions.IgnoreCase);
+        if (fileMatch.Success)
+        {
+            SetAgentActivityStatus($"создаёт файл {fileMatch.Groups["f"].Value}…");
+            _agentActivityAssumeExecuting = true;
+            return;
+        }
+
+        if (Regex.IsMatch(line, @"run_terminal|execute_command|bash\s+-lc|powershell|pwsh", RegexOptions.IgnoreCase))
+        {
+            SetAgentActivityStatus("выполняет команду в терминале…");
+            _agentActivityAssumeExecuting = true;
+            return;
+        }
+
+        if (Regex.IsMatch(line, @"browser_|web_search|skill_view", RegexOptions.IgnoreCase))
+        {
+            SetAgentActivityStatus("использует инструмент…");
+            _agentActivityAssumeExecuting = true;
+        }
     }
 
     private void ClearHermesUiActivityTrackers()

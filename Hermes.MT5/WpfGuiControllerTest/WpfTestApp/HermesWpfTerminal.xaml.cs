@@ -4,11 +4,14 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 
 namespace WpfTestApp
 {
@@ -32,12 +35,24 @@ namespace WpfTestApp
         private readonly StringBuilder _log = new StringBuilder();
         private SessionsCalendarWindow _calendar;
         private SettingsWindow _settings;
+        private TradeCommandsTestWindow _tradeCmds;
         private OrderMode _mode = OrderMode.Market;
         private TerminalAgentIpc _agentIpc;
+        private string _lastScreenshotPath = "";
+        private string _lastScreenshotLink = "";
+        private string _lastSymbolsPath = "";
+        private bool _tradeFlagsPushedToEa;
+        private readonly List<string> _screenshotHistory = new List<string>();
+        private ScreenshotViewerWindow _screenshotViewer;
 
         internal Button BtnQuickBuyPublic => btnQuickBuy;
         internal Button BtnQuickSellPublic => btnQuickSell;
         internal Button BtnCloseAllPublic => btnCloseAllPositions;
+        internal Button BtnScreenshotPublic => btnScreenshot;
+        internal Button BtnListSymbolsPublic => btnListSymbols;
+        internal string LastScreenshotPath => _lastScreenshotPath;
+        internal string LastScreenshotLink => _lastScreenshotLink;
+        internal string LastSymbolsPath => _lastSymbolsPath;
 
         public HermesWpfTerminal()
         {
@@ -54,17 +69,22 @@ namespace WpfTestApp
             btnPlacePending.Click += (s, e) =>
                 LogWpf("Place Order clicked: " + SelectedOrderType() + " vol=" + txtVolume.Text + " price=" + txtPrice.Text);
 
-            tabMarket.Checked += (s, e) => ApplyOrderMode(OrderMode.Market);
-            tabLimit.Checked += (s, e) => ApplyOrderMode(OrderMode.Limit);
-            tabStop.Checked += (s, e) => ApplyOrderMode(OrderMode.Stop);
-            tabStopLimit.Checked += (s, e) => ApplyOrderMode(OrderMode.StopLimit);
+            tabMarket.Checked += (s, e) => { ShowTradingPanel(); ApplyOrderMode(OrderMode.Market); };
+            tabLimit.Checked += (s, e) => { ShowTradingPanel(); ApplyOrderMode(OrderMode.Limit); };
+            tabStop.Checked += (s, e) => { ShowTradingPanel(); ApplyOrderMode(OrderMode.Stop); };
+            tabStopLimit.Checked += (s, e) => { ShowTradingPanel(); ApplyOrderMode(OrderMode.StopLimit); };
+            tabScreenshots.Checked += (s, e) => ShowScreenshotsPanel();
 
-            chkAutoTrade.Checked += (s, e) => LogWpf("Auto-trade ON");
-            chkAutoTrade.Unchecked += (s, e) => LogWpf("Auto-trade OFF");
-            chkRealTrade.Checked += (s, e) => LogWpf("Real trading ON (OrderSend)");
-            chkRealTrade.Unchecked += (s, e) => LogWpf("Real trading OFF (stub ACK)");
+            chkAutoTrade.Checked += (s, e) => { LogWpf("Auto-trade ON"); TrySaveTradeSettings(); };
+            chkAutoTrade.Unchecked += (s, e) => { LogWpf("Auto-trade OFF"); TrySaveTradeSettings(); };
+            chkRealTrade.Checked += (s, e) => { LogWpf("Real trading ON (OrderSend)"); TrySaveTradeSettings(); };
+            chkRealTrade.Unchecked += (s, e) => { LogWpf("Real trading OFF (stub ACK)"); TrySaveTradeSettings(); };
 
             txtMqlLog.TextChanged += OnMqlLogFeed;
+            txtScreenshotPath.TextChanged += OnScreenshotPathChanged;
+            txtSymbolsPath.TextChanged += OnSymbolsPathChanged;
+            btnCaptureScreenshot.Click += (s, e) => RequestChartScreenshot();
+            lstScreenshots.SelectionChanged += OnScreenshotHistorySelected;
 
             var bidAskTimer = new System.Windows.Threading.DispatcherTimer
             {
@@ -84,6 +104,7 @@ namespace WpfTestApp
                     txtLot.Text = txtVolume.Text;
             };
 
+            btnTradeCommands.Click += (s, e) => OpenTradeCommandsTest();
             btnSessionsCalendar.Click += (s, e) => OpenSessionsCalendar();
             btnSettings.Click += (s, e) => OpenSettings();
 
@@ -95,14 +116,19 @@ namespace WpfTestApp
             Closing += (_, __) =>
             {
                 TrySaveSize();
+                TrySaveTradeSettings();
                 try { _agentIpc?.Dispose(); } catch { /* ignore */ }
                 _agentIpc = null;
+                try { _screenshotViewer?.Close(); } catch { /* ignore */ }
+                _screenshotViewer = null;
                 try { _calendar?.Close(); } catch { /* ignore */ }
                 try { _settings?.Close(); } catch { /* ignore */ }
+                try { _tradeCmds?.Close(); } catch { /* ignore */ }
             };
             Loaded += (_, __) =>
             {
                 _sizeReady = true;
+                TryRestoreTradeSettings();
                 DrawOrderHelpDiagram();
                 try
                 {
@@ -116,6 +142,7 @@ namespace WpfTestApp
             };
 
             ApplyOrderMode(OrderMode.Market);
+            ShowTradingPanel();
             RefreshBidAskBig();
             LogWpf("HermesWpfTerminal ready");
         }
@@ -127,6 +154,262 @@ namespace WpfTestApp
             if (btn == null)
                 throw new InvalidOperationException("button is null");
             btn.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        }
+
+        internal void BeginScreenshotCapture()
+        {
+            _lastScreenshotPath = "";
+            _lastScreenshotLink = "";
+            txtScreenshotPath.Text = "";
+            ShowScreenshotsPanel();
+            tabScreenshots.IsChecked = true;
+            LogWpf("IPC screenshot requested");
+        }
+
+        internal void RequestChartScreenshot()
+        {
+            BeginScreenshotCapture();
+            ClickAgentButton(btnScreenshot);
+        }
+
+        internal string WaitForScreenshotPath(TimeSpan timeout)
+        {
+            var deadline = DateTime.UtcNow + timeout;
+            while (DateTime.UtcNow < deadline)
+            {
+                if (!string.IsNullOrWhiteSpace(_lastScreenshotPath))
+                    return _lastScreenshotPath;
+                DoEvents();
+                Thread.Sleep(40);
+            }
+            return _lastScreenshotPath ?? "";
+        }
+
+        internal void BeginSymbolsListCapture()
+        {
+            _lastSymbolsPath = "";
+            txtSymbolsPath.Text = "";
+            LogWpf("IPC list_symbols requested");
+        }
+
+        internal string WaitForSymbolsPath(TimeSpan timeout)
+        {
+            var deadline = DateTime.UtcNow + timeout;
+            while (DateTime.UtcNow < deadline)
+            {
+                if (!string.IsNullOrWhiteSpace(_lastSymbolsPath))
+                    return _lastSymbolsPath;
+                DoEvents();
+                Thread.Sleep(40);
+            }
+            return _lastSymbolsPath ?? "";
+        }
+
+        private void OnSymbolsPathChanged(object sender, TextChangedEventArgs e)
+        {
+            var path = (txtSymbolsPath.Text ?? "").Trim();
+            if (path.Length == 0)
+                return;
+
+            try
+            {
+                var dest = System.IO.Path.Combine(TerminalAgentIpc.ResolveIpcDir(), "symbols.json");
+                Directory.CreateDirectory(System.IO.Path.GetDirectoryName(dest) ?? TerminalAgentIpc.ResolveIpcDir());
+                if (!string.Equals(System.IO.Path.GetFullPath(path), System.IO.Path.GetFullPath(dest), StringComparison.OrdinalIgnoreCase)
+                    && File.Exists(path))
+                {
+                    File.Copy(path, dest, overwrite: true);
+                    path = dest;
+                }
+
+                _lastSymbolsPath = path;
+                LogWpf("Symbols list ready: " + path);
+            }
+            catch (Exception ex)
+            {
+                LogWpf("Symbols copy failed: " + ex.Message);
+                _lastSymbolsPath = path;
+            }
+        }
+
+        private static void DoEvents()
+        {
+            var frame = new DispatcherFrame();
+            Dispatcher.CurrentDispatcher.BeginInvoke(
+                DispatcherPriority.Background,
+                new DispatcherOperationCallback(arg =>
+                {
+                    ((DispatcherFrame)arg).Continue = false;
+                    return null;
+                }),
+                frame);
+            Dispatcher.PushFrame(frame);
+        }
+
+        private void OnScreenshotPathChanged(object sender, TextChangedEventArgs e)
+        {
+            var path = (txtScreenshotPath.Text ?? "").Trim();
+            if (path.Length == 0)
+                return;
+            ApplyScreenshotFromMt5(path);
+        }
+
+        private void ApplyScreenshotFromMt5(string sourcePath)
+        {
+            try
+            {
+                if (!File.Exists(sourcePath))
+                {
+                    LogWpf("Screenshot path missing: " + sourcePath);
+                    txtScreenshotLink.Text = "Файл не найден: " + sourcePath;
+                    return;
+                }
+
+                var dest = CopyToProjectScreenshots(sourcePath);
+                _lastScreenshotPath = dest;
+                _lastScreenshotLink = new Uri(dest).AbsoluteUri;
+                txtScreenshotLink.Text = _lastScreenshotLink;
+                ShowImage(dest);
+                RememberScreenshot(dest);
+                ShowScreenshotsPanel();
+                tabScreenshots.IsChecked = true;
+                // Defer: opening a Window inside WaitForScreenshotPath/DoEvents often fails to activate.
+                Dispatcher.BeginInvoke(
+                    DispatcherPriority.ApplicationIdle,
+                    new Action(() => OpenFullscreenScreenshot(dest)));
+                LogWpf("Screenshot ready: " + dest);
+            }
+            catch (Exception ex)
+            {
+                LogWpf("Screenshot display failed: " + ex.Message);
+                txtScreenshotLink.Text = "Ошибка: " + ex.Message;
+            }
+        }
+
+        private static string ResolveScreenshotsDir()
+        {
+            var env = Environment.GetEnvironmentVariable("HERMES_SCREENSHOT_DIR");
+            if (!string.IsNullOrWhiteSpace(env))
+                return env.Trim();
+            return @"D:\Programming\AI_Agents\HermesProjects\Mt5Terminal\hermes\screenshots";
+        }
+
+        private string CopyToProjectScreenshots(string sourcePath)
+        {
+            var dir = ResolveScreenshotsDir();
+            Directory.CreateDirectory(dir);
+            var name = System.IO.Path.GetFileName(sourcePath);
+            if (string.IsNullOrWhiteSpace(name))
+                name = "hermes_chart_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".png";
+            var dest = System.IO.Path.Combine(dir, name);
+            File.Copy(sourcePath, dest, overwrite: true);
+            return dest;
+        }
+
+        private void ShowImage(string path)
+        {
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.UriSource = new Uri(path, UriKind.Absolute);
+            bmp.EndInit();
+            bmp.Freeze();
+            imgScreenshot.Source = bmp;
+        }
+
+        internal void OpenLastScreenshotFullscreen()
+        {
+            if (string.IsNullOrWhiteSpace(_lastScreenshotPath))
+                return;
+            Dispatcher.BeginInvoke(
+                DispatcherPriority.ApplicationIdle,
+                new Action(() => OpenFullscreenScreenshot(_lastScreenshotPath)));
+        }
+
+        private void OpenFullscreenScreenshot(string path)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                {
+                    LogWpf("Fullscreen screenshot skipped — no file: " + (path ?? ""));
+                    return;
+                }
+
+                // Temporarily lower Topmost on the trading panel so the viewer can stay above.
+                var wasTopmost = Topmost;
+                Topmost = false;
+
+                if (_screenshotViewer == null || !_screenshotViewer.IsLoaded)
+                {
+                    _screenshotViewer = new ScreenshotViewerWindow();
+                    _screenshotViewer.Closed += (_, __) =>
+                    {
+                        _screenshotViewer = null;
+                        try { Topmost = wasTopmost; } catch { /* ignore */ }
+                    };
+                    _screenshotViewer.ShowActivated = true;
+                    _screenshotViewer.Show();
+                }
+
+                _screenshotViewer.ShowImage(path, status =>
+                {
+                    try
+                    {
+                        txtScreenshotLink.Text = status;
+                    }
+                    catch { /* ignore */ }
+                });
+                if (!_screenshotViewer.IsVisible)
+                    _screenshotViewer.Show();
+                _screenshotViewer.WindowState = WindowState.Normal;
+                _screenshotViewer.ApplyFullscreenPublic();
+                _screenshotViewer.Activate();
+                _screenshotViewer.Topmost = true;
+                _screenshotViewer.Focus();
+                LogWpf("Fullscreen screenshot window opened: " + path);
+            }
+            catch (Exception ex)
+            {
+                LogWpf("Fullscreen screenshot window failed: " + ex.Message);
+            }
+        }
+
+        private void RememberScreenshot(string path)
+        {
+            _screenshotHistory.RemoveAll(x => string.Equals(x, path, StringComparison.OrdinalIgnoreCase));
+            _screenshotHistory.Insert(0, path);
+            while (_screenshotHistory.Count > 20)
+                _screenshotHistory.RemoveAt(_screenshotHistory.Count - 1);
+            lstScreenshots.Items.Clear();
+            foreach (var p in _screenshotHistory)
+                lstScreenshots.Items.Add(p);
+            if (lstScreenshots.Items.Count > 0)
+                lstScreenshots.SelectedIndex = 0;
+        }
+
+        private void OnScreenshotHistorySelected(object sender, SelectionChangedEventArgs e)
+        {
+            if (lstScreenshots.SelectedItem is string path && File.Exists(path))
+            {
+                _lastScreenshotPath = path;
+                _lastScreenshotLink = new Uri(path).AbsoluteUri;
+                txtScreenshotLink.Text = _lastScreenshotLink;
+                ShowImage(path);
+                OpenFullscreenScreenshot(path);
+            }
+        }
+
+        private void ShowTradingPanel()
+        {
+            panelOrderContent.Visibility = Visibility.Visible;
+            panelScreenshots.Visibility = Visibility.Collapsed;
+        }
+
+        private void ShowScreenshotsPanel()
+        {
+            panelOrderContent.Visibility = Visibility.Collapsed;
+            panelScreenshots.Visibility = Visibility.Visible;
         }
 
         internal Button GetCloseSlotButton(int slot)
@@ -160,6 +443,7 @@ namespace WpfTestApp
             {
                 try { _settings.RealTrade = on; } catch { /* ignore */ }
             }
+            TrySaveTradeSettings();
             LogWpf("IPC Real trading=" + on);
         }
 
@@ -170,7 +454,61 @@ namespace WpfTestApp
             {
                 try { _settings.AutoTrade = on; } catch { /* ignore */ }
             }
+            TrySaveTradeSettings();
             LogWpf("IPC Auto-trade=" + on);
+        }
+
+        internal void ApplyAgentPlacePendingOrder(
+            string pendingOrderType,
+            double price,
+            double stopLoss,
+            double takeProfit,
+            double lot,
+            string orderSymbol = null)
+        {
+            ShowTradingPanel();
+            tabMarket.IsChecked = false;
+            tabScreenshots.IsChecked = false;
+
+            var type = (pendingOrderType ?? string.Empty).Trim();
+            var buy = type.StartsWith("Buy", StringComparison.OrdinalIgnoreCase);
+            if (type.IndexOf("Stop Limit", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                tabStopLimit.IsChecked = true;
+                ApplyOrderMode(OrderMode.StopLimit);
+            }
+            else if (type.IndexOf("Stop", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                tabStop.IsChecked = true;
+                ApplyOrderMode(OrderMode.Stop);
+            }
+            else
+            {
+                tabLimit.IsChecked = true;
+                ApplyOrderMode(OrderMode.Limit);
+            }
+
+            SyncComboForSide(buy);
+            if (lot > 0)
+            {
+                ApplyAgentLot(lot);
+            }
+
+            // Explicit label for EA (ComboBox events often send "ComboBoxItem: Buy Limit").
+            txtOrderTypeLabel.Text = type;
+            txtOrderSymbol.Text = string.IsNullOrWhiteSpace(orderSymbol) ? string.Empty : orderSymbol.Trim();
+            txtPrice.Text = price.ToString("G", CultureInfo.InvariantCulture);
+            txtSL.Text = stopLoss > 0 ? stopLoss.ToString("G", CultureInfo.InvariantCulture) : "0.000";
+            txtTP.Text = takeProfit > 0 ? takeProfit.ToString("G", CultureInfo.InvariantCulture) : "0.000";
+
+            btnPlacePending.Visibility = Visibility.Visible;
+            btnBuyMarket.Visibility = Visibility.Collapsed;
+            btnSellMarket.Visibility = Visibility.Collapsed;
+
+            LogWpf("IPC place_pending " + type + " sym=" + (txtOrderSymbol.Text.Length > 0 ? txtOrderSymbol.Text : "(chart)")
+                   + " lot=" + (lot > 0 ? lot.ToString("G", CultureInfo.InvariantCulture) : txtLot.Text)
+                   + " price=" + txtPrice.Text + " SL=" + txtSL.Text + " TP=" + txtTP.Text);
+            ClickAgentButton(btnPlacePending);
         }
 
         internal AgentSnapshot BuildAgentSnapshot(string note)
@@ -208,7 +546,9 @@ namespace WpfTestApp
                 auto_trade = chkAutoTrade?.IsChecked == true,
                 positions_header = txtPositionsHeader?.Text ?? "",
                 positions = positions,
-                log_tail = logLines
+                log_tail = logLines,
+                last_screenshot = _lastScreenshotPath ?? "",
+                last_screenshot_link = _lastScreenshotLink ?? ""
             };
         }
 
@@ -586,6 +926,40 @@ namespace WpfTestApp
             if (string.IsNullOrWhiteSpace(line))
                 return;
             AppendLogLine(line.Trim());
+
+            // Restore runs before EA is attached; re-push flags once panel is live.
+            if (!_tradeFlagsPushedToEa
+                && line.IndexOf("panel started", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                _tradeFlagsPushedToEa = true;
+                Dispatcher.BeginInvoke(
+                    DispatcherPriority.ApplicationIdle,
+                    new Action(PushTradeSettingsToEa));
+            }
+        }
+
+        /// <summary>
+        /// Force GuiController checkbox events so MQL5 gets Real/Auto flags after restart.
+        /// </summary>
+        private void PushTradeSettingsToEa()
+        {
+            try
+            {
+                var real = chkRealTrade?.IsChecked == true;
+                var auto = chkAutoTrade?.IsChecked == true;
+
+                // Toggle to guarantee GUI_CHECKBOX_CHANGE reaches EA.
+                chkRealTrade.IsChecked = !real;
+                chkRealTrade.IsChecked = real;
+                chkAutoTrade.IsChecked = !auto;
+                chkAutoTrade.IsChecked = auto;
+
+                LogWpf("Pushed settings to EA: Real trading=" + real + " Auto-trade=" + auto);
+            }
+            catch (Exception ex)
+            {
+                LogWpf("Push settings to EA failed: " + ex.Message);
+            }
         }
 
         private void LogWpf(string text)
@@ -608,6 +982,27 @@ namespace WpfTestApp
 
             txtLog.Text = _log.ToString();
             logScroll?.ScrollToEnd();
+        }
+
+        private void OpenTradeCommandsTest()
+        {
+            if (_tradeCmds != null)
+            {
+                try
+                {
+                    if (_tradeCmds.IsLoaded)
+                    {
+                        _tradeCmds.Activate();
+                        return;
+                    }
+                }
+                catch { _tradeCmds = null; }
+            }
+
+            _tradeCmds = new TradeCommandsTestWindow { Owner = this };
+            _tradeCmds.Closed += (_, __) => _tradeCmds = null;
+            _tradeCmds.Show();
+            LogWpf("Opened trade commands test");
         }
 
         private void OpenSessionsCalendar()
@@ -653,8 +1048,16 @@ namespace WpfTestApp
                 RealTrade = chkRealTrade.IsChecked == true
             };
             _settings.WireEvents();
-            _settings.AutoTradeChanged += () => chkAutoTrade.IsChecked = _settings.AutoTrade;
-            _settings.RealTradeChanged += () => chkRealTrade.IsChecked = _settings.RealTrade;
+            _settings.AutoTradeChanged += () =>
+            {
+                chkAutoTrade.IsChecked = _settings.AutoTrade;
+                TrySaveTradeSettings();
+            };
+            _settings.RealTradeChanged += () =>
+            {
+                chkRealTrade.IsChecked = _settings.RealTrade;
+                TrySaveTradeSettings();
+            };
             _settings.Closed += (_, __) =>
             {
                 _settings = null;
@@ -685,6 +1088,70 @@ namespace WpfTestApp
                 "HermesWpfTerminal");
             Directory.CreateDirectory(dir);
             return System.IO.Path.Combine(dir, "window-size.txt");
+        }
+
+        private static string TradeSettingsFilePath()
+        {
+            var dir = System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Hermes",
+                "HermesWpfTerminal");
+            Directory.CreateDirectory(dir);
+            return System.IO.Path.Combine(dir, "trading-settings.txt");
+        }
+
+        private void TryRestoreTradeSettings()
+        {
+            try
+            {
+                var path = TradeSettingsFilePath();
+                if (!File.Exists(path))
+                    return;
+
+                var real = false;
+                var auto = false;
+                foreach (var line in File.ReadAllLines(path))
+                {
+                    var t = (line ?? string.Empty).Trim();
+                    if (t.Length == 0 || t.StartsWith("#", StringComparison.Ordinal))
+                        continue;
+                    var eq = t.IndexOf('=');
+                    if (eq <= 0)
+                        continue;
+                    var key = t.Substring(0, eq).Trim();
+                    var val = t.Substring(eq + 1).Trim();
+                    var on = val.Equals("1", StringComparison.OrdinalIgnoreCase)
+                             || val.Equals("true", StringComparison.OrdinalIgnoreCase)
+                             || val.Equals("yes", StringComparison.OrdinalIgnoreCase);
+                    if (key.Equals("RealTrade", StringComparison.OrdinalIgnoreCase)
+                        || key.Equals("RealTrading", StringComparison.OrdinalIgnoreCase))
+                        real = on;
+                    else if (key.Equals("AutoTrade", StringComparison.OrdinalIgnoreCase))
+                        auto = on;
+                }
+
+                chkRealTrade.IsChecked = real;
+                chkAutoTrade.IsChecked = auto;
+                LogWpf("Restored settings: Real trading=" + real + " Auto-trade=" + auto);
+            }
+            catch (Exception ex)
+            {
+                LogWpf("Restore settings failed: " + ex.Message);
+            }
+        }
+
+        private void TrySaveTradeSettings()
+        {
+            try
+            {
+                var real = chkRealTrade?.IsChecked == true;
+                var auto = chkAutoTrade?.IsChecked == true;
+                File.WriteAllText(
+                    TradeSettingsFilePath(),
+                    "RealTrade=" + (real ? "1" : "0") + Environment.NewLine +
+                    "AutoTrade=" + (auto ? "1" : "0") + Environment.NewLine);
+            }
+            catch { /* ignore */ }
         }
 
         private void ApplyBuildStamp()

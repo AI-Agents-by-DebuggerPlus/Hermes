@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 using System.Text;
@@ -117,14 +118,28 @@ namespace WpfTestApp
             try
             {
                 Execute(cmd, action);
-                WriteResult(new AgentResult
+                var result = new AgentResult
                 {
                     ok = true,
                     id = cmd.id,
                     action = action,
                     message = "accepted",
                     snapshot = BuildSnapshot("after:" + action)
-                });
+                };
+                if (action == "screenshot" || action == "chart_screenshot")
+                {
+                    result.screenshot_path = _ui.LastScreenshotPath ?? "";
+                    result.screenshot_link = _ui.LastScreenshotLink ?? "";
+                    if (!string.IsNullOrWhiteSpace(result.screenshot_link))
+                        result.message = "screenshot=" + result.screenshot_link;
+                }
+                if (action == "list_symbols")
+                {
+                    result.symbols_path = _ui.LastSymbolsPath ?? "";
+                    result.symbols_count = TryCountSymbols(result.symbols_path);
+                    result.message = "symbols=" + result.symbols_count + " path=" + result.symbols_path;
+                }
+                WriteResult(result);
                 WriteStatus("after:" + action);
             }
             catch (Exception ex)
@@ -147,6 +162,7 @@ namespace WpfTestApp
                 case "snapshot":
                 case "status":
                 case "get_status":
+                case "refresh":
                     return;
 
                 case "set_lot":
@@ -190,11 +206,74 @@ namespace WpfTestApp
                         return;
                     }
 
+                case "screenshot":
+                case "chart_screenshot":
+                    {
+                        _ui.BeginScreenshotCapture();
+                        _ui.ClickAgentButton(_ui.BtnScreenshotPublic);
+                        var path = _ui.WaitForScreenshotPath(TimeSpan.FromSeconds(12));
+                        if (string.IsNullOrWhiteSpace(path))
+                            throw new InvalidOperationException(
+                                "MT5 did not return screenshot path in time (is EA attached? ChartScreenShot).");
+                        _ui.OpenLastScreenshotFullscreen();
+                        return;
+                    }
+
+                case "place_pending":
+                    {
+                        if (string.IsNullOrWhiteSpace(cmd.order_type_label))
+                            throw new InvalidOperationException("place_pending requires order_type_label (e.g. Buy Limit).");
+                        if (!cmd.price.HasValue || cmd.price.Value <= 0)
+                            throw new InvalidOperationException("place_pending requires price > 0.");
+                        _ui.ApplyAgentPlacePendingOrder(
+                            cmd.order_type_label,
+                            cmd.price.Value,
+                            cmd.stop_loss ?? 0,
+                            cmd.take_profit ?? 0,
+                            cmd.lot ?? 0,
+                            cmd.symbol);
+                        return;
+                    }
+
+                case "list_symbols":
+                    {
+                        _ui.BeginSymbolsListCapture();
+                        _ui.ClickAgentButton(_ui.BtnListSymbolsPublic);
+                        var path = _ui.WaitForSymbolsPath(TimeSpan.FromSeconds(25));
+                        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                            throw new InvalidOperationException(
+                                "MT5 EA did not write symbols.json in time (is EA attached?).");
+                        return;
+                    }
+
                 default:
                     throw new InvalidOperationException(
                         "unknown action '" + action +
-                        "'. Use: snapshot|set_lot|set_real_trading|set_auto_trade|buy_market|sell_market|close_all|close_slot");
+                        "'. Use: snapshot|refresh|set_lot|set_real_trading|set_auto_trade|buy_market|sell_market|close_all|close_slot|screenshot|place_pending|list_symbols");
             }
+        }
+
+        private static int TryCountSymbols(string path)
+        {
+            try
+            {
+                var raw = File.ReadAllText(path, Encoding.UTF8);
+                var idx = raw.IndexOf("\"count\"", StringComparison.OrdinalIgnoreCase);
+                if (idx >= 0)
+                {
+                    var tail = raw.Substring(idx);
+                    var colon = tail.IndexOf(':');
+                    if (colon >= 0)
+                    {
+                        var digits = new string(tail.Skip(colon + 1).TakeWhile(ch => char.IsDigit(ch)).ToArray());
+                        if (int.TryParse(digits, out var n))
+                            return n;
+                    }
+                }
+            }
+            catch { /* ignore */ }
+
+            return 0;
         }
 
         private void TryDeleteCommand()
@@ -263,6 +342,11 @@ namespace WpfTestApp
         [DataMember(Name = "slot")] public int? slot { get; set; }
         [DataMember(Name = "lot")] public double? lot { get; set; }
         [DataMember(Name = "value")] public bool? value { get; set; }
+        [DataMember(Name = "symbol")] public string symbol { get; set; }
+        [DataMember(Name = "order_type_label")] public string order_type_label { get; set; }
+        [DataMember(Name = "price")] public double? price { get; set; }
+        [DataMember(Name = "stop_loss")] public double? stop_loss { get; set; }
+        [DataMember(Name = "take_profit")] public double? take_profit { get; set; }
     }
 
     [DataContract]
@@ -275,6 +359,10 @@ namespace WpfTestApp
         [DataMember(Name = "error")] public string error { get; set; }
         [DataMember(Name = "utc")] public string utc { get; set; }
         [DataMember(Name = "snapshot")] public AgentSnapshot snapshot { get; set; }
+        [DataMember(Name = "screenshot_path")] public string screenshot_path { get; set; }
+        [DataMember(Name = "screenshot_link")] public string screenshot_link { get; set; }
+        [DataMember(Name = "symbols_path")] public string symbols_path { get; set; }
+        [DataMember(Name = "symbols_count")] public int? symbols_count { get; set; }
     }
 
     [DataContract]
@@ -295,5 +383,7 @@ namespace WpfTestApp
         [DataMember(Name = "positions_header")] public string positions_header { get; set; }
         [DataMember(Name = "positions")] public List<string> positions { get; set; }
         [DataMember(Name = "log_tail")] public List<string> log_tail { get; set; }
+        [DataMember(Name = "last_screenshot")] public string last_screenshot { get; set; }
+        [DataMember(Name = "last_screenshot_link")] public string last_screenshot_link { get; set; }
     }
 }

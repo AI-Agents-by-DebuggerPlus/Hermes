@@ -1,0 +1,115 @@
+<Window x:Class="WpfTestApp.TradeCommandsTestWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Trade Commands → Mt5Terminal agent"
+        Height="560" Width="640"
+        MinWidth="520" MinHeight="420"
+        WindowStartupLocation="CenterOwner" Topmost="True"
+        Background="#0B0E11"
+        ResizeMode="CanResizeWithGrip"
+        ShowInTaskbar="False">
+    <Window.Resources>
+        <Style x:Key="DarkBtn" TargetType="Button">
+            <Setter Property="Background" Value="#2B3139"/>
+            <Setter Property="Foreground" Value="#EAECEF"/>
+            <Setter Property="BorderBrush" Value="#848E9C"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1"
+                                Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#383f49"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#F0B90B"/>
+                                <Setter Property="Foreground" Value="#F8D12F"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#252C3B"/>
+                                <Setter Property="Foreground" Value="#EAECEF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="AccentBtn" TargetType="Button" BasedOn="{StaticResource DarkBtn}">
+            <Setter Property="Background" Value="#3D2E00"/>
+            <Setter Property="BorderBrush" Value="#F0B90B"/>
+            <Setter Property="Foreground" Value="#F8D12F"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="#EAECEF"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bd" Background="Transparent" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#252C3B"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#383f49"/>
+                                <Setter Property="Foreground" Value="#F8D12F"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#2B3139"/>
+            <Setter Property="Foreground" Value="#EAECEF"/>
+            <Setter Property="BorderBrush" Value="#848E9C"/>
+            <Setter Property="CaretBrush" Value="#EAECEF"/>
+            <Setter Property="Padding" Value="8,6"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,10">
+            <TextBlock Text="КОМАНДЫ → АГЕНТ Mt5Terminal" FontSize="12" FontWeight="SemiBold" Foreground="#F0B90B"/>
+            <TextBlock x:Name="txtHint" TextWrapping="Wrap" FontSize="12" Foreground="#848E9C" Margin="0,4,0,0"
+                       Text="Фраза уходит в Hermes.Wpf как сообщение чата (не прямой IPC). Нужен запущенный Hermes.Wpf. Отчёт — в чате после исполнения HWT/MT5."/>
+        </StackPanel>
+
+        <Border Grid.Row="1" Background="#181A20" BorderBrush="#2B3139" BorderThickness="1">
+            <ListBox x:Name="lstCommands" Background="Transparent" BorderThickness="0" Margin="4"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     MouseDoubleClick="LstCommands_OnMouseDoubleClick"/>
+        </Border>
+
+        <DockPanel Grid.Row="2" Margin="0,10,0,0">
+            <TextBlock DockPanel.Dock="Top" Text="Своя команда (человеческий язык)" FontSize="11"
+                       Foreground="#848E9C" Margin="0,0,0,4"/>
+            <TextBox x:Name="txtCustom" MinHeight="56" AcceptsReturn="True" TextWrapping="Wrap"/>
+        </DockPanel>
+
+        <DockPanel Grid.Row="3" Margin="0,10,0,0">
+            <Button x:Name="btnSend" DockPanel.Dock="Right" Style="{StaticResource AccentBtn}"
+                    Content="Отправить агенту" Padding="16,8" MinWidth="160" Click="BtnSend_OnClick"/>
+            <TextBlock x:Name="txtStatus" Foreground="#848E9C" FontSize="12" TextWrapping="Wrap"
+                       VerticalAlignment="Center" Margin="0,0,12,0"/>
+        </DockPanel>
+
+        <TextBlock Grid.Row="4" x:Name="txtIpc" Margin="0,8,0,0" FontSize="10" Foreground="#5B6370"
+                   TextWrapping="Wrap" TextTrimming="CharacterEllipsis"/>
+    </Grid>
+</Window>

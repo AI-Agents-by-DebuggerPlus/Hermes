@@ -175,7 +175,7 @@ class HIR_REST_API {
 
         return new WP_REST_Response(
             [
-                'success' => true,
+            'success' => true,
                 'id'      => $stored['id'],
                 'url'     => $stored['url'],
                 'channel' => $stored['channel'],

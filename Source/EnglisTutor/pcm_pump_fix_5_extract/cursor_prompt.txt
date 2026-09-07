@@ -1,0 +1,87 @@
+Task: Hermes.EnglishTutorClient — Fix Pass #5: SCO hold breaks capture endpoint (0x88890008)
++ SMTC competing-session-manager null diagnostics.
+
+Reference files alongside this prompt:
+  - 00_STEP_BY_STEP.md                       — overview, read first
+  - 01_SCO_Hold_Capture_Order_Fix.md         — reorder SCO-hold render vs capture open, add
+                                                fresh MMDevice fetch + retry
+  - 02_SMTC_Manager_Null_Diagnostics.md      — why GlobalSystemMediaTransportControlsSessionManager
+                                                .RequestAsync() logs "manager null", how to get
+                                                real diagnostic detail
+
+Context: this is the fifth fix pass. A regression was found (report
+EnglishTutorClient_NoVoice_EQ_Play_Logs_2026-07-21.md, if present in the repo — otherwise work
+from the reference files alone): the near-silent "SCO hold playback" WasapiOut stream (added in
+an earlier pass to keep the Hands-Free BT profile from dropping back to A2DP Stereo) is being
+opened BEFORE WasapiCapture, and this appears to invalidate the MMDevice by the time
+WasapiCapture tries to use it — producing a COMException 0x88890008 (AUDCLNT_E_UNSUPPORTED_FORMAT)
+on IAudioClient.GetMixFormat, three times in a row in the test window, and very likely the same
+root cause behind peak=0.000 / immediate SAPI "Internal error" in the main window's live voice
+path. Treat these as ONE root cause with two symptoms, not two separate bugs.
+
+Separately and independently: a diagnostic added in the previous pass
+(GlobalSystemMediaTransportControlsSessionManager check, meant to detect whether another app is
+holding system media focus and stealing the Play button) itself returns/logs "manager null"
+with no further detail — this blocks verifying the Play-button hypothesis (P1) from prior
+reports, so it needs to be fixed/clarified before drawing further conclusions about Play.
+
+As with prior passes, the reference markdown files describe the TARGET design — locate and read
+the actual current files first, adapt names/structure as needed:
+  - Hermes.EnglishTutorClient/HeadsetTestWindow.xaml.cs (StartMicAsync, ~line 320, and the SCO
+    hold playback call site)
+  - Hermes.EnglishTutorClient/Services/HeadsetAudioClaimer.cs (StartHoldPlayback /
+    PauseHoldForCapture — same SCO-hold mechanism, check if also used in the main-window live
+    voice path and needs the same reordering)
+  - Hermes.EnglishTutorClient/Services/VoiceInputService.cs (the main-window live path — check
+    whether it shares the SCO-hold-before-capture pattern; if so, apply the same fix there)
+  - Hermes.EnglishTutorClient/Services/MediaFocusClaimer.cs (LogCompetingSessionsAsync, added in
+    pass #4)
+
+STEP 1 — SCO hold / capture ordering fix (see 01_SCO_Hold_Capture_Order_Fix.md)
+  - In the mic-start path(s), open WasapiCapture on a freshly-fetched MMDevice BEFORE starting
+    any SCO-hold render stream, not after. Fetch the MMDevice immediately before constructing
+    WasapiCapture — do not reuse an MMDevice instance obtained earlier in the same method (e.g.
+    during RefreshDevices/PreferHandsFree), since enough time/BT-profile-switching may have
+    passed to invalidate it.
+  - Add a short retry (1 extra attempt, ~300ms delay) specifically for COMException with
+    HResult 0x88890008, since BT profile switching isn't instantaneous.
+  - If capture still fails after retry, do NOT start the SCO-hold render — go straight to the
+    existing stop/cleanup path with a clear log line explaining why.
+  - Apply the same reordering to BOTH the test window (HeadsetTestWindow) and the main window's
+    live voice path (VoiceInputService), if the latter shares this pattern — check the actual
+    code to confirm before assuming symmetry.
+
+STEP 2 — SMTC manager-null diagnostics (see 02_SMTC_Manager_Null_Diagnostics.md)
+  - In LogCompetingSessionsAsync (MediaFocusClaimer.cs), separate "RequestAsync threw an
+    exception" from "RequestAsync returned null without throwing" — log full exception details
+    (type, message, stack trace) in the first case, and an explicit diagnostic note in the
+    second case pointing at possible causes (wrong apartment state, unpackaged app / no package
+    identity).
+  - Add a log line reporting the calling thread's ApartmentState at the point of the call.
+  - Add a one-time startup check logging whether Windows.ApplicationModel.Package.Current is
+    accessible (wrapped in try/catch) — this indicates whether the app has package identity,
+    which some WinRT media APIs require.
+  - This step is diagnostic-only — do not attempt to package the app as MSIX or otherwise
+    restructure deployment in this pass; just get enough log detail to know which of D1–D4 (see
+    the reference file) is actually happening.
+
+STEP 3 — Build and self-test
+  - Build the whole solution; fix any compile errors from these changes.
+  - Do NOT modify the culture-selection or confidence-threshold logic from pass #4.
+  - Do NOT modify OfflineSttRecognizer's architecture — only rely on it receiving a real signal
+    now that capture should actually open correctly.
+  - Do NOT attempt to forcibly steal media focus from other apps — Step 2 is diagnostic only.
+  - Run the test window mic-start 3+ times in a row if you're able to in this environment;
+    otherwise do static verification: confirm MMDevice is freshly fetched right before
+    WasapiCapture construction, confirm SCO-hold start is now strictly after successful capture
+    open, confirm the retry-on-0x88890008 logic is present and bounded (not an infinite loop).
+
+STEP 4 — Self-report
+  - Summarize file-by-file changes in your final message if everything went cleanly.
+  - If ANYTHING is ambiguous, fails to build, or the 0x88890008 error still occurs after the
+    reorder+retry, or the SMTC manager-null diagnostics still don't produce a clear answer, write
+    a markdown report to `EnglishTutorClient_Fix5_Report.md` at the repo root, in Russian,
+    following the same structure as prior diagnostic reports (Вердикт / Факты / Карта методов /
+    Рекомендации). Explicitly state which of D1–D4 (from 02_SMTC_Manager_Null_Diagnostics.md)
+    the new logging pointed to, if determinable — this decides whether Play-button work continues
+    as a code fix or gets flagged as a packaging/platform limitation.

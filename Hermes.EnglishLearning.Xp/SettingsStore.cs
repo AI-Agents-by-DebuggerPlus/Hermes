@@ -77,10 +77,28 @@ internal static class SettingsStore
 
     public static string ResolveLessonsFolder(AppSettings s)
     {
-        var dir = string.IsNullOrWhiteSpace(s.LessonsFolder)
-            ? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "lessons")
-            : s.LessonsFolder.Trim();
-        try { Directory.CreateDirectory(dir); } catch { /* ignore */ }
+        var fallback = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "lessons");
+        var configured = s?.LessonsFolder?.Trim() ?? string.Empty;
+        string dir;
+        if (!string.IsNullOrWhiteSpace(configured) && PathSafety.IsReadyPath(configured))
+        {
+            try { dir = Path.GetFullPath(configured); }
+            catch { dir = fallback; }
+        }
+        else
+        {
+            if (!string.IsNullOrWhiteSpace(configured) && s != null)
+                s.LessonsFolder = string.Empty;
+            dir = fallback;
+        }
+
+        try { Directory.CreateDirectory(dir); }
+        catch
+        {
+            dir = fallback;
+            try { Directory.CreateDirectory(dir); } catch { /* ignore */ }
+        }
+
         return dir;
     }
 }

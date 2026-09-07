@@ -1,0 +1,84 @@
+Task: Hermes.EnglishTutorClient — Fix Pass #4 (UI hang during listen + switch STT test window
+from live SAPI streaming to offline/segmented recognition).
+
+You have four reference files alongside this prompt in the same folder:
+  - 00_STEP_BY_STEP.md              — overview / order of operations (read first)
+  - 01_UpdateMetersUi_fix.md        — remove COM meter calls from UI thread, throttle
+                                       TextBox logging, add a watchdog
+  - 02_OfflineSttRecognizer.cs      — reference implementation of a new class that replaces
+                                       the live PcmPumpStream+SetInputToAudioStream path with
+                                       buffered offline WAV recognition
+  - 03_StartSttFromPump_rewrite.md  — how to rewire StartSttFromPump/StopStt/OnCaptureData to
+                                       use the new OfflineSttRecognizer
+
+IMPORTANT: these reference files were written without direct access to the current state of
+the repository (three prior fix passes have already been applied by you in earlier sessions,
+so the actual code has moved on from what's described in the original diagnostic reports).
+Do NOT copy-paste blindly. Locate the real, current versions of these files in the repo:
+  - Hermes.EnglishTutorClient/Services/PcmPumpStream.cs
+  - Hermes.EnglishTutorClient/HeadsetTestWindow.xaml.cs
+  - Hermes.EnglishTutorClient/Services/VoiceInputService.cs (context only — do not modify)
+Read them fully first, then adapt the guidance in 01/02/03 to match the actual current method
+signatures, field names, and control flow you find. If something in the reference files
+conflicts with what's actually in the repo (e.g. a method was already renamed, a fix already
+partially applied), prefer the real repo state and adjust accordingly — use your judgment,
+the reference files are a target design, not a literal patch.
+
+Background (why this approach): three prior diagnostic sessions (logs summarized in
+00_STEP_BY_STEP.md) established that:
+  1. The original PcmPumpStream.Length crash is already fixed (Length/Position now use
+     running byte counters — keep this, do not revert).
+  2. Even after removing silence-padding and making StopStt non-blocking, System.Speech's
+     live dictation via SetInputToAudioStream never fires SpeechHypothesized/SpeechRecognized,
+     even when real audio signal is present (peak up to 0.522).
+  3. The UI hangs during the listen session itself (before any Stop click), most likely
+     because a meter/COM call to the Bluetooth audio endpoint is happening on the UI thread
+     and blocking the WPF Dispatcher.
+
+Do this, in order:
+
+STEP 1 — UI unblock (see 01_UpdateMetersUi_fix.md)
+  - Find and remove any COM audio-meter calls (e.g. AudioMeterInformation / any
+    IAudioMeterInformation usage) from the UI thread. The UI should only ever read a plain
+    numeric field that the background capture thread updates — never touch COM objects
+    directly from a Dispatcher-bound callback.
+  - Throttle any per-callback UI TextBox/log appends (e.g. peak logging) to at most once
+    every ~5 seconds. Keep full-rate logging to the file-based AppLog unchanged.
+  - Add a background watchdog (System.Threading.Timer, not DispatcherTimer) that force-stops
+    the mic/STT session if it's been running longer than ~120s without a stop, logging a
+    clear "Watchdog: ..." line when it fires.
+
+STEP 2 — Switch the test window from live SAPI streaming to offline/segmented recognition
+  - Add a new class based on 02_OfflineSttRecognizer.cs (adapt namespace/usings to match the
+    project). It should buffer raw PCM, periodically (every ~1.5s) flush to a temp WAV file,
+    and run a single-shot offline SpeechRecognitionEngine.Recognize() against it — no live
+    stream, no SetInputToAudioStream.
+  - Rewire HeadsetTestWindow per 03_StartSttFromPump_rewrite.md: OnCaptureData writes to the
+    new recognizer instead of PcmPumpStream; StartStt/StopStt use the new recognizer; keep
+    StopStt non-blocking (no Wait() on the UI thread) as already fixed in the previous pass.
+  - Do not delete PcmPumpStream.cs itself (it may be reused later) — just stop wiring it into
+    the test window's STT input path.
+
+STEP 3 — Build and self-test
+  - Build the whole solution. Fix any compile errors that arise from the rewiring.
+  - Run the app if you're able to in this environment; if you cannot actually launch a WPF
+    app with a live Bluetooth headset in this environment, do as much static/manual code
+    verification as possible (confirm no remaining references to the old live-stream path in
+    the test window, confirm the watchdog and throttling are wired correctly, confirm
+    SegmentRecognized/SegmentRejected/RecognitionError are all handled and logged).
+  - Do NOT modify AudioPolicyConfig.cs, HeadsetAudioClaimer.cs, or MediaFocusClaimer.cs.
+  - Do NOT change the recognizer culture from en-US — leave the existing TODO comment (or add
+    one) noting ru-RU as a follow-up.
+  - Do NOT touch VoiceInputService.cs's live default-device path in this pass.
+
+STEP 4 — Self-report
+  - If everything builds cleanly and you're confident the changes match the intent above,
+    briefly summarize what you changed (file by file) in your final message.
+  - If ANYTHING goes wrong — build errors you couldn't resolve, ambiguity about where a
+    referenced method/field actually lives in the current code, a test you could run that
+    failed, or any place where the real repo state meaningfully diverged from the reference
+    files and you had to make a judgment call — write a markdown report to
+    `EnglishTutorClient_Fix3_Report.md` at the repo root, following the same structure as the
+    three prior diagnostic reports (Вердикт / Факты из лога или билда / Карта методов /
+    Рекомендации), in Russian, so the next diagnostic pass can pick up exactly where you left
+    off. Include exact error messages, file paths, and line numbers where relevant.

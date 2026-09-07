@@ -1,0 +1,1 @@
+Test Play, Stop, reconnect, HFP, A2DP, Google STT.

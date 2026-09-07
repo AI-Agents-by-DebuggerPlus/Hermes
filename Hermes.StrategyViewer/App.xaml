@@ -1,0 +1,51 @@
+<Application x:Class="Hermes.StrategyViewer.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Startup="Application_Startup">
+  <Application.Resources>
+    <SolidColorBrush x:Key="BgBrush" Color="#020617"/>
+    <SolidColorBrush x:Key="CardBrush" Color="#0F172A"/>
+    <SolidColorBrush x:Key="BorderBrushKey" Color="#1E293B"/>
+    <SolidColorBrush x:Key="TextBrush" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="MutedBrush" Color="#94A3B8"/>
+    <SolidColorBrush x:Key="GoldBrush" Color="#FBBF24"/>
+    <SolidColorBrush x:Key="HoverBrush" Color="#383f49"/>
+
+    <Style TargetType="Window">
+      <Setter Property="Background" Value="{StaticResource BgBrush}"/>
+      <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+      <Setter Property="FontFamily" Value="Consolas"/>
+      <Setter Property="FontSize" Value="13"/>
+    </Style>
+
+    <Style x:Key="DarkBtn" TargetType="Button">
+      <Setter Property="Foreground" Value="#EAECEF"/>
+      <Setter Property="Background" Value="#2B3139"/>
+      <Setter Property="BorderBrush" Value="#383f49"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Padding" Value="12,6"/>
+      <Setter Property="Margin" Value="0,0,8,0"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="6" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Bd" Property="Background" Value="#383f49"/>
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="Bd" Property="Background" Value="#252C3B"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </Application.Resources>
+</Application>

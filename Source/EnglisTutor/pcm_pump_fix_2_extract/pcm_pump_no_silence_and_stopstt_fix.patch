@@ -1,0 +1,65 @@
+--- a/Hermes.EnglishTutorClient/Services/PcmPumpStream.cs
++++ b/Hermes.EnglishTutorClient/Services/PcmPumpStream.cs
+@@ public override int Read(byte[] buffer, int offset, int count)
+     {
+-        // OLD: when queue is empty, pad with silence (zeros) so Read never
+-        // returns 0 while capture is "active" — this confuses SAPI's
+-        // endpointing, since it sees speech interleaved with synthetic
+-        // silence frames instead of a clean live stream.
+-        // if (queue is empty) { write zeros; return count; }
++        // Block (with a short timeout) waiting for real WASAPI-captured
++        // bytes. Do NOT synthesize silence frames — only return bytes that
++        // actually came from OnCaptureData/WritePcm. If SignalEnd() has
++        // been called and the queue is drained, return 0 to end the stream
++        // cleanly instead of blocking forever.
++        while (queueIsEmpty && !_ended)
++        {
++            // wait on the producer signal (e.g. ManualResetEventSlim /
++            // SemaphoreSlim already used elsewhere in this class) instead
++            // of writing synthetic zero bytes.
++            _dataAvailable.Wait(TimeSpan.FromMilliseconds(50));
++        }
++        if (queueIsEmpty && _ended)
++        {
++            return 0; // clean EOF, unblocks any waiting reader immediately
++        }
++        // ... existing dequeue-and-copy-to-buffer logic, unchanged ...
+     }
+
++    public void SignalEnd()
++    {
++        _ended = true;
++        _dataAvailable.Set(); // wake any blocked Read() immediately, no Wait() needed elsewhere
++    }
+
+--- a/Hermes.EnglishTutorClient/HeadsetTestWindow.xaml.cs
++++ b/Hermes.EnglishTutorClient/HeadsetTestWindow.xaml.cs
+@@ private void StopStt()
+     {
+-        // OLD: blocks the UI thread waiting for the recognizer/pump to
+-        // finish tearing down.
+-        // _pcmPump.SignalEnd();
+-        // _sttTask.Wait(800);   // <-- deadlock risk: UI thread blocks here
+-        //                       //     while pump.Read() is blocked waiting
+-        //                       //     for data that will never arrive.
+-        // _engine.Dispose();
++        // NEW: never block the UI thread. Signal the pump to end (this
++        // wakes any blocked Read() immediately via the fix above), flip a
++        // state flag for the UI, and let dispose/cleanup happen on a
++        // background task. The UI button click handler returns instantly.
++        _pcmPump?.SignalEnd();
++        _isSttRunning = false; // UI-bound flag, update button state from this
++        Task.Run(() =>
++        {
++            try
++            {
++                _engine?.RecognizeAsyncStop();
++                _engine?.Dispose();
++            }
++            catch (Exception ex)
++            {
++                Log.Error($"StopStt background cleanup failed: {ex}");
++            }
++        });
++        Log.Info("StopMicAsync begin (non-blocking)");
+     }

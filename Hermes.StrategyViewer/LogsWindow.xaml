@@ -1,0 +1,26 @@
+<Window x:Class="Hermes.StrategyViewer.LogsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="StrategyViewer — Logs"
+        Width="880" Height="520"
+        WindowStartupLocation="CenterOwner">
+  <DockPanel Margin="12">
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+      <TextBlock x:Name="PathLabel" Foreground="#848E9C" FontSize="11" VerticalAlignment="Center"/>
+      <Button Style="{StaticResource DarkBtn}" Content="Refresh" Margin="12,0,0,0" Click="Refresh_Click"/>
+      <Button Style="{StaticResource DarkBtn}" Content="Open folder" Click="OpenFolder_Click"/>
+    </StackPanel>
+    <TextBox x:Name="LogBox"
+             IsReadOnly="True"
+             TextWrapping="Wrap"
+             AcceptsReturn="True"
+             VerticalScrollBarVisibility="Auto"
+             HorizontalScrollBarVisibility="Auto"
+             FontFamily="Consolas"
+             FontSize="12"
+             Background="#0B0E11"
+             Foreground="#EAECEF"
+             BorderBrush="#2B3139"
+             CaretBrush="#F8D12F"/>
+  </DockPanel>
+</Window>

@@ -9,6 +9,7 @@
 | Живые данные Futures/HWT (snapshot, bridge) | `live-data.md` |
 | Скриншот графика MT5 / HWT | `howto-chart-screenshot.md` |
 | Рыночный контекст без ордера (цена, позиции) | `howto-market-context.md` |
+| **Список символов MT5 (брокер)** | `howto-mt5-symbols.md` |
 | **Плотности / стенки стакана** | `howto-density.md` ← screener `%LocalAppData%\HermesDensity\` |
 
 Если вопрос про **плотности / liquidity walls / отскок от стенки** — сразу `howto-density.md` (и snapshot), не тащи весь TradingModeReport.

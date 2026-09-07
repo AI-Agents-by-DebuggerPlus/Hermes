@@ -375,6 +375,8 @@ Hermes.EnglishLearning/Installer/output/
 Hermes.EnglishLearning/Installer/tools/
 # English Learning XP (WinXP client)
 Hermes.EnglishLearning.Xp/**/settings.json
+Hermes.RemoteTerminal.Xp/**/settings.json
+Hermes.RemoteTerminal/**/settings.json
 Hermes.EnglishLearning.Xp/**/logs/
 Hermes.EnglishLearning.Xp/**/lessons/
 Hermes.EnglishLearning.Xp/**/tts-cache/

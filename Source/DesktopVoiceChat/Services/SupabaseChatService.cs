@@ -144,7 +144,8 @@ public class SupabaseChatService
     public async Task<Message?> SendMessageAsync(
         string senderName,
         string content,
-        DateTimeOffset clientCreatedAt)
+        DateTimeOffset clientCreatedAt,
+        string? recipientName = null)
     {
         EnsureConnected();
 
@@ -161,6 +162,7 @@ public class SupabaseChatService
         {
             SenderId = userId,
             SenderName = senderName,
+            RecipientName = recipientName?.Trim() ?? string.Empty,
             Content = content,
             CreatedAt = clientCreatedAt,
         });

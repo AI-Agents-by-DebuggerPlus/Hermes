@@ -1,0 +1,24 @@
+---
+description: Agent Workspaces vs product Projects/ folders under HermesProjects
+alwaysApply: true
+---
+
+# HermesProjects layout
+
+`D:\Programming\AI_Agents\HermesProjects\` holds **Agent Workspaces** only (one folder per chat agent).
+
+## Do
+
+- Put product/app code under: `HermesProjects/<AgentWorkspace>/Projects/<ProductName>/`
+- Create `Projects/` inside the workspace that owns the work
+
+## Don't
+
+- Create product apps as siblings under `HermesProjects\<ProductName>`
+- Treat HermesProjects root as a general projects dump
+
+## ProjectManager
+
+- Registers initiatives in PM Dashboard; does not implement by default
+- Relocates misplaced products **only** when the user explicitly asks (see `HermesProjects/ProjectManager/hermes/prompts/migrate-projects-layout.md`)
+- Do not move `KindleConverter` unless the user requests it in ProjectManager chat

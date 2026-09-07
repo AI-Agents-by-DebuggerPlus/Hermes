@@ -1,0 +1,126 @@
+<Window x:Class="Hermes.StrategyViewer.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:Hermes.StrategyViewer.ViewModels"
+        Title="Hermes StrategyViewer"
+        Width="980" Height="760"
+        MinWidth="860" MinHeight="640"
+        WindowStartupLocation="CenterScreen">
+  <Window.Resources>
+    <DataTemplate DataType="{x:Type vm:ScenarioCardViewModel}">
+      <Border Background="#B30F172A" BorderBrush="{Binding BorderBrush}" BorderThickness="2"
+              CornerRadius="12" Padding="16" Margin="0,0,0,12">
+        <StackPanel>
+          <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="Bold"
+                     Foreground="{Binding AccentBrush}" Margin="0,0,0,4"/>
+          <TextBlock Text="{Binding Subtitle}" Foreground="#94A3B8" FontSize="12" Margin="0,0,0,10"/>
+          <ItemsControl ItemsSource="{Binding Conditions}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="{x:Type vm:ConditionRowViewModel}">
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                  <TextBlock Text="{Binding StatusGlyph}" Foreground="{Binding ForegroundBrush}" Width="16"/>
+                  <TextBlock Text="{Binding Label}" Foreground="#CBD5E1" TextWrapping="Wrap"/>
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <Border BorderBrush="#1E293B" BorderThickness="0,1,0,0" Margin="0,10,0,0" Padding="0,8,0,0">
+            <StackPanel>
+              <DockPanel Margin="0,0,0,4">
+                <TextBlock DockPanel.Dock="Left" Text="Take Profit:" Foreground="#94A3B8" FontSize="12"/>
+                <TextBlock Text="{Binding TakeProfitText}" Foreground="#34D399" FontSize="12"
+                           HorizontalAlignment="Right"/>
+              </DockPanel>
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Left" Text="Stop Loss:" Foreground="#94A3B8" FontSize="12"/>
+                <TextBlock Text="{Binding StopLossText}" Foreground="#E2E8F0" FontSize="12"
+                           HorizontalAlignment="Right"/>
+              </DockPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </Border>
+    </DataTemplate>
+  </Window.Resources>
+
+  <DockPanel Margin="20">
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,12">
+      <Button Style="{StaticResource DarkBtn}" Content="Open JSON…" Click="OpenJson_Click"/>
+      <Button Style="{StaticResource DarkBtn}" Content="Refresh" Click="Refresh_Click"/>
+      <Button Style="{StaticResource DarkBtn}" Content="Logs" Click="Logs_Click"/>
+      <TextBlock VerticalAlignment="Center" Foreground="#848E9C" Text="{Binding StatusText}" Margin="8,0,0,0"/>
+    </StackPanel>
+
+    <Border DockPanel.Dock="Bottom" BorderBrush="#FB7185" BorderThickness="1" Padding="8" Margin="0,12,0,0">
+      <TextBlock Text="{Binding Disclaimer}" Foreground="#FB7185"
+                 FontSize="11" TextWrapping="Wrap" TextAlignment="Center"/>
+    </Border>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+      <StackPanel MaxWidth="920">
+        <Border BorderBrush="#FBBF24" BorderThickness="4,0,0,0" Padding="16,0,0,0" Margin="0,0,0,20">
+          <StackPanel>
+            <TextBlock Text="{Binding Title}" FontSize="26" FontWeight="Bold" Foreground="#FBBF24"/>
+            <TextBlock Text="{Binding HeaderSub}" Foreground="#94A3B8" FontSize="12" Margin="0,4,0,0"/>
+            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+              <TextBlock Text="{Binding LivePriceText}" FontSize="32" FontWeight="Bold" Foreground="#FBBF24"/>
+              <TextBlock Text="{Binding ChangeText}" Foreground="#34D399" FontSize="14"
+                         VerticalAlignment="Bottom" Margin="12,0,0,6"/>
+            </StackPanel>
+            <TextBlock Text="{Binding SourceText}" Foreground="#64748B" FontSize="11" Margin="0,6,0,0"/>
+          </StackPanel>
+        </Border>
+
+        <ItemsControl ItemsSource="{Binding Scenarios}" Margin="0,0,0,8">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <UniformGrid Columns="2"/>
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemContainerStyle>
+            <Style TargetType="ContentPresenter">
+              <Setter Property="Margin" Value="0,0,6,0"/>
+            </Style>
+          </ItemsControl.ItemContainerStyle>
+        </ItemsControl>
+
+        <Grid Margin="0,0,0,12">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="12"/>
+            <ColumnDefinition Width="*"/>
+          </Grid.ColumnDefinitions>
+
+          <Border Grid.Column="0" Background="#B30F172A" BorderBrush="#1E293B" BorderThickness="1"
+                  CornerRadius="12" Padding="16">
+            <StackPanel>
+              <TextBlock Text="● РИСК-МЕНЕДЖМЕНТ" Foreground="#FBBF24" FontWeight="Bold" Margin="0,0,0,10"/>
+              <ItemsControl ItemsSource="{Binding RiskNotes}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding StringFormat=• {0}}" Foreground="#94A3B8" FontSize="12" Margin="0,0,0,4"/>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <TextBlock Margin="0,10,0,4" Foreground="#94A3B8" FontSize="11"
+                         Text="{Binding VolatilityLabel, StringFormat=Уровень волатильности: {0}}"/>
+              <ProgressBar Value="{Binding VolatilityFill, Mode=OneWay}" Maximum="1" Height="4"
+                           Background="#1E293B" Foreground="#FBBF24" BorderThickness="0"/>
+            </StackPanel>
+          </Border>
+
+          <Border Grid.Column="2" Background="#B30F172A" BorderBrush="#1E293B" BorderThickness="1"
+                  CornerRadius="12" Padding="16">
+            <StackPanel>
+              <TextBlock Text="● ТЕХНИЧЕСКИЙ ФОН" Foreground="#FB7185" FontWeight="Bold" Margin="0,0,0,10"/>
+              <TextBlock Text="{Binding TrendText, StringFormat=• Trend: {0}}" Foreground="#94A3B8" FontSize="12" Margin="0,0,0,4"/>
+              <TextBlock Text="{Binding RsiText, StringFormat=• {0}}" Foreground="#94A3B8" FontSize="12" Margin="0,0,0,4"/>
+              <TextBlock Text="{Binding StochText, StringFormat=• {0}}" Foreground="#94A3B8" FontSize="12" Margin="0,0,0,8"/>
+              <TextBlock Text="{Binding WarningText}" Foreground="#FB7185" FontSize="12" FontWeight="SemiBold"/>
+            </StackPanel>
+          </Border>
+        </Grid>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

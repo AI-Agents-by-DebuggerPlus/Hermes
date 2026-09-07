@@ -1,0 +1,88 @@
+<Window x:Class="Hermes.Wpf.Views.TradeSignalApprovalWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Trade signal"
+        Width="520"
+        Height="520"
+        MinWidth="440"
+        MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        Background="#0B0E11"
+        Foreground="#EAECEF"
+        FontFamily="Segoe UI">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="8"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="TitleText" FontSize="16" FontWeight="SemiBold" Foreground="#F8D12F"/>
+
+        <Border Grid.Row="2" Background="#181A20" BorderBrush="#2B3139" BorderThickness="1" Padding="12" CornerRadius="4">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <TextBlock Text="Symbol" Foreground="#848E9C" FontSize="11"/>
+                    <TextBlock x:Name="SymbolText" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                            <TextBlock Text="Side" Foreground="#848E9C" FontSize="11"/>
+                            <TextBlock x:Name="SideText" Margin="0,0,0,8"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Order type" Foreground="#848E9C" FontSize="11"/>
+                            <TextBlock x:Name="OrderTypeText" Margin="0,0,0,8"/>
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="Entry" Foreground="#848E9C" FontSize="11"/>
+                    <TextBlock x:Name="EntryText" Margin="0,0,0,8"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                            <TextBlock Text="Stop Loss" Foreground="#848E9C" FontSize="11"/>
+                            <TextBlock x:Name="SlText" Foreground="#F44336"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                            <TextBlock Text="Take Profit" Foreground="#848E9C" FontSize="11"/>
+                            <TextBlock x:Name="TpText" Foreground="#2196F3"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Lot" Foreground="#848E9C" FontSize="11"/>
+                            <TextBlock x:Name="LotText"/>
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="Timeframe" Foreground="#848E9C" FontSize="11" Margin="0,8,0,0"/>
+                    <TextBlock x:Name="TimeframeText" Margin="0,0,0,8"/>
+                    <TextBlock Text="Summary" Foreground="#848E9C" FontSize="11"/>
+                    <TextBlock x:Name="SummaryText" TextWrapping="Wrap"/>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <TextBlock x:Name="WarningText" Grid.Row="3" Margin="0,10,0,0"
+                   Foreground="#F0B90B" TextWrapping="Wrap" FontSize="12"/>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button x:Name="AddWhitelistBtn" Width="190" Height="32" Margin="0,0,8,0"
+                    Content="Add symbol to whitelist"
+                    Background="#252C3B" Foreground="#F8D12F" BorderBrush="#383f49"
+                    Visibility="Collapsed" Click="AddWhitelist_OnClick"/>
+            <Button Width="100" Height="32" Margin="0,0,8,0" Content="Cancel"
+                    Background="#2B3139" Foreground="#EAECEF" BorderBrush="#383f49"
+                    IsCancel="True" Click="Cancel_OnClick"/>
+            <Button x:Name="ApplyBtn" Width="120" Height="32" Content="Apply" IsDefault="True"
+                    Background="#2E7D32" Foreground="#FFFFFF" BorderBrush="#1B5E20"
+                    FontWeight="SemiBold" Click="Apply_OnClick"/>
+        </StackPanel>
+    </Grid>
+</Window>

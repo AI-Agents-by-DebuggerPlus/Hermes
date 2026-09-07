@@ -1,0 +1,13 @@
+{
+  "skill": "trade_signal",
+  "signal_id": "test-xauusd-sell-limit-001",
+  "symbol": "XAUUSD",
+  "side": "sell",
+  "order_type": "limit",
+  "entry": 4490.0,
+  "stop_loss": 4505.0,
+  "take_profit": 4450.0,
+  "lot": 0.01,
+  "timeframe": "H1",
+  "summary": "TEST: Sell Limit on chart symbol XAUUSD (execution smoke test)"
+}

@@ -50,22 +50,32 @@ AndroidChat (**1.0.10+**):
 
 ## Обратный канал: страница → озвучка AndroidChat
 
-При старте урока и при **Next/Previous** `Hermes.EnglishLearning.Xp` INSERT в `messages`:
+При **загрузке урока** (старт / Open MD / урок из Supabase) INSERT:
+
+```text
+{"type":"english_lesson_meta","total_cards":42,"total_screens":14,"title":"…"}
+```
+
+| Поле | Смысл |
+|------|--------|
+| `total_cards` | Число карточек во всём уроке |
+| `total_screens` | Число экранов (страниц) |
+| `type` | `english_lesson_meta` — не озвучивать как TTS |
+
+При смене экрана (и сразу после meta) INSERT bilingual TTS:
+
+```text
+{"en":"heart","ru":"сердце"}
+{"en":"voice","ru":"голос","last":true}
+```
+
+На **последней карточке последнего экрана** добавляется `"last":true` (озвучка `en`/`ru` без изменений; ключ `last` для UI/логики Android).
 
 | Поле | Значение |
 |------|----------|
 | `sender_name` | `EnglishLearning` (`TtsSenderName`) |
 | `recipient_name` | `AndroidChat` (`TtsRecipientName`) |
-| `content` | bilingual TTS (по одной строке JSON на карточку) |
-
-Пример `content`:
-
-```text
-{"en":"heart","ru":"сердце"}
-{"en":"voice","ru":"голос"}
-```
-
-Формат — как в `Docs/SupaBase/Формат_TTS_Android_Assistant.md`. AndroidChat озвучивает входящие `ru`/`en` по порядку.
+| `content` | meta JSON **или** bilingual TTS (по одной строке JSON на карточку) |
 
 ## Урок (без изменений)
 

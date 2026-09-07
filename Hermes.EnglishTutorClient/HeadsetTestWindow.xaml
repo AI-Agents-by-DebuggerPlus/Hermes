@@ -1,0 +1,107 @@
+<Window x:Class="Hermes.EnglishTutorClient.HeadsetTestWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Тест гарнитуры — English Tutor Client"
+        Width="720" Height="640"
+        MinWidth="560" MinHeight="480"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResizeWithGrip"
+        Background="#0B0E11" Foreground="#EAECEF"
+        Loaded="Window_OnLoaded"
+        Closed="Window_OnClosed">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Devices -->
+        <Border Grid.Row="0" Background="#181A20" BorderBrush="#2B3139" BorderThickness="1" Padding="12" Margin="0,0,0,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                    <TextBlock Text="Выход (playback)" FontWeight="SemiBold" Foreground="#F8D12F" Margin="0,0,0,6"/>
+                    <TextBlock x:Name="OutDeviceText" TextWrapping="Wrap" Foreground="#EAECEF" Text="—"/>
+                    <TextBlock x:Name="OutStateText" Margin="0,4,0,0" Foreground="#848E9C" Text=""/>
+                    <ProgressBar x:Name="OutLevelBar" Height="10" Margin="0,8,0,0" Minimum="0" Maximum="1"
+                                 Background="#161B22" BorderBrush="#2B3139" Foreground="#2E7D32"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                    <TextBlock Text="Вход (microphone)" FontWeight="SemiBold" Foreground="#F8D12F" Margin="0,0,0,6"/>
+                    <TextBlock x:Name="InDeviceText" TextWrapping="Wrap" Foreground="#EAECEF" Text="—"/>
+                    <TextBlock x:Name="InStateText" Margin="0,4,0,0" Foreground="#848E9C" Text=""/>
+                    <ProgressBar x:Name="InLevelBar" Height="10" Margin="0,8,0,0" Minimum="0" Maximum="1"
+                                 Background="#161B22" BorderBrush="#2B3139" Foreground="#F0B90B"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- EQ -->
+        <Border Grid.Row="1" Background="#181A20" BorderBrush="#2B3139" BorderThickness="1" Padding="12" Margin="0,0,0,10">
+            <StackPanel>
+                <TextBlock Text="Эквалайзер микрофона (уровень по полосам)" Foreground="#848E9C" Margin="0,0,0,8"/>
+                <UniformGrid x:Name="EqGrid" Rows="1" Columns="16" Height="72"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Play button test -->
+        <Border Grid.Row="2" Background="#181A20" BorderBrush="#2B3139" BorderThickness="1" Padding="12" Margin="0,0,0,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Тест кнопки Play (гарнитура)" FontWeight="SemiBold" Foreground="#F8D12F" Margin="0,0,0,6"/>
+                    <TextBlock x:Name="PlayTestStatusText" TextWrapping="Wrap" Foreground="#EAECEF"
+                               Text="Нажмите «Старт теста Play», затем Play на гарнитуре."/>
+                    <TextBlock x:Name="PlayTestDetailText" Margin="0,4,0,0" Foreground="#848E9C"
+                               Text="SMTC=—  hotkey=—  count=0"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0,0,0">
+                    <Button x:Name="PlayTestBtn" Style="{StaticResource DarkBtn}" Content="▶ Старт теста Play"
+                            Click="PlayTestToggle_OnClick" Margin="0,0,0,8"/>
+                    <TextBlock x:Name="PlayMicIcon" Text="🎤" FontSize="28"
+                               HorizontalAlignment="Center" Margin="0,4,0,2"
+                               ToolTip="Состояние: микрофон ↔ стоп по нажатию Play"/>
+                    <TextBlock x:Name="PlayHitCounterText" Text="Play: 0" FontSize="14" FontWeight="SemiBold"
+                               Foreground="#F8D12F" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                    <Ellipse x:Name="PlayTestDot" Width="14" Height="14" Fill="#848E9C"
+                             HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Controls -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,10">
+            <Button x:Name="ToneBtn" Style="{StaticResource DarkBtn}" Content="▶ Тест динамика" Click="PlayTone_OnClick"
+                    ToolTip="Синус 440 Hz — повторное нажатие останавливает"/>
+            <Button x:Name="MicBtn" Style="{StaticResource DarkBtn}" Content="● Старт mic + STT" Click="MicToggle_OnClick"/>
+            <Button Style="{StaticResource DarkBtn}" Content="Обновить устройства" Click="RefreshDevices_OnClick"/>
+            <Button Style="{StaticResource DarkBtn}" Content="Очистить лог" Click="ClearLog_OnClick" Margin="0"/>
+        </StackPanel>
+
+        <!-- STT log -->
+        <Border Grid.Row="4" Background="#161B22" BorderBrush="#2B3139" BorderThickness="1" Padding="8">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="Распознавание / Play-лог" Foreground="#F8D12F" Margin="0,0,0,6"/>
+                <TextBox x:Name="SttLogBox"
+                         IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         FontFamily="Consolas" FontSize="12"
+                         Background="#0B0E11" Foreground="#EAECEF"
+                         BorderThickness="0" CaretBrush="#EAECEF"/>
+            </DockPanel>
+        </Border>
+
+        <TextBlock Grid.Row="5" Margin="0,8,0,0" Foreground="#848E9C" TextWrapping="Wrap"
+                   Text="Play с Pixel Buds обычно идёт через SMTC (AVRCP), не как клавиша. Пока тест Play активен — главное окно не перехватывает Play."/>
+    </Grid>
+</Window>

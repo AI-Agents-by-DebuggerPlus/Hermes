@@ -8,43 +8,43 @@ using Hermes.BinanceDemoFuturesTerminal.Models;
 namespace Hermes.BinanceDemoFuturesTerminal.Services;
 
 public sealed class BinanceApiService
-{
-    private const string BaseUrl = "https://demo-fapi.binance.com";
-    private readonly HttpClient _httpClient;
+    {
+        private const string BaseUrl = "https://demo-fapi.binance.com";
+        private readonly HttpClient _httpClient;
     private readonly Action<string>? _logger;
 
     public string ApiKey { get; set; } = string.Empty;
     public string SecretKey { get; set; } = string.Empty;
 
     public BinanceApiService(Action<string>? logger = null)
-    {
-        _httpClient = new HttpClient();
-        _httpClient.DefaultRequestHeaders.Add("User-Agent", "HermesBinanceDemoFuturesTerminal/1.0");
-        _logger = logger;
-    }
+        {
+            _httpClient = new HttpClient();
+            _httpClient.DefaultRequestHeaders.Add("User-Agent", "HermesBinanceDemoFuturesTerminal/1.0");
+            _logger = logger;
+        }
 
     private void Log(string message) =>
-        _logger?.Invoke($"[REST] {DateTime.Now:HH:mm:ss.fff} | {message}");
+            _logger?.Invoke($"[REST] {DateTime.Now:HH:mm:ss.fff} | {message}");
 
-    public async Task<List<SymbolInfo>> GetExchangeInfoAsync()
-    {
-        Log("GET /fapi/v1/exchangeInfo");
-        try
+        public async Task<List<SymbolInfo>> GetExchangeInfoAsync()
         {
+        Log("GET /fapi/v1/exchangeInfo");
+            try
+            {
             var response = await _httpClient.GetAsync($"{BaseUrl}/fapi/v1/exchangeInfo").ConfigureAwait(false);
             var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
-            {
-                Log($"Ошибка API: {response.StatusCode} - {content}");
+                if (!response.IsSuccessStatusCode)
+                {
+                    Log($"Ошибка API: {response.StatusCode} - {content}");
                 return [];
             }
 
             var result = JsonSerializer.Deserialize<ExchangeInfoResponse>(content);
             Log($"Загружено {result?.Symbols?.Count ?? 0} контрактов");
             return result?.Symbols ?? [];
-        }
-        catch (Exception ex)
-        {
+            }
+            catch (Exception ex)
+            {
             Log($"GetExchangeInfo: {ex.Message}");
             return [];
         }
@@ -59,29 +59,29 @@ public sealed class BinanceApiService
                 .GetAsync($"{BaseUrl}/fapi/v1/klines?symbol={symbol}&interval={interval}&limit={limit}")
                 .ConfigureAwait(false);
             var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
-            {
+                if (!response.IsSuccessStatusCode)
+                {
                 Log($"Ошибка klines: {response.StatusCode} - {content}");
                 return [];
-            }
+                }
 
-            var rawKlines = JsonSerializer.Deserialize<List<List<JsonElement>>>(content);
-            var candles = new List<Candle>();
+                var rawKlines = JsonSerializer.Deserialize<List<List<JsonElement>>>(content);
+                var candles = new List<Candle>();
             if (rawKlines is null)
-            {
+                 {
                 return candles;
             }
 
-            foreach (var item in rawKlines)
-            {
+                    foreach (var item in rawKlines)
+                    {
                 if (item.Count < 7)
-                {
+                        {
                     continue;
                 }
 
-                candles.Add(new Candle
-                {
-                    OpenTime = DateTimeOffset.FromUnixTimeMilliseconds(item[0].GetInt64()).DateTime.ToLocalTime(),
+                            candles.Add(new Candle
+                            {
+                                OpenTime = DateTimeOffset.FromUnixTimeMilliseconds(item[0].GetInt64()).DateTime.ToLocalTime(),
                     Open = double.Parse(item[1].GetString()!, CultureInfo.InvariantCulture),
                     High = double.Parse(item[2].GetString()!, CultureInfo.InvariantCulture),
                     Low = double.Parse(item[3].GetString()!, CultureInfo.InvariantCulture),
@@ -91,10 +91,10 @@ public sealed class BinanceApiService
                 });
             }
 
-            return candles;
-        }
-        catch (Exception ex)
-        {
+                return candles;
+            }
+            catch (Exception ex)
+            {
             Log($"GetKlines: {ex.Message}");
             return [];
         }
@@ -125,9 +125,9 @@ public sealed class BinanceApiService
     }
 
     public async Task<List<BalanceModel>> GetBalancesAsync()
-    {
-        if (string.IsNullOrEmpty(ApiKey) || string.IsNullOrEmpty(SecretKey))
         {
+            if (string.IsNullOrEmpty(ApiKey) || string.IsNullOrEmpty(SecretKey))
+            {
             Log("API-ключи не установлены");
             return [];
         }
@@ -137,17 +137,17 @@ public sealed class BinanceApiService
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Add("X-MBX-APIKEY", ApiKey);
+                    request.Headers.Add("X-MBX-APIKEY", ApiKey);
             var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
             var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
-            {
+                    if (!response.IsSuccessStatusCode)
+                    {
                 Log($"Ошибка account: {response.StatusCode} - {content}");
                 return [];
-            }
+                    }
 
-            var accountInfo = JsonSerializer.Deserialize<AccountInfoResponse>(content);
-            var balances = new List<BalanceModel>();
+                    var accountInfo = JsonSerializer.Deserialize<AccountInfoResponse>(content);
+                    var balances = new List<BalanceModel>();
             foreach (var raw in accountInfo?.Assets ?? [])
             {
                 var wallet = double.Parse(raw.WalletBalance, CultureInfo.InvariantCulture);
@@ -157,9 +157,9 @@ public sealed class BinanceApiService
                     continue;
                 }
 
-                balances.Add(new BalanceModel
-                {
-                    Asset = raw.Asset,
+                                balances.Add(new BalanceModel
+                                {
+                                    Asset = raw.Asset,
                     Free = available,
                     Locked = Math.Max(0, wallet - available),
                 });
@@ -241,8 +241,8 @@ public sealed class BinanceApiService
             }
 
             return positions;
-        }
-        catch (Exception ex)
+            }
+            catch (Exception ex)
         {
             Log($"GetPositions: {ex.Message}");
             return [];
@@ -384,14 +384,14 @@ public sealed class BinanceApiService
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             if (!string.IsNullOrEmpty(ApiKey))
-            {
-                request.Headers.Add("X-MBX-APIKEY", ApiKey);
+                {
+                    request.Headers.Add("X-MBX-APIKEY", ApiKey);
             }
 
             var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
             var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
-            {
+                    if (!response.IsSuccessStatusCode)
+                    {
                 Log($"GetLeverageBrackets error: {content}");
                 return [];
             }
@@ -491,8 +491,8 @@ public sealed class BinanceApiService
         string workingType = "CONTRACT_PRICE",
         string timeInForce = "GTC",
         bool reduceOnly = false)
-    {
-        if (string.IsNullOrEmpty(ApiKey) || string.IsNullOrEmpty(SecretKey))
+        {
+            if (string.IsNullOrEmpty(ApiKey) || string.IsNullOrEmpty(SecretKey))
         {
             throw new InvalidOperationException("API credentials are not set.");
         }
@@ -721,18 +721,18 @@ public sealed class BinanceApiService
         var signature = CryptoHelper.GenerateSignature(query, SecretKey);
         Log($"DELETE /fapi/v1/order id={orderId}");
         using var request = new HttpRequestMessage(HttpMethod.Delete, $"{BaseUrl}/fapi/v1/order");
-        request.Headers.Add("X-MBX-APIKEY", ApiKey);
-        request.Content = new StringContent($"{query}&signature={signature}", Encoding.UTF8, "application/x-www-form-urlencoded");
+                    request.Headers.Add("X-MBX-APIKEY", ApiKey);
+                    request.Content = new StringContent($"{query}&signature={signature}", Encoding.UTF8, "application/x-www-form-urlencoded");
         var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
         var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode)
-        {
+                    if (!response.IsSuccessStatusCode)
+                    {
             Log($"CancelOrder error: {content}");
-            return null;
-        }
+                        return null;
+                    }
 
-        return JsonSerializer.Deserialize<BinanceOrder>(content);
-    }
+                    return JsonSerializer.Deserialize<BinanceOrder>(content);
+                }
 
     public async Task<List<BinanceOrder>> GetOpenOrdersAsync(string? symbol = null)
     {
@@ -759,19 +759,19 @@ public sealed class BinanceApiService
     }
 
     public async Task<List<BinanceOrder>> GetOrderHistoryAsync(string symbol)
-    {
-        if (string.IsNullOrEmpty(ApiKey) || string.IsNullOrEmpty(SecretKey))
         {
+            if (string.IsNullOrEmpty(ApiKey) || string.IsNullOrEmpty(SecretKey))
+            {
             return [];
         }
 
         var url = SignedUrl("/fapi/v1/allOrders", $"symbol={symbol.ToUpperInvariant()}&limit=50&timestamp={{0}}");
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add("X-MBX-APIKEY", ApiKey);
+                    request.Headers.Add("X-MBX-APIKEY", ApiKey);
         var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
         var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode)
-        {
+                    if (!response.IsSuccessStatusCode)
+                    {
             Log($"OrderHistory error: {content}");
             return [];
         }
@@ -845,11 +845,11 @@ public sealed class BinanceApiService
         var url = SignedUrl("/fapi/v1/userTrades", sb.ToString());
         Log($"GET /fapi/v1/userTrades {symbol}");
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add("X-MBX-APIKEY", ApiKey);
+                    request.Headers.Add("X-MBX-APIKEY", ApiKey);
         var response = await _httpClient.SendAsync(request, ct).ConfigureAwait(false);
         var content = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode)
-        {
+                    if (!response.IsSuccessStatusCode)
+                    {
             Log($"UserTrades error: {content}");
             return [];
         }

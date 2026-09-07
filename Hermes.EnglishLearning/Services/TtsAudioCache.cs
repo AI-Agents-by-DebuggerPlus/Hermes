@@ -14,10 +14,10 @@ public static class TtsAudioCache
     {
         var key = (voice ?? string.Empty).Trim() + "|" +
                   (locale ?? string.Empty).Trim() + "|" +
-                  (text ?? string.Empty).Trim();
+                  (text ?? string.Empty).Trim() + "|riff16wav";
         var hash = Sha1Hex(key);
         var safeVoice = SanitizeFilePart(voice);
-        return Path.Combine(CacheDirectory, safeVoice + "_" + hash + ".mp3");
+        return Path.Combine(CacheDirectory, safeVoice + "_" + hash + ".wav");
     }
 
     public static bool TryGetExisting(string voice, string locale, string text, out string path)

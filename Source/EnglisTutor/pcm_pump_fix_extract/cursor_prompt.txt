@@ -1,0 +1,27 @@
+Task: fix STT startup crash in Hermes.EnglishTutorClient caused by PcmPumpStream.
+
+Context:
+- File: Hermes.EnglishTutorClient/Services/PcmPumpStream.cs
+- File: Hermes.EnglishTutorClient/HeadsetTestWindow.xaml.cs (method StartSttFromPump, around line 320-400)
+- Symptom: System.Speech's SpStreamWrapper constructor (called via SpeechRecognitionEngine.SetInputToAudioStream)
+  reads Stream.Length on init. PcmPumpStream.Length currently throws NotSupportedException,
+  which crashes STT startup before RecognizeAsync ever runs.
+
+Do this:
+1. In PcmPumpStream.cs, replace the Length property so it no longer throws. Instead, track a running
+   long counter of total bytes written (_totalBytesWritten), incremented atomically inside WritePcm.
+   Length should return that counter. Keep CanSeek = false.
+2. Also implement Position as a running counter of total bytes read (_totalBytesRead), incremented
+   atomically inside Read after bytes are actually copied to the caller's buffer. Position's setter
+   should still throw NotSupportedException (no seeking).
+3. Ensure Read still blocks or returns 0 appropriately at end-of-stream/disposal, matching existing
+   producer/consumer semantics — do not change the blocking/backpressure logic, only add the
+   Position/Length bookkeeping.
+4. Build the project and confirm StartSttFromPump no longer throws NotSupportedException at
+   SetInputToAudioStream/SpStreamWrapper construction.
+5. After the fix compiles, in HeadsetTestWindow.xaml.cs check that OnCaptureData's peak/EQ meter still
+   works unchanged, and log the peak value on each STT test run so we can diagnose whether audio signal
+   (not just the exception) is actually reaching SAPI.
+
+Do not touch VoiceInputService.cs or AudioPolicyConfig.cs in this pass — this fix is scoped to
+PcmPumpStream and the HeadsetTestWindow test path only.

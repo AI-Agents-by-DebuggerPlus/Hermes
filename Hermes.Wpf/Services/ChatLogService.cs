@@ -21,7 +21,14 @@ public sealed class ChatLogService
         Directory.CreateDirectory(HermesLogPaths.ChatLogsRoot);
     }
 
-    public string CurrentChatLogPath => _lastChatLogPath ?? "(no chat logged yet)";
+    public void ClearProjectCache(string? projectName)
+    {
+        if (string.IsNullOrWhiteSpace(projectName))
+            return;
+
+        var key = HermesLogPaths.SanitizeProjectFolderName(projectName);
+        _chatFileByProject.TryRemove(key, out _);
+    }
 
     public string GetChatLogPath(string projectName) =>
         _chatFileByProject.GetOrAdd(

@@ -17,6 +17,32 @@ public sealed class ProjectAgentsBootstrapService
     private const string AndroidChatSectionMarker = "## Supabase → AndroidChat";
     private const string LegacyAndroidTtsSectionMarker = "## Supabase → Android TTS";
     private const string VoiceProtocolMarker = "[Voice]";
+    private const string WorkspaceProjectsMarker = "## КРИТИЧНО: куда класть продукты";
+
+    private const string WorkspaceProjectsSection = """
+
+        ## КРИТИЧНО: куда класть продукты
+
+        `D:\Programming\AI_Agents\HermesProjects\` — **только** папки Agent Workspaces (чаты агентов). **Запрещено** создавать там новые продуктовые проекты как соседние папки.
+
+        Код/приложения, которые ты создаёшь, клади **только** сюда:
+
+        `Projects/<ИмяПроекта>/`
+
+        (относительно корня **этого** Agent Workspace). Пример: `Projects/MyApp/README.md`.
+
+        Не создавать `HermesProjects\MyApp` для продукта. Не путать Agent Workspace с продуктом.
+
+        """;
+
+    private const string ProjectsFolderReadme = """
+        # Projects
+
+        Продуктовые проекты **этого** Agent Workspace.
+
+        `HermesProjects\` — только workspaces. Новые приложения — подпапки здесь: `Projects/<Name>/`.
+
+        """;
 
     private const string AndroidChatSectionBody = """
         ## Supabase → AndroidChat
@@ -54,6 +80,7 @@ public sealed class ProjectAgentsBootstrapService
         | `hermes/screenshots/` | PNG скриншоты **этого** проекта (`HERMES_SCREENSHOT_DIR`) |
         | `hermes/credentials.md` | Учётные данные проекта (не коммитить в git) |
         | `AGENTS.md` | Правила работы в этом проекте (этот файл) |
+        | `Projects/` | Продуктовый код **этого** агента (`Projects/<Name>/`) — не в корне HermesProjects |
 
         ### В памяти агента (`~/.hermes/`)
 
@@ -63,7 +90,9 @@ public sealed class ProjectAgentsBootstrapService
         | `skills/` | Переиспользуемые skills (`hermes skills`) с triggers |
 
         **Правило:** данные проекта (конкретные URL, расписание, статус «водоканал») → `hermes/project.md`. Успешный **обобщаемый** приём (навигация, auth, screenshot tool) → memory/skill в `~/.hermes/`. Не дублируй project-specific факты в `MEMORY.md`.
-
+        """
+        + WorkspaceProjectsSection
+        + """
         ## Краткость ответа
 
         - По умолчанию отвечай **2–3 предложениями** по сути текущего вопроса.
@@ -179,6 +208,19 @@ public sealed class ProjectAgentsBootstrapService
 
     private const string TradingEcosystemMarker = "## Trading Analytics — экосистема";
     private const string TradingQaAgentsMarker = "### QA / проверка экосистемы";
+    private const string TradingHtmlVisualizationMarker = "## КРИТИЧНО: HTML / «отобрази визуально в браузере»";
+    private const string TradingHtmlVisualizationSection = """
+
+        ## КРИТИЧНО: HTML / «отобрази визуально в браузере»
+
+        Если пользователь просит **визуализацию**, **показать в браузере** или ты **только что создал** `*.html`:
+
+        1. Пиши файл под `/mnt/d/.../Trading Analytics/` — предпочтительно `hermes/screenshots/` (или `user_files/`).
+        2. **В том же ходе** после `write_file` — skill **`open-local-artifact`** (Chrome/Edge + путь в кавычках).
+        3. **Запрещено** заканчивать ответ «откройте файл сами» без вызова skill.
+        4. Триггеры: «отобрази визуально», «покажи в браузере», «visualize in browser».
+
+        """;
     private const string TradingEcosystemAgentsSection = """
 
         ## Trading Analytics — экосистема
@@ -223,7 +265,15 @@ public sealed class ProjectAgentsBootstrapService
 
         EnsureProjectLayout(root);
         EnsureAgentsFile(root);
+        EnsureWorkspaceProjectsFolder(root);
         EnsureTradingAnalyticsEcosystem(root);
+    }
+
+    private void EnsureWorkspaceProjectsFolder(string projectRoot)
+    {
+        var projectsDir = Path.Combine(projectRoot, "Projects");
+        Directory.CreateDirectory(projectsDir);
+        WriteIfMissing(Path.Combine(projectsDir, "README.md"), ProjectsFolderReadme.TrimStart());
     }
 
     private void EnsureTradingAnalyticsEcosystem(string projectRoot)
@@ -341,6 +391,21 @@ public sealed class ProjectAgentsBootstrapService
         }
 
         var text = File.ReadAllText(agentsPath, Utf8);
+        if (!text.Contains(TradingHtmlVisualizationMarker, StringComparison.Ordinal))
+        {
+            const string anchor = "## Приоритет текущего запроса (строго)";
+            if (text.Contains(anchor, StringComparison.Ordinal))
+            {
+                text = text.Replace(
+                    anchor,
+                    TradingHtmlVisualizationSection.TrimEnd() + Environment.NewLine + Environment.NewLine + anchor,
+                    StringComparison.Ordinal);
+                File.WriteAllText(agentsPath, text, Utf8);
+                _log.LogInfo($"[project] patched AGENTS.md (+HTML open-local-artifact) → {agentsPath}");
+                text = File.ReadAllText(agentsPath, Utf8);
+            }
+        }
+
         if (text.Contains(TradingEcosystemMarker, StringComparison.Ordinal))
         {
             if (!text.Contains(TradingQaAgentsMarker, StringComparison.Ordinal))
@@ -509,6 +574,13 @@ public sealed class ProjectAgentsBootstrapService
             text += MemorySeparationAppend;
             patched = true;
             _log.LogInfo($"[project] patched AGENTS.md (+memory separation) → {path}");
+        }
+
+        if (!text.Contains(WorkspaceProjectsMarker, StringComparison.Ordinal))
+        {
+            text += WorkspaceProjectsSection;
+            patched = true;
+            _log.LogInfo($"[project] patched AGENTS.md (+Projects layout) → {path}");
         }
 
         // Upgrade legacy AndroidChat / Android TTS sections → [Voice] protocol (AndroidChat ≥ 1.0.41).

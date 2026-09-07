@@ -22,11 +22,236 @@ public static partial class Mt5TerminalTradeRouter
         "sell_market",
         "close_all",
         "close_slot",
+        "screenshot",
+        "refresh",
+        "place_pending",
+        "list_symbols",
         UnsupportedAction
     };
 
     public static bool IsMt5TerminalProject(string? projectName) =>
         string.Equals((projectName ?? string.Empty).Trim(), "Mt5Terminal", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Chart screenshot request (HWT/MT5), not desktop/browser capture.
+    /// </summary>
+    public static bool LooksLikeChartScreenshotRequest(string? userMessage)
+    {
+        var t = (userMessage ?? string.Empty).Trim().ToLowerInvariant();
+        if (t.Length == 0)
+        {
+            return false;
+        }
+
+        // Exact / short intents
+        if (t is "скриншот" or "screenshot" or "снимок" or "снимок графика" or "chart screenshot"
+            or "screeshot" or "screnshot" or "screenshoot")
+        {
+            return true;
+        }
+
+        if (t.Contains("скриншот", StringComparison.Ordinal)
+            || t.Contains("screenshot", StringComparison.Ordinal)
+            || t.Contains("снимок графика", StringComparison.Ordinal)
+            || t.Contains("screen shot", StringComparison.Ordinal)
+            || LooksLikeScreenshotTypo(t))
+        {
+            // Avoid remapping status questions that only mention the word in passing.
+            if (t.Contains("позиц", StringComparison.Ordinal)
+                || t.Contains("статус", StringComparison.Ordinal)
+                || t.Contains("баланс", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>Common EN typos: screeshot, screnShot, screenshoot, …</summary>
+    private static bool LooksLikeScreenshotTypo(string t)
+    {
+        // Strip spaces/punctuation for short one-word intents from Android/STT.
+        var compact = ScreenshotTypoCompactRegex().Replace(t, string.Empty);
+        if (compact.Length is < 8 or > 16)
+        {
+            return false;
+        }
+
+        // scr…shot / skr…shot (missing/extra letters between)
+        return ScreenshotTypoTokenRegex().IsMatch(compact);
+    }
+
+    /// <summary>Push HWT status to RemoteTerminal.</summary>
+    public static bool LooksLikeRefreshRequest(string? userMessage)
+    {
+        var t = (userMessage ?? string.Empty).Trim().ToLowerInvariant();
+        if (t.Length == 0)
+        {
+            return false;
+        }
+
+        if (t is "refresh" or "обновить" or "обнови" or "refresh terminal" or "обновить терминал"
+            or "обнови remoteterminal" or "обновить remoteterminal")
+        {
+            return true;
+        }
+
+        return t.Equals("refresh", StringComparison.OrdinalIgnoreCase)
+               || (t.Contains("refresh", StringComparison.Ordinal)
+                   && !t.Contains("скрин", StringComparison.Ordinal))
+               || (t.Contains("обнов", StringComparison.Ordinal)
+                   && t.Contains("remoteterminal", StringComparison.Ordinal));
+    }
+
+    /// <summary>Status / balance / positions text request → snapshot (not screenshot).</summary>
+    public static bool LooksLikeStatusOrBalanceRequest(string? userMessage)
+    {
+        var t = (userMessage ?? string.Empty).Trim().ToLowerInvariant();
+        if (t.Length == 0 || LooksLikeChartScreenshotRequest(t))
+        {
+            return false;
+        }
+
+        if (t is "статус" or "баланс" or "позиции" or "status" or "balance" or "snapshot")
+        {
+            return true;
+        }
+
+        return t.Contains("баланс", StringComparison.Ordinal)
+               || t.Contains("счёт", StringComparison.Ordinal)
+               || t.Contains("счет", StringComparison.Ordinal)
+               || t.Contains("позици", StringComparison.Ordinal)
+               || LooksLikePriceOnlyRequest(t)
+               || (t.Contains("статус", StringComparison.Ordinal)
+                   && (t.Contains("терминал", StringComparison.Ordinal) || t.Contains("hwt", StringComparison.Ordinal)));
+    }
+
+    /// <summary>Ask for active chart quote only (bid/ask), not full status.</summary>
+    public static bool LooksLikePriceOnlyRequest(string? userMessage)
+    {
+        var t = (userMessage ?? string.Empty).Trim().ToLowerInvariant();
+        if (t.Length == 0 || LooksLikeChartScreenshotRequest(t) || LooksLikeBalanceOnlyRequest(t))
+        {
+            return false;
+        }
+
+        if (t is "цена" or "цена?" or "price" or "price?" or "котировка" or "bid" or "ask"
+            or "цена графика" or "цена графика?" or "текущая цена" or "текущая цена?"
+            or "цена активного инструмента" or "цена активного инструмента?")
+        {
+            return true;
+        }
+
+        // Long form: «Текущая цена инструмента активного графика?»
+        if (t.Contains("цена", StringComparison.Ordinal)
+            && (t.Contains("график", StringComparison.Ordinal)
+                || t.Contains("инструмент", StringComparison.Ordinal)
+                || t.Contains("котир", StringComparison.Ordinal)
+                || t.Contains("bid", StringComparison.Ordinal)
+                || t.Contains("ask", StringComparison.Ordinal)))
+        {
+            return true;
+        }
+
+        return t.Contains("текущая цена", StringComparison.Ordinal)
+               || t.Contains("текущую цену", StringComparison.Ordinal);
+    }
+
+    /// <summary>Ask for account balance only (not full terminal status / positions dump).</summary>
+    public static bool LooksLikeBalanceOnlyRequest(string? userMessage)
+    {
+        var t = (userMessage ?? string.Empty).Trim().ToLowerInvariant();
+        if (t.Length == 0 || LooksLikeChartScreenshotRequest(t))
+        {
+            return false;
+        }
+
+        if (t.Contains("позици", StringComparison.Ordinal)
+            || t.Contains("статус", StringComparison.Ordinal)
+            || t.Contains("snapshot", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (t is "баланс" or "balance")
+        {
+            return true;
+        }
+
+        return t.Contains("баланс", StringComparison.Ordinal)
+               || t.Contains("balance", StringComparison.Ordinal)
+               || ((t.Contains("счёт", StringComparison.Ordinal) || t.Contains("счет", StringComparison.Ordinal))
+                   && (t.Contains("какой", StringComparison.Ordinal)
+                       || t.Contains("сколько", StringComparison.Ordinal)
+                       || t.Contains("покажи", StringComparison.Ordinal)
+                       || t.Contains("текущ", StringComparison.Ordinal)));
+    }
+
+    /// <summary>
+    /// Replay last successful chart screenshot to RemoteTerminal (no new ChartScreenShot / no Hermes CLI).
+    /// </summary>
+    public static bool LooksLikeRepeatRequest(string? userMessage)
+    {
+        var t = (userMessage ?? string.Empty).Trim().ToLowerInvariant();
+        if (t.Length == 0)
+        {
+            return false;
+        }
+
+        if (t is "repeat" or "повтор" or "повтори" or "ещё раз" or "еще раз" or "again"
+            or "repeat screenshot" or "повтор скриншота")
+        {
+            return true;
+        }
+
+        return t.StartsWith("повтор", StringComparison.Ordinal)
+               || t.Equals("repeat", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Agents often confuse «скриншот» with <c>snapshot</c> (status JSON). Fix clear chart intents.
+    /// </summary>
+    public static Mt5TerminalRouteCommand CorrectRouteForUserIntent(Mt5TerminalRouteCommand route, string? userMessage)
+    {
+        if (LooksLikeRefreshRequest(userMessage)
+            && !string.Equals(route.Action, "refresh", StringComparison.OrdinalIgnoreCase))
+        {
+            return new Mt5TerminalRouteCommand
+            {
+                Action = "refresh",
+                Id = string.IsNullOrWhiteSpace(route.Id) ? Guid.NewGuid().ToString("N") : route.Id,
+            };
+        }
+
+        if (!LooksLikeChartScreenshotRequest(userMessage))
+        {
+            return route;
+        }
+
+        if (string.Equals(route.Action, "screenshot", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(route.Action, "chart_screenshot", StringComparison.OrdinalIgnoreCase))
+        {
+            return route;
+        }
+
+        // Common mis-route: snapshot / unsupported / wrong action
+        if (string.Equals(route.Action, "snapshot", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(route.Action, UnsupportedAction, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(route.Action, "status", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(route.Action, "get_status", StringComparison.OrdinalIgnoreCase))
+        {
+            return new Mt5TerminalRouteCommand
+            {
+                Action = "screenshot",
+                Id = string.IsNullOrWhiteSpace(route.Id) ? Guid.NewGuid().ToString("N") : route.Id,
+            };
+        }
+
+        return route;
+    }
 
     /// <summary>Extract the last whitelist/unsupported trade-router JSON object from CLI stdout.</summary>
     public static Mt5TerminalRouteCommand? TryParseFromAgentOutput(string? combinedOrDisplayText)
@@ -118,6 +343,23 @@ public static partial class Mt5TerminalTradeRouter
                 {
                     cmd.Value = false;
                 }
+            }
+
+            cmd.Symbol = ReadString(root, "symbol");
+            cmd.PendingOrderType = ReadString(root, "order_type_label") ?? ReadString(root, "pending_type");
+            if (root.TryGetProperty("price", out var priceEl) && priceEl.TryGetDouble(out var price))
+            {
+                cmd.Price = price;
+            }
+
+            if (root.TryGetProperty("stop_loss", out var slEl) && slEl.TryGetDouble(out var sl))
+            {
+                cmd.StopLoss = sl;
+            }
+
+            if (root.TryGetProperty("take_profit", out var tpEl) && tpEl.TryGetDouble(out var tp))
+            {
+                cmd.TakeProfit = tp;
             }
 
             return cmd;
@@ -215,16 +457,28 @@ public static partial class Mt5TerminalTradeRouter
 
     [GeneratedRegex(@"```(?:json)?\s*(\{[\s\S]*?\})\s*```", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex JsonFenceRegex();
+
+    [GeneratedRegex(@"[^a-zа-яё0-9]+", RegexOptions.CultureInvariant)]
+    private static partial Regex ScreenshotTypoCompactRegex();
+
+    // screeshot / screenshot / skrinshot / scrnshot …
+    [GeneratedRegex(@"^(?:scr+|skr+)[een]*s*h*o*t$", RegexOptions.CultureInvariant)]
+    private static partial Regex ScreenshotTypoTokenRegex();
 }
 
 public sealed class Mt5TerminalRouteCommand
 {
     public required string Action { get; init; }
-    public required string Id { get; init; }
+    public required string Id { get; set; }
     public string? Reason { get; init; }
     public int? Slot { get; set; }
     public double? Lot { get; set; }
     public bool? Value { get; set; }
+    public string? Symbol { get; set; }
+    public string? PendingOrderType { get; set; }
+    public double? Price { get; set; }
+    public double? StopLoss { get; set; }
+    public double? TakeProfit { get; set; }
 
     public bool IsUnsupported =>
         string.Equals(Action, Mt5TerminalTradeRouter.UnsupportedAction, StringComparison.OrdinalIgnoreCase);
@@ -250,6 +504,31 @@ public sealed class Mt5TerminalRouteCommand
             if (Value.HasValue)
             {
                 writer.WriteBoolean("value", Value.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(Symbol))
+            {
+                writer.WriteString("symbol", Symbol);
+            }
+
+            if (!string.IsNullOrWhiteSpace(PendingOrderType))
+            {
+                writer.WriteString("order_type_label", PendingOrderType);
+            }
+
+            if (Price.HasValue)
+            {
+                writer.WriteNumber("price", Price.Value);
+            }
+
+            if (StopLoss.HasValue)
+            {
+                writer.WriteNumber("stop_loss", StopLoss.Value);
+            }
+
+            if (TakeProfit.HasValue)
+            {
+                writer.WriteNumber("take_profit", TakeProfit.Value);
             }
 
             writer.WriteEndObject();

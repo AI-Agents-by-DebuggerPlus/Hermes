@@ -9,6 +9,19 @@
 | Клик по ссылке в Hermes.Wpf | `ChatMessageLinkifier` → `Process.Start(url, UseShellExecute=true)` | Браузер по умолчанию Windows (у тебя AVG) |
 | «Открой ссылку» агенту | skill **`open-url-avg`** → `open.sh` → `AVGBrowser.exe` | AVG Secure Browser явно |
 
+## Skill `gdrive-biostack` (Google Drive BioStack)
+
+WSL не видит `G:`. Для файлов в `G:\My Drive\Hermes\BioStack\`:
+
+- skill: `~/.hermes/skills/domain/gdrive-biostack/`
+- в проекте: `HermesProjects/BioStack/hermes/skills/gdrive-biostack/`
+- правила: `AGENTS.md` → секция Google Drive
+
+```bash
+bash ~/.hermes/skills/domain/gdrive-biostack/create-tracker.sh
+bash ~/.hermes/skills/domain/gdrive-biostack/list.sh
+```
+
 ## Skill `open-url-avg`
 
 - В репозитории (зеркало): [`skills/open-url-avg/`](skills/open-url-avg/)

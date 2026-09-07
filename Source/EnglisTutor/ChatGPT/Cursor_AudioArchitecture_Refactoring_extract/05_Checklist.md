@@ -1,0 +1,3 @@
+- Build after every change
+- One logical change per commit
+- Preserve behavior.

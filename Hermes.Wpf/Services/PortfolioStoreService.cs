@@ -34,6 +34,10 @@ public sealed class PortfolioStoreService
         {
             SeedDemo();
         }
+        else
+        {
+            EnsureKindleTracked();
+        }
     }
 
     public event Action? Changed;
@@ -115,9 +119,35 @@ public sealed class PortfolioStoreService
 
     private void SeedDemo()
     {
-        Add("Claude Density Screener", "Идея скринера плотности — см. Docs/ClaudeDensityScreener", PortfolioCategory.Idea, null);
+        Add("Claude Density Screener", "Идея скринера плотности — Docs/ClaudeDensityScreener", PortfolioCategory.Idea, null);
         Add("Hermes Task Scheduler", "Напоминалки агентам в Hermes.Wpf", PortfolioCategory.Current, "Utilities");
         Add("BioStack GDrive skills", "Skills для Google Drive", PortfolioCategory.InDevelopment, "BioStack");
+        Add(
+            "Kindle→PDF converter",
+            "POC начат 2026-09-06: kindle_converter.py (EPUB→PDF + images). Код: HermesProjects/KindleConverter/. AZW3/DRM — отдельно через Calibre/DeDRM. Не отменять.",
+            PortfolioCategory.InDevelopment,
+            "KindleConverter");
+    }
+
+    /// <summary>Не отменять уже начатую разработку — дописать в store если отсутствует.</summary>
+    private void EnsureKindleTracked()
+    {
+        const string title = "Kindle→PDF converter";
+        lock (_gate)
+        {
+            if (_items.Any(i =>
+                    string.Equals(i.Title, title, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(i.LinkedWorkspace, "KindleConverter", StringComparison.OrdinalIgnoreCase)))
+            {
+                return;
+            }
+        }
+
+        Add(
+            title,
+            "POC 2026-09-06: kindle_converter.py в HermesProjects/KindleConverter/. EPUB→PDF. Не отменять.",
+            PortfolioCategory.InDevelopment,
+            "KindleConverter");
     }
 
     private void Load()

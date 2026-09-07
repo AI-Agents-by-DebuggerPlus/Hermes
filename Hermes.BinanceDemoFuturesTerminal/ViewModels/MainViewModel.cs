@@ -859,8 +859,8 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
                 .Where(s => s.Status.Equals("TRADING", StringComparison.OrdinalIgnoreCase)
                             && string.Equals(s.ContractType, "PERPETUAL", StringComparison.OrdinalIgnoreCase)
                             && string.Equals(s.QuoteAsset, "USDT", StringComparison.OrdinalIgnoreCase))
-                .OrderBy(s => s.Symbol)
-                .ToList();
+                                 .OrderBy(s => s.Symbol)
+                                 .ToList();
 
             RunOnUIThread(() =>
             {
@@ -1029,10 +1029,10 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
                 return;
             }
 
-            var newBids = new List<OrderBookItem>();
+                var newBids = new List<OrderBookItem>();
             int bidCount = Math.Min(10, bidLevels.Count);
-            for (int i = 0; i < bidCount; i++)
-            {
+                for (int i = 0; i < bidCount; i++)
+                {
                 double price = double.Parse(bidLevels[i][0], CultureInfo.InvariantCulture);
                 double amount = double.Parse(bidLevels[i][1], CultureInfo.InvariantCulture);
                 if (amount <= 0)
@@ -1040,19 +1040,19 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
                     continue;
                 }
 
-                newBids.Add(new OrderBookItem { Price = price, Amount = amount, Total = price * amount });
-            }
+                    newBids.Add(new OrderBookItem { Price = price, Amount = amount, Total = price * amount });
+                }
 
-            double maxBidTotal = newBids.Any() ? newBids.Max(b => b.Total) : 1;
-            foreach (var b in newBids) b.Percentage = (b.Total / maxBidTotal) * 100;
+                double maxBidTotal = newBids.Any() ? newBids.Max(b => b.Total) : 1;
+                foreach (var b in newBids) b.Percentage = (b.Total / maxBidTotal) * 100;
 
-            Bids.Clear();
-            foreach (var b in newBids) Bids.Add(b);
+                Bids.Clear();
+                foreach (var b in newBids) Bids.Add(b);
 
-            var newAsks = new List<OrderBookItem>();
+                var newAsks = new List<OrderBookItem>();
             int askCount = Math.Min(10, askLevels.Count);
-            for (int i = 0; i < askCount; i++)
-            {
+                for (int i = 0; i < askCount; i++)
+                {
                 double price = double.Parse(askLevels[i][0], CultureInfo.InvariantCulture);
                 double amount = double.Parse(askLevels[i][1], CultureInfo.InvariantCulture);
                 if (amount <= 0)
@@ -1060,24 +1060,24 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
                     continue;
                 }
 
-                newAsks.Add(new OrderBookItem { Price = price, Amount = amount, Total = price * amount });
-            }
+                    newAsks.Add(new OrderBookItem { Price = price, Amount = amount, Total = price * amount });
+                }
 
-            double maxAskTotal = newAsks.Any() ? newAsks.Max(a => a.Total) : 1;
-            foreach (var a in newAsks) a.Percentage = (a.Total / maxAskTotal) * 100;
+                double maxAskTotal = newAsks.Any() ? newAsks.Max(a => a.Total) : 1;
+                foreach (var a in newAsks) a.Percentage = (a.Total / maxAskTotal) * 100;
 
-            Asks.Clear();
-            var sortedAsks = newAsks.OrderByDescending(a => a.Price).ToList();
-            foreach (var a in sortedAsks) Asks.Add(a);
+                Asks.Clear();
+                var sortedAsks = newAsks.OrderByDescending(a => a.Price).ToList();
+                foreach (var a in sortedAsks) Asks.Add(a);
 
             if (Bids.Any() && sortedAsks.Any())
-            {
-                double bestBid = Bids[0].Price;
+                {
+                    double bestBid = Bids[0].Price;
                 double bestAsk = sortedAsks[^1].Price;
-                double spread = bestAsk - bestBid;
+                    double spread = bestAsk - bestBid;
                 double spreadPct = bestAsk > 0 ? (spread / bestAsk) * 100 : 0;
                 SpreadDisplay = $"Спред: {spread:N2} ({spreadPct:F3}%)";
-            }
+                }
         }
 
         private void OnWsTradeReceived(WsTradePayload payload)
@@ -1270,8 +1270,8 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
             }
             finally
             {
-                RunOnUIThread(() =>
-                {
+            RunOnUIThread(() =>
+            {
                     TradeStatsLoading = false;
                     OnPropertyChanged(nameof(TradeStatsStatusText));
                 });
@@ -1722,7 +1722,7 @@ namespace Hermes.BinanceDemoFuturesTerminal.ViewModels
         private void ExecutePercentageQty(object pctParam)
         {
             if (pctParam == null) return;
-
+            
             string pctStr = pctParam.ToString()!.TrimEnd('%');
             if (!double.TryParse(pctStr, NumberStyles.Any, CultureInfo.InvariantCulture, out double percent)) return;
 

@@ -1,22 +1,22 @@
 using System;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
-using Windows.Media;
-using Windows.Media.Playback;
-using WinRTMediaPlayer = Windows.Media.Playback.MediaPlayer;
 
 namespace Hermes.EnglishLearning.Services;
 
 /// <summary>
 /// Claims Windows SMTC so Bluetooth Play targets EnglishLearning.
-/// Uses a muted WinRT MediaPlayer (may appear as a second mixer row at 0%).
+/// WinRT types are loaded only via reflection so Win7 can start without Windows.Media.
 /// </summary>
 public sealed class MediaFocusClaimer : IDisposable
 {
     private readonly Window _window;
-    private WinRTMediaPlayer? _player;
-    private SystemMediaTransportControls? _smtc;
+    private object? _player;
+    private object? _smtc;
+    private EventInfo? _buttonPressedEvent;
+    private Delegate? _buttonPressedHandler;
     private bool _disposed;
 
     public event Action? PlayPauseFromSystem;
@@ -50,12 +50,20 @@ public sealed class MediaFocusClaimer : IDisposable
                 return;
             }
 
-            _smtc.PlaybackStatus = status switch
+            var statusType = _smtc.GetType().Assembly.GetType("Windows.Media.MediaPlaybackStatus");
+            if (statusType == null)
             {
-                TransportStatus.Playing => MediaPlaybackStatus.Playing,
-                TransportStatus.Paused => MediaPlaybackStatus.Paused,
-                _ => MediaPlaybackStatus.Stopped,
+                return;
+            }
+
+            var name = status switch
+            {
+                TransportStatus.Playing => "Playing",
+                TransportStatus.Paused => "Paused",
+                _ => "Stopped",
             };
+            var value = Enum.Parse(statusType, name);
+            _smtc.GetType().GetProperty("PlaybackStatus")?.SetValue(_smtc, value);
         }
         catch (Exception ex)
         {
@@ -94,47 +102,122 @@ public sealed class MediaFocusClaimer : IDisposable
 
     private void TryEnableSmtc()
     {
+        // Win7 (6.1): no WinRT SMTC. Skip before touching WinRT types.
+        if (Environment.OSVersion.Version.Major < 6
+            || (Environment.OSVersion.Version.Major == 6 && Environment.OSVersion.Version.Minor < 2))
+        {
+            AppLog.Info("Media focus: SMTC skipped (Windows 7 — hotkey + foreground only)");
+            return;
+        }
+
         try
         {
-            _player = new WinRTMediaPlayer { Volume = 0 };
-            _player.CommandManager.IsEnabled = false;
-            _smtc = _player.SystemMediaTransportControls;
-            _smtc.IsEnabled = true;
-            _smtc.IsPlayEnabled = true;
-            _smtc.IsPauseEnabled = true;
-            _smtc.IsStopEnabled = false;
-            _smtc.IsNextEnabled = false;
-            _smtc.IsPreviousEnabled = false;
+            var playerType = Type.GetType("Windows.Media.Playback.MediaPlayer, Windows, ContentType=WindowsRuntime")
+                ?? Type.GetType("Windows.Media.Playback.MediaPlayer, Windows.Foundation.UniversalApiContract");
+            if (playerType == null)
+            {
+                AppLog.Warn("Media focus SMTC unavailable (WinRT MediaPlayer type missing)");
+                return;
+            }
 
-            var updater = _smtc.DisplayUpdater;
-            updater.Type = MediaPlaybackType.Music;
-            updater.MusicProperties.Title = "Hermes English Learning";
-            updater.MusicProperties.Artist = "EnglishLearning";
-            updater.Update();
+            _player = Activator.CreateInstance(playerType);
+            if (_player == null)
+            {
+                return;
+            }
 
-            _smtc.ButtonPressed += OnSmtcButtonPressed;
+            playerType.GetProperty("Volume")?.SetValue(_player, 0.0);
+            var cmdMgr = playerType.GetProperty("CommandManager")?.GetValue(_player);
+            cmdMgr?.GetType().GetProperty("IsEnabled")?.SetValue(cmdMgr, false);
+
+            _smtc = playerType.GetProperty("SystemMediaTransportControls")?.GetValue(_player);
+            if (_smtc == null)
+            {
+                AppLog.Warn("Media focus SMTC unavailable (null controls)");
+                DisposePlayerQuiet();
+                return;
+            }
+
+            var smtcType = _smtc.GetType();
+            smtcType.GetProperty("IsEnabled")?.SetValue(_smtc, true);
+            smtcType.GetProperty("IsPlayEnabled")?.SetValue(_smtc, true);
+            smtcType.GetProperty("IsPauseEnabled")?.SetValue(_smtc, true);
+            smtcType.GetProperty("IsStopEnabled")?.SetValue(_smtc, false);
+            smtcType.GetProperty("IsNextEnabled")?.SetValue(_smtc, false);
+            smtcType.GetProperty("IsPreviousEnabled")?.SetValue(_smtc, false);
+
+            var updater = smtcType.GetProperty("DisplayUpdater")?.GetValue(_smtc);
+            if (updater != null)
+            {
+                var musicType = Type.GetType("Windows.Media.MediaPlaybackType, Windows, ContentType=WindowsRuntime")
+                    ?? updater.GetType().Assembly.GetType("Windows.Media.MediaPlaybackType");
+                if (musicType != null)
+                {
+                    updater.GetType().GetProperty("Type")?.SetValue(updater, Enum.Parse(musicType, "Music"));
+                }
+
+                var music = updater.GetType().GetProperty("MusicProperties")?.GetValue(updater);
+                music?.GetType().GetProperty("Title")?.SetValue(music, "Hermes English Learning");
+                music?.GetType().GetProperty("Artist")?.SetValue(music, "EnglishLearning");
+                updater.GetType().GetMethod("Update")?.Invoke(updater, null);
+            }
+
+            _buttonPressedEvent = smtcType.GetEvent("ButtonPressed");
+            if (_buttonPressedEvent != null)
+            {
+                var handlerType = _buttonPressedEvent.EventHandlerType;
+                if (handlerType != null)
+                {
+                    var method = GetType().GetMethod(nameof(OnSmtcButtonPressed), BindingFlags.Instance | BindingFlags.NonPublic);
+                    _buttonPressedHandler = Delegate.CreateDelegate(handlerType, this, method!);
+                    _buttonPressedEvent.AddEventHandler(_smtc, _buttonPressedHandler);
+                }
+            }
+
             AppLog.Info("Media focus: SMTC enabled (muted session for BT Play capture)");
         }
         catch (Exception ex)
         {
             AppLog.Warn("Media focus SMTC unavailable (" + ex.Message + ") — hotkey + foreground only");
-            _player = null;
-            _smtc = null;
+            DisposePlayerQuiet();
         }
     }
 
-    private void OnSmtcButtonPressed(SystemMediaTransportControls sender, SystemMediaTransportControlsButtonPressedEventArgs args)
+    private void OnSmtcButtonPressed(object sender, object args)
     {
-        AppLog.Info("Media focus SMTC button: " + args.Button);
-        if (args.Button == SystemMediaTransportControlsButton.Play
-            || args.Button == SystemMediaTransportControlsButton.Pause)
+        try
         {
-            _window.Dispatcher.BeginInvoke(new Action(() =>
+            var button = args.GetType().GetProperty("Button")?.GetValue(args);
+            AppLog.Info("Media focus SMTC button: " + (button?.ToString() ?? "?"));
+            var name = button?.ToString() ?? string.Empty;
+            if (name.IndexOf("Play", StringComparison.OrdinalIgnoreCase) >= 0
+                || name.IndexOf("Pause", StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                ClaimForeground();
-                PlayPauseFromSystem?.Invoke();
-            }));
+                _window.Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    ClaimForeground();
+                    PlayPauseFromSystem?.Invoke();
+                }));
+            }
         }
+        catch (Exception ex)
+        {
+            AppLog.Warn("SMTC button handler: " + ex.Message);
+        }
+    }
+
+    private void DisposePlayerQuiet()
+    {
+        try
+        {
+            (_player as IDisposable)?.Dispose();
+        }
+        catch
+        {
+        }
+
+        _player = null;
+        _smtc = null;
     }
 
     public void Dispose()
@@ -147,26 +230,20 @@ public sealed class MediaFocusClaimer : IDisposable
         _disposed = true;
         try
         {
-            if (_smtc != null)
+            if (_smtc != null && _buttonPressedEvent != null && _buttonPressedHandler != null)
             {
-                _smtc.ButtonPressed -= OnSmtcButtonPressed;
-                _smtc.IsEnabled = false;
+                _buttonPressedEvent.RemoveEventHandler(_smtc, _buttonPressedHandler);
             }
+
+            _smtc?.GetType().GetProperty("IsEnabled")?.SetValue(_smtc, false);
         }
         catch
         {
         }
 
-        try
-        {
-            _player?.Dispose();
-        }
-        catch
-        {
-        }
-
-        _smtc = null;
-        _player = null;
+        DisposePlayerQuiet();
+        _buttonPressedEvent = null;
+        _buttonPressedHandler = null;
     }
 
     [DllImport("user32.dll")]
