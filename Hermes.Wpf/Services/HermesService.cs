@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using System.Text;
 using Hermes.Wpf.Models;
 
@@ -38,10 +39,11 @@ public sealed class HermesService
             ? string.Empty
             : $" --resume {BashSingleQuotePosixPath(resumeSessionId.Trim())}";
         var tmpPrelude = BuildInlineToolTempPrelude(wslWorkDir);
+        var compactPrelude = BuildMemoryCompactPrelude(wslWorkDir, settings);
         var script = ComposeScript(
             settings,
             wslWorkDir,
-            $"{BuildSystemdUserWaitPrelude()}{tmpPrelude}{ActivationLine(settings)} && {settings.HermesCommand} chat{resume} -q '{sq}' -Q --source wpf");
+            $"{BuildSystemdUserWaitPrelude()}{tmpPrelude}{compactPrelude}{ActivationLine(settings)} && {settings.HermesCommand} chat{resume} -q '{sq}' -Q --source wpf");
 
         MaybeLogDiagnosticScript(settings, script, "chat");
         await EnsureWslReadyAsync(settings).ConfigureAwait(false);
@@ -164,6 +166,72 @@ public sealed class HermesService
         var wp = (wslWorkDir ?? string.Empty).Trim();
         var cdPrefix = string.IsNullOrEmpty(wp) ? string.Empty : $"cd {BashSingleQuotePosixPath(wp)} && ";
         return $"{cdPrefix}{bashTail}";
+    }
+
+    /// <summary>Design §1: compact MEMORY.md before chat if over 85% of the 2200 budget. Never fails the turn.</summary>
+    private string BuildMemoryCompactPrelude(string wslWorkDir, HermesSettings settings)
+    {
+        var script = FindMemoryCompactorScript();
+        if (script is null)
+        {
+            return string.Empty;
+        }
+
+        var wslScript = ToWslPath(script);
+        var project = string.IsNullOrWhiteSpace(wslWorkDir)
+            ? string.Empty
+            : $" --project-root {BashSingleQuotePosixPath(wslWorkDir.Trim())}";
+        var keyExport = string.Empty;
+        var apiKey = (settings.InAppAssistantOpenRouterApiKey ?? string.Empty).Trim();
+        if (apiKey.Length > 0)
+        {
+            keyExport = "export OPENROUTER_API_KEY=" + BashSingleQuotePosixPath(apiKey) + "; ";
+        }
+
+        var model = (settings.InAppAssistantOpenRouterModel ?? string.Empty).Trim();
+        if (model.Length > 0)
+        {
+            keyExport += "export HERMES_COMPACT_MODEL=" + BashSingleQuotePosixPath(model) + "; ";
+        }
+
+        var line =
+            keyExport
+            + "python3 "
+            + BashSingleQuotePosixPath(wslScript)
+            + " --memory-dir \"$HOME/.hermes/memories\""
+            + project
+            + " >/tmp/hermes-memory-compact.log 2>&1 || true; ";
+        return line;
+    }
+
+    private static string? FindMemoryCompactorScript()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            var candidate = Path.Combine(dir.FullName, "scripts", "hermes", "memory_compactor.py");
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            dir = dir.Parent;
+        }
+
+        return null;
+    }
+
+    private static string ToWslPath(string windowsPath)
+    {
+        var normalized = windowsPath.Replace('\\', '/');
+        if (normalized.Length >= 2 && normalized[1] == ':')
+        {
+            var drive = char.ToLowerInvariant(normalized[0]);
+            var rest = normalized[2..].TrimStart('/');
+            return $"/mnt/{drive}/{rest}";
+        }
+
+        return normalized;
     }
 
     /// <summary>

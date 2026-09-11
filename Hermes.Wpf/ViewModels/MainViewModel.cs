@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows;
@@ -100,6 +101,10 @@ public sealed class MainViewModel : BaseViewModel
     private readonly SupabaseRemoteLogBridge _remoteLogBridge;
     private readonly HwtStatusSupabasePublisher _hwtStatusPublisher;
     private readonly CliLearningFollowUpService _cliFollowUp;
+    private readonly CorrectionLogService _correctionLog;
+    private readonly PostSessionReflectionService _postSessionReflection;
+    private readonly SkillsPendingService _skillsPending;
+    private readonly EpisodicMemoryService _episodic;
     private readonly HermesCliSessionStore _cliSessionStore = new();
     private readonly ProjectAgentsBootstrapService _projectAgentsBootstrap;
     private readonly GeneratedSkillCatalogService _generatedSkillCatalog;
@@ -129,6 +134,9 @@ public sealed class MainViewModel : BaseViewModel
     /// <summary>Last HWT chart PNG successfully published to RemoteTerminal (for local repeat).</summary>
     private string? _lastHwtScreenshotPath;
     private bool _isBusy;
+    private int _correctionWindowRemaining;
+    private int _sessionHermesReplyCount;
+    private bool _reflectionInProgress;
     private string _terminalOutput = "Terminal ready.";
     private ConnectionState _currentConnectionState = ConnectionState.Disconnected;
     private string _connectionStatusMessage = "Not checked yet.";
@@ -297,6 +305,13 @@ public sealed class MainViewModel : BaseViewModel
             () => Projects.SelectedProject?.WindowsPath);
         _hwtStatusPublisher.Start();
         _cliFollowUp = new CliLearningFollowUpService(_hermesService, logService, () => Settings);
+        _correctionLog = new CorrectionLogService(logService);
+        _postSessionReflection = new PostSessionReflectionService(logService, _correctionLog);
+        _skillsPending = new SkillsPendingService(logService);
+        _episodic = new EpisodicMemoryService(
+            logService,
+            _skillsPending,
+            () => (Settings.InAppAssistantOpenRouterApiKey, Settings.InAppAssistantOpenRouterModel));
         _chatFontSize = ClampChatFontForUi(Settings.ChatFontSize);
         Settings.ChatFontSize = _chatFontSize;
         Chat = new ChatViewModel();
@@ -461,8 +476,8 @@ public sealed class MainViewModel : BaseViewModel
             _ => !_isBusy);
         SaveExperienceCommand = new RelayCommand(_ => _saveExperienceOpener?.Invoke());
         ResetCliSessionCommand = new RelayCommand(
-            _ => ResetCliSessionForCurrentProject(),
-            _ => CanExecuteProjectCommand());
+            _ => { _ = ResetCliSessionForCurrentProjectAsync(); },
+            _ => CanExecuteProjectCommand() && !_isBusy && !_reflectionInProgress);
         ShowWhatsAppWebWindowCommand = new RelayCommand(_ => ShowWhatsAppWebWindow(), _ => Settings.WhatsAppWebEnabled);
         RestartWhatsAppWebCommand = new RelayCommand(
             async _ => await RestartWhatsAppWebAsync(),
@@ -1276,20 +1291,29 @@ public sealed class MainViewModel : BaseViewModel
         return result;
     }
 
-    private void ResetCliSessionForCurrentProject()
+    private async Task ResetCliSessionForCurrentProjectAsync()
     {
-        if (Projects.SelectedProject is not { Name: var name })
+        if (Projects.SelectedProject is not { } project)
         {
             return;
         }
 
-        ResetCliSessionForProject(name);
-        PostCliSessionResetReply(name);
+        await TryRunPostSessionReflectionAsync(project).ConfigureAwait(true);
+        var sessionId = _cliSessionStore.GetSessionId(project.Name);
+        var batchNote = await _episodic.OnSessionClosedAsync(project.WindowsPath, project.Name, sessionId)
+            .ConfigureAwait(true);
+        ResetCliSessionForProject(project.Name);
+        PostCliSessionResetReply(project.Name);
+        if (!string.IsNullOrWhiteSpace(batchNote))
+        {
+            PostLocalHermesReply(project.Name, batchNote, publishToSupabase: false);
+        }
     }
 
     private void ResetCliSessionForProject(string projectName)
     {
         _cliSessionStore.ClearSessionId(projectName);
+        _sessionHermesReplyCount = 0;
         _logService.LogInfo($"[agent] CLI --resume session cleared for project «{projectName}»");
     }
 
@@ -1299,6 +1323,169 @@ public sealed class MainViewModel : BaseViewModel
             projectName,
             "CLI-сессия Hermes сброшена. Следующее сообщение начнёт новый контекст (без --resume).",
             publishToSupabase: false);
+    }
+
+    /// <summary>Design §2.2 step 3: forced reflection before session clear; skills not applied yet.</summary>
+    private async Task TryRunPostSessionReflectionAsync(HermesProject project)
+    {
+        if (_reflectionInProgress)
+        {
+            return;
+        }
+
+        var sessionId = _cliSessionStore.GetSessionId(project.Name);
+        var corrections = _postSessionReflection.LoadRecent(project.WindowsPath, sessionId);
+        var nontrivial = _sessionHermesReplyCount >= 3;
+        if (!_postSessionReflection.ShouldForceTurn(corrections, nontrivial))
+        {
+            _logService.LogInfo(
+                $"[reflection] skip (corrections={corrections.Count}, replies={_sessionHermesReplyCount})");
+            return;
+        }
+
+        var wslPath = ResolveHermesWslWorkingDirectory(project.WindowsPath);
+        if (string.IsNullOrWhiteSpace(wslPath))
+        {
+            return;
+        }
+
+        _reflectionInProgress = true;
+        _isBusy = true;
+        CommandManager.InvalidateRequerySuggested();
+        try
+        {
+            var prompt = _postSessionReflection.BuildPrompt(corrections);
+            _logService.LogInfo($"[reflection] forced turn corrections={corrections.Count}");
+            SetAgentActivityStatus("reflection checkpoint…");
+
+            var timeout = Math.Clamp(Settings.ChatTimeoutSeconds, 30, 180);
+            var result = await SendHermesChatWithSessionAsync(
+                    project.Name,
+                    prompt,
+                    wslPath,
+                    timeout,
+                    continueCliSession: true)
+                .ConfigureAwait(true);
+
+            var raw = result.EffectiveDisplayText ?? result.CombinedText ?? string.Empty;
+            if (!result.Success)
+            {
+                _postSessionReflection.AppendReflectionLog(
+                    project.WindowsPath,
+                    new
+                    {
+                        ts = DateTime.UtcNow.ToString("o"),
+                        ok = false,
+                        error = result.LastStderrLine ?? $"exit {result.ExitCode}",
+                        corrections = corrections.Count,
+                    });
+                AppendTerminal($"[reflection] CLI failed: {result.LastStderrLine}", isError: true);
+                return;
+            }
+
+            if (!ReflectionOutcomeParser.TryParse(raw, out var outcome))
+            {
+                _postSessionReflection.AppendReflectionLog(
+                    project.WindowsPath,
+                    new
+                    {
+                        ts = DateTime.UtcNow.ToString("o"),
+                        ok = false,
+                        error = "unparsed",
+                        raw = raw.Length > 500 ? raw[..500] : raw,
+                        corrections = corrections.Count,
+                    });
+                PostLocalHermesReply(
+                    project.Name,
+                    "Reflection checkpoint: ответ без валидного JSON (action/none|skill_draft|memory_fact).",
+                    publishToSupabase: false);
+                return;
+            }
+
+            // Step 4: apply skill_draft (auto-approve ×2) / memory_fact; none still accepted.
+            var applied = "logged";
+            var userLine = string.Empty;
+            if (outcome.Action == "none")
+            {
+                if (corrections.Count >= 2 && string.IsNullOrWhiteSpace(outcome.Reason))
+                {
+                    applied = "rejected_none_without_reason";
+                    userLine = "Reflection checkpoint: none rejected (need reason when ≥2 corrections).";
+                }
+                else
+                {
+                    applied = "none_accepted";
+                    userLine = $"Reflection checkpoint: none — {outcome.Reason}";
+                }
+            }
+            else if (outcome.Action is "skill_draft" or "memory_fact")
+            {
+                var (code, message) = _skillsPending.ProcessReflectionOutcome(project.WindowsPath, outcome);
+                applied = code;
+                userLine = $"Reflection checkpoint: {message}";
+            }
+
+            _postSessionReflection.AppendReflectionLog(
+                project.WindowsPath,
+                new
+                {
+                    ts = DateTime.UtcNow.ToString("o"),
+                    ok = true,
+                    action = outcome.Action,
+                    reason = outcome.Reason,
+                    name = outcome.Name,
+                    applied,
+                    corrections = corrections.Count,
+                });
+
+            _episodic.AppendEvent(
+                project.Name,
+                sessionId,
+                "reflection",
+                TruncateForEpisodic($"{outcome.Action}: {outcome.Reason}"),
+                new { action = outcome.Action, name = outcome.Name, applied, corrections = corrections.Count });
+
+            PostLocalHermesReply(
+                project.Name,
+                string.IsNullOrWhiteSpace(userLine) ? $"Reflection checkpoint: {applied}" : userLine,
+                publishToSupabase: false);
+        }
+        catch (Exception ex)
+        {
+            _logService.LogWarn($"[reflection] {ex.Message}");
+            AppendTerminal($"[reflection] {ex.Message}", isError: true);
+        }
+        finally
+        {
+            _reflectionInProgress = false;
+            _isBusy = false;
+            ClearHermesUiActivityTrackers();
+            CommandManager.InvalidateRequerySuggested();
+        }
+    }
+
+    private static readonly Regex ApprovePendingSkillRegex = new(
+        @"^\s*(approve\s+pending\s+skill|approve\s+skill|ок\s+skill|одобри\s+skill|approve\s+skill_draft)\s*$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    private bool TryHandleApprovePendingSkill(HermesProject project, string userText)
+    {
+        if (!ApprovePendingSkillRegex.IsMatch(userText ?? string.Empty))
+        {
+            return false;
+        }
+
+        if (_skillsPending.TryApproveLatestPending(project.WindowsPath, out var message))
+        {
+            PostLocalHermesReply(project.Name, message, publishToSupabase: false);
+            AppendTerminal($"[skills-pending] {message}");
+        }
+        else
+        {
+            PostLocalHermesReply(project.Name, message, publishToSupabase: false);
+        }
+
+        return true;
     }
 
     private async Task ExecutePureCliAgentTurnAsync(string projectName, string userPayload, string wslPath)
@@ -1382,6 +1569,8 @@ public sealed class MainViewModel : BaseViewModel
             displayResponse = schedDisplay;
         }
 
+        displayResponse = TryConsumeNoteCorrectionFromReply(projectName, displayResponse, rawResponse);
+
         Chat.Messages.Add(new ChatMessage { Role = "Hermes", Text = displayResponse });
         _chatLogService.AppendMessage(projectName, "Hermes", displayResponse);
         NotifyHermesReplyArrived(projectName, displayResponse);
@@ -1393,6 +1582,95 @@ public sealed class MainViewModel : BaseViewModel
         {
             await TryOfferTradingAnalyticsSignalApprovalAsync(projectName, tradeSignal).ConfigureAwait(true);
         }
+    }
+
+    private void OpenCorrectionWindowAfterAgentReply()
+    {
+        if (_reflectionInProgress)
+        {
+            return;
+        }
+
+        _correctionWindowRemaining = 2;
+        _sessionHermesReplyCount++;
+    }
+
+    private void TryLogImplicitCorrection(HermesProject project, string userText)
+    {
+        if (_correctionWindowRemaining <= 0)
+        {
+            return;
+        }
+
+        _correctionWindowRemaining--;
+        if (!ImplicitCorrectionDetector.TryDetect(userText, out var what, out var correctedTo, out var actualHint))
+        {
+            return;
+        }
+
+        var session = _cliSessionStore.GetSessionId(project.Name) ?? string.Empty;
+        _correctionLog.Append(
+            project.WindowsPath,
+            new CorrectionLogEntry
+            {
+                Session = session,
+                Project = project.Name,
+                TaskType = "chat",
+                What = what,
+                ActualFirst = actualHint,
+                CorrectedTo = correctedTo,
+                Source = "implicit",
+                UserText = (userText ?? string.Empty).Length > 400
+                    ? (userText ?? string.Empty)[..400]
+                    : (userText ?? string.Empty),
+            });
+        _episodic.AppendEvent(
+            project.Name,
+            session,
+            "implicit_correction",
+            TruncateForEpisodic(userText),
+            new { what, actual_first = actualHint, corrected_to = correctedTo });
+    }
+
+    private static string TruncateForEpisodic(string? text)
+    {
+        var t = (text ?? string.Empty).Trim();
+        return t.Length <= 300 ? t : t[..300];
+    }
+
+    private string TryConsumeNoteCorrectionFromReply(string projectName, string displayResponse, string rawResponse)
+    {
+        if (!NoteCorrectionIntentParser.TryConsume(rawResponse, out var intent, out var stripped) || intent is null)
+        {
+            return displayResponse;
+        }
+
+        var path = Projects.SelectedProject?.WindowsPath;
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            var session = _cliSessionStore.GetSessionId(projectName) ?? string.Empty;
+            _correctionLog.Append(
+                path,
+                new CorrectionLogEntry
+                {
+                    Session = session,
+                    Project = projectName,
+                    TaskType = intent.TaskType,
+                    What = intent.What,
+                    ActualFirst = intent.Actual,
+                    CorrectedTo = intent.Expected,
+                    Source = "note_correction",
+                    UserText = string.Empty,
+                });
+            _episodic.AppendEvent(
+                projectName,
+                session,
+                "note_correction",
+                TruncateForEpisodic($"{intent.What} → {intent.Expected}"),
+                new { what = intent.What, actual_first = intent.Actual, corrected_to = intent.Expected });
+        }
+
+        return string.IsNullOrWhiteSpace(stripped) ? displayResponse : stripped;
     }
 
     private static bool IsWpfLocalHarnessAction(string action) =>
@@ -1962,6 +2240,16 @@ public sealed class MainViewModel : BaseViewModel
 
     private void NotifyHermesReplyArrived(string projectName, string replyText, bool isError = false)
     {
+        if (!isError)
+        {
+            OpenCorrectionWindowAfterAgentReply();
+            _episodic.AppendEvent(
+                projectName,
+                _cliSessionStore.GetSessionId(projectName),
+                "agent_reply",
+                TruncateForEpisodic(replyText));
+        }
+
         try
         {
             if (isError)
@@ -2158,6 +2446,56 @@ public sealed class MainViewModel : BaseViewModel
     {
         var detector = new MissedScheduledTaskService(_logService, () => Settings);
         return detector.DetectMissed();
+    }
+
+    /// <summary>Mark missed task done without running automation (user already handled it).</summary>
+    public async Task<string> MarkMissedScheduledTaskCompletedAsync(MissedScheduledTaskInfo task)
+    {
+        _logService.LogInfo($"[missed-tasks] mark completed id={task.Id} kind={task.Kind}");
+        switch (task.Kind)
+        {
+            case MissedTaskKind.ReniWaterMonthly:
+            {
+                var monthKey = DateTime.Now.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+                Settings.ReniWaterLastMonthlyRunKey = monthKey;
+                await _settingsService.SaveAsync(Settings).ConfigureAwait(true);
+                AppendTerminal($"[missed-tasks] Marked monthly water submit completed for {monthKey}.");
+                return $"Marked as completed for {monthKey}. Popup will not show again this month.";
+            }
+
+            case MissedTaskKind.ReniWaterOnce:
+            {
+                var name = task.SchTaskName ?? ReniWaterSchTasksService.OnceTaskName;
+                TryDeleteSchTask(name);
+                AppendTerminal($"[missed-tasks] Marked once water submit completed; removed {name} if present.");
+                return $"Marked as completed. One-shot task «{name}» removed from Task Scheduler (if it existed).";
+            }
+
+            default:
+                return $"Unknown missed task kind: {task.Kind}";
+        }
+    }
+
+    private static void TryDeleteSchTask(string taskName)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "schtasks",
+                Arguments = $"/Delete /TN \"{taskName}\" /F",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+            };
+            using var p = Process.Start(psi);
+            p?.WaitForExit(10_000);
+        }
+        catch
+        {
+            // ignore — marking complete still clears monthly key / stops nagging for once if task gone
+        }
     }
 
     /// <summary>Run Now from missed-task popup (local Playwright path, not CLI).</summary>
@@ -3953,6 +4291,13 @@ public sealed class MainViewModel : BaseViewModel
 
         await PrependUserIfNeededAsync();
 
+        TryLogImplicitCorrection(project, agentUserPayload);
+
+        if (TryHandleApprovePendingSkill(project, agentUserPayload))
+        {
+            return;
+        }
+
         try
         {
             if (await TryHandleReniWaterLocalAsync(agentUserPayload, project.Name).ConfigureAwait(true))
@@ -3964,8 +4309,17 @@ public sealed class MainViewModel : BaseViewModel
             {
                 if (CliSessionResetTriggers.Matches(agentUserPayload))
                 {
+                    await TryRunPostSessionReflectionAsync(project).ConfigureAwait(true);
+                    var sessionId = _cliSessionStore.GetSessionId(project.Name);
+                    var batchNote = await _episodic.OnSessionClosedAsync(project.WindowsPath, project.Name, sessionId)
+                        .ConfigureAwait(true);
                     ResetCliSessionForProject(project.Name);
                     PostCliSessionResetReply(project.Name);
+                    if (!string.IsNullOrWhiteSpace(batchNote))
+                    {
+                        PostLocalHermesReply(project.Name, batchNote, publishToSupabase: false);
+                    }
+
                     return;
                 }
 
@@ -4349,7 +4703,8 @@ public sealed class MainViewModel : BaseViewModel
                 displayResponse = HermesModeAcknowledgments.TradingModeActivated;
             }
 
-            var chatDisplay = HermesReplySplit.ForChatDisplay(displayResponse);
+            var chatDisplay = HermesReplySplit.ForChatDisplay(
+                TryConsumeNoteCorrectionFromReply(project.Name, displayResponse, response));
             if (!string.IsNullOrEmpty(assistantImagePath))
             {
                 var img = ResolveExistingScreenshotPath(assistantImagePath);

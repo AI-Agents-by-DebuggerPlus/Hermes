@@ -18,6 +18,22 @@ public sealed class ProjectAgentsBootstrapService
     private const string LegacyAndroidTtsSectionMarker = "## Supabase → Android TTS";
     private const string VoiceProtocolMarker = "[Voice]";
     private const string WorkspaceProjectsMarker = "## КРИТИЧНО: куда класть продукты";
+    private const string NoteCorrectionMarker = "## Коррекции (note_correction)";
+
+    private const string NoteCorrectionSection = """
+
+        ## Коррекции (note_correction)
+
+        Если пользователь поправил ошибку (банк, сумма, роль), в том же ответе можно выдать JSON
+        (WPF запишет в `hermes/corrections.jsonl` — для будущего skill, без записи в MEMORY):
+
+        ```json
+        {"skill":"note_correction","what":"bank_name","actual":"TD","expected":"RBC Chequing","task_type":"extract_screenshot"}
+        ```
+
+        Не заменяет честный ответ. Не создаёт skill сам по себе.
+
+        """;
 
     private const string WorkspaceProjectsSection = """
 
@@ -581,6 +597,13 @@ public sealed class ProjectAgentsBootstrapService
             text += WorkspaceProjectsSection;
             patched = true;
             _log.LogInfo($"[project] patched AGENTS.md (+Projects layout) → {path}");
+        }
+
+        if (!text.Contains(NoteCorrectionMarker, StringComparison.Ordinal))
+        {
+            text += NoteCorrectionSection;
+            patched = true;
+            _log.LogInfo($"[project] patched AGENTS.md (+note_correction) → {path}");
         }
 
         // Upgrade legacy AndroidChat / Android TTS sections → [Voice] protocol (AndroidChat ≥ 1.0.41).

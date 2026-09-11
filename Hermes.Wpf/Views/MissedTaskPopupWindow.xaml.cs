@@ -4,11 +4,18 @@ using Hermes.Wpf.Models;
 
 namespace Hermes.Wpf.Views;
 
+public enum MissedTaskPopupOutcome
+{
+    Later,
+    Completed,
+    RunNow,
+}
+
 public partial class MissedTaskPopupWindow : Window
 {
     public MissedScheduledTaskInfo TaskInfo { get; }
 
-    public bool RunNowRequested { get; private set; }
+    public MissedTaskPopupOutcome Outcome { get; private set; } = MissedTaskPopupOutcome.Later;
 
     public MissedTaskPopupWindow(MissedScheduledTaskInfo task)
     {
@@ -29,14 +36,21 @@ public partial class MissedTaskPopupWindow : Window
 
     private void RunNow_OnClick(object sender, RoutedEventArgs e)
     {
-        RunNowRequested = true;
+        Outcome = MissedTaskPopupOutcome.RunNow;
+        DialogResult = true;
+        Close();
+    }
+
+    private void Completed_OnClick(object sender, RoutedEventArgs e)
+    {
+        Outcome = MissedTaskPopupOutcome.Completed;
         DialogResult = true;
         Close();
     }
 
     private void Later_OnClick(object sender, RoutedEventArgs e)
     {
-        RunNowRequested = false;
+        Outcome = MissedTaskPopupOutcome.Later;
         DialogResult = false;
         Close();
     }

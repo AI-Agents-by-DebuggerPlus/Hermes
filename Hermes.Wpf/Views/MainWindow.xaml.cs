@@ -121,11 +121,43 @@ public partial class MainWindow : Window
             {
                 Owner = this,
             };
-            var accepted = popup.ShowDialog() == true && popup.RunNowRequested;
-            if (!accepted)
+            _ = popup.ShowDialog();
+            switch (popup.Outcome)
             {
-                _logService.LogInfo($"[missed-tasks] dismissed: {task.Id}");
-                continue;
+                case MissedTaskPopupOutcome.Later:
+                    _logService.LogInfo($"[missed-tasks] Later: {task.Id}");
+                    continue;
+
+                case MissedTaskPopupOutcome.Completed:
+                    _logService.LogInfo($"[missed-tasks] Completed (manual): {task.Id}");
+                    try
+                    {
+                        var message = await vm.MarkMissedScheduledTaskCompletedAsync(task).ConfigureAwait(true);
+                        MessageBox.Show(
+                            this,
+                            message,
+                            "Completed",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logService.LogError($"[missed-tasks] Completed failed: {ex.Message}");
+                        MessageBox.Show(
+                            this,
+                            ex.Message,
+                            "Completed failed",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Error);
+                    }
+
+                    continue;
+
+                case MissedTaskPopupOutcome.RunNow:
+                    break;
+
+                default:
+                    continue;
             }
 
             _logService.LogInfo($"[missed-tasks] Run Now requested: {task.Id}");
@@ -135,7 +167,7 @@ public partial class MainWindow : Window
                 MessageBox.Show(
                     this,
                     message,
-                    ok ? "Задача выполнена" : "Ошибка выполнения",
+                    ok ? "Task finished" : "Run failed",
                     MessageBoxButton.OK,
                     ok ? MessageBoxImage.Information : MessageBoxImage.Warning);
             }
@@ -145,7 +177,7 @@ public partial class MainWindow : Window
                 MessageBox.Show(
                     this,
                     ex.Message,
-                    "Ошибка Run Now",
+                    "Run Now failed",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
